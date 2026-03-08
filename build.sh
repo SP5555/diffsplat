@@ -1,0 +1,7 @@
+#!/bin/bash
+
+mkdir -p build
+cd build
+
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=86
+make -j$(nproc)

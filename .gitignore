@@ -1,0 +1,26 @@
+# BUILD
+build/
+out/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# CUDA
+*.cubin
+*.fatbin
+*.ptx
+
+# Compiled Outputs
+*.o
+*.a
+*.so
+
+# Editor
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
