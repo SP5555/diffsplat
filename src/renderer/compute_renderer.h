@@ -8,8 +8,8 @@
 // screen is divided into this amount of tiles
 // each tile gets a list of contributing splats
 // which are sorted by depth and rendered in the forward pass
-#define NUM_TILES_X 32
-#define NUM_TILES_Y 32
+#define NUM_TILES_X 64
+#define NUM_TILES_Y 64
 #define MAX_PAIRS (NUM_TILES_X * NUM_TILES_Y * 64) // estimate
 
 class ComputeRenderer
@@ -19,7 +19,10 @@ public:
     ~ComputeRenderer();
 
     void init(int width, int height);
-    void render(GaussianParams &gaussians);
+    void loadTargetImage(const std::string &imagePath, int width, int height);
+    void randomInitGaussians(int count);
+    void render();
+    void free();
 
 private:
     void initGL();
@@ -34,6 +37,10 @@ private:
         return MAX_PAIRS;
     }
 
+    // Gaussian data
+    GaussianParams gaussianParams;
+    GaussianOptState gaussianOptState;
+
     // CUDA buffers
     float*      d_pixels        = nullptr;  // [H * W * 3]
     float*      d_T_final       = nullptr;  // [H * W]
@@ -45,6 +52,8 @@ private:
     uint32_t*   d_values_sorted = nullptr;  // [max_pairs]
     uint32_t*   d_pair_count    = nullptr;  // [1] atomic
     int2*       d_tile_ranges   = nullptr;  // [NUM_TILES_X * NUM_TILES_Y]
+
+    float*      d_target_rgb    = nullptr;  // [H * W * 3]
 
     // temporary stuff interally used by CUB Radix Sort
     // for some reason, we have to provide them

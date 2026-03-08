@@ -10,7 +10,10 @@ static void glfwErrorCallback(int error, const char *description)
     std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
 }
 
-App::App(int w, int h) : width(w), height(h)
+App::App(int w, int h, const std::string &imagePath) :
+    width(w),
+    height(h),
+    imagePath(imagePath)
 {
     glfwSetErrorCallback(glfwErrorCallback);
 
@@ -40,10 +43,15 @@ App::App(int w, int h) : width(w), height(h)
         throw std::runtime_error("Failed to initialize GLAD");
     }
 
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties_v2(&deviceProp, 0);
+
     std::cout << "[App] OpenGL " << glGetString(GL_VERSION) << "\n"
-              << "[App] GPU: " << glGetString(GL_RENDERER) << "\n";
+              << "[App] OpenGL Renderer: " << glGetString(GL_RENDERER) << "\n"
+              << "[App] CUDA Device: " << deviceProp.name << "\n";
 
     Input::install(window, &input);
+    renderer.loadTargetImage(imagePath, width, height);
     renderer.init(width, height);
 }
 
@@ -53,14 +61,15 @@ App::~App()
         glfwDestroyWindow(window);
 
     glfwTerminate();
+
+    renderer.free();
 }
 
 void App::start()
 {
     lastFrameTime = glfwGetTime();
 
-    gaussianParams = GaussianParams::randomInit(100);
-    gaussianOptState.allocateDeviceMem(gaussianParams.count);
+    renderer.randomInitGaussians(1024);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -71,7 +80,7 @@ void App::start()
         lastFrameTime = currentTime;
 
         handleInput();
-        renderer.render(gaussianParams);
+        renderer.render();
 
         glfwSwapBuffers(window);
         input.flush();

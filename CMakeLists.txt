@@ -38,6 +38,7 @@ set(CPP_SOURCES
     src/app/app.cpp
     src/input/input.cpp
     src/renderer/compute_renderer.cpp
+    src/loaders/image_loader.cpp
 )
 
 set(CUDA_SOURCES

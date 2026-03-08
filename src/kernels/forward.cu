@@ -58,6 +58,10 @@ __global__ void forwardKernel(
 
     bool inside = (pixel_x < screen_width && pixel_y < screen_height);
 
+    if (!inside) {
+        return;
+    }
+
     float ndc_x = (2.0f * (pixel_x + 0.5f) / (float)screen_width) - 1.0f;
     float ndc_y = (2.0f * (pixel_y + 0.5f) / (float)screen_height) - 1.0f;
 
@@ -67,30 +71,31 @@ __global__ void forwardKernel(
     float T = 1.0f;
     int contrib = 0;
 
-    for (int idx = range.x; idx < range.y && inside; idx++)
+    for (int idx = range.x; idx < range.y; idx++)
     {
         uint32_t sid = values_sorted[idx];
 
         float dx = ndc_x - pos_x[sid];
         float dy = ndc_y - pos_y[sid];
 
-        float a = cov_a[sid];
-        float bv = cov_b[sid];
-        float d = cov_d[sid];
-        float det = a * d - bv * bv;
+        float cxx = cov_a[sid];
+        float cxy = cov_b[sid];
+        float cyy = cov_d[sid];
+        float det = cxx * cyy - cxy * cxy;
         if (det <= 0.f)
             continue;
 
         float inv_det = 1.0f / det;
-        float ia = d * inv_det;
-        float ib = -bv * inv_det;
-        float id_ = a * inv_det;
+        float inv_cxx = cyy * inv_det;
+        float inv_cxy = -cxy * inv_det;
+        float inv_cyy = cxx * inv_det;
 
-        float maha = dx * (ia * dx + ib * dy) + dy * (ib * dx + id_ * dy);
-        if (maha > 9.0f)
+        // maahalanobis distance squared
+        float dist2 = dx * dx * inv_cxx + 2.0f * dx * dy * inv_cxy + dy * dy * inv_cyy;
+        if (dist2 > 9.0f)
             continue;
 
-        float alpha = fminf(0.99f, opacity[sid] * expf(-0.5f * maha));
+        float alpha = fminf(0.99f, opacity[sid] * expf(-0.5f * dist2));
         if (alpha < ALPHA_THRESHOLD)
             continue;
 
@@ -104,15 +109,12 @@ __global__ void forwardKernel(
             break;
     }
 
-    if (inside)
-    {
-        int pidx = pixel_y * screen_width + pixel_x;
-        d_pixels[pidx * 3 + 0] = C_r;
-        d_pixels[pidx * 3 + 1] = C_g;
-        d_pixels[pidx * 3 + 2] = C_b;
-        d_T_final[pidx] = T;
-        d_n_contrib[pidx] = contrib;
-    }
+    int pidx = pixel_y * screen_width + pixel_x;
+    d_pixels[pidx * 3 + 0] = C_r;
+    d_pixels[pidx * 3 + 1] = C_g;
+    d_pixels[pidx * 3 + 2] = C_b;
+    d_T_final[pidx] = T;
+    d_n_contrib[pidx] = contrib;
 }
 
 void launchForward(

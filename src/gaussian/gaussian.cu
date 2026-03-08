@@ -75,14 +75,14 @@ GaussianParams GaussianParams::randomInit(int n, int seed)
     {
         g.x = rnd();
         g.y = rnd();
-        g.z = 0.f;       // Z unused in 2D
+        g.z = rnd();
         g.cov_a = 0.001f; // small isotropic covariance to start
         g.cov_b = 0.f;
         g.cov_d = 0.001f;
         g.r = rndu();
         g.g = rndu();
         g.b = rndu();
-        g.opacity = 0.5f + 0.5f * rndu();
+        g.opacity = 0.8f + 0.2f * rndu();
     }
 
     GaussianParams data;

@@ -1,4 +1,5 @@
 #include "compute_renderer.h"
+#include "../loaders/image_loader.h"
 #include "../kernels/forward.cuh"
 #include "../kernels/tile_assign.cuh"
 #include "../kernels/sort.cuh"
@@ -97,8 +98,30 @@ void ComputeRenderer::initCUDA()
     cudaMalloc(&d_tile_ranges, numTiles * sizeof(int2));
 }
 
+void ComputeRenderer::loadTargetImage(const std::string &imagePath, int width, int height)
+{
+    auto image = ImageLoader::load(imagePath, width, height);
+    if (image.pixels.empty())
+    {
+        throw std::runtime_error("Failed to load target image: " + imagePath);
+    }
+
+    cudaMalloc(&d_target_rgb, width * height * 3 * sizeof(float));
+    cudaMemcpy(
+        d_target_rgb, image.pixels.data(),
+        width * height * 3 * sizeof(float),
+        cudaMemcpyHostToDevice
+    );
+}
+
+void ComputeRenderer::randomInitGaussians(int count)
+{
+    gaussianParams = GaussianParams::randomInit(count);
+    gaussianOptState.allocateDeviceMem(gaussianParams.count);
+}
+
 // Render
-void ComputeRenderer::render(GaussianParams &gaussians)
+void ComputeRenderer::render()
 {
     int numTiles = NUM_TILES_X * NUM_TILES_Y;
 
@@ -109,7 +132,7 @@ void ComputeRenderer::render(GaussianParams &gaussians)
 
     // tile assignment: emit (key, value) pairs
     launchTileAssign(
-        gaussians,
+        gaussianParams,
         d_keys, d_values, d_pair_count, maxPairs(),
         NUM_TILES_X, NUM_TILES_Y,
         width, height);
@@ -142,7 +165,7 @@ void ComputeRenderer::render(GaussianParams &gaussians)
 
         // forward rasterizer
         launchForward(
-            gaussians,
+            gaussianParams,
             d_values_sorted,
             d_tile_ranges,
             d_pixels, d_T_final, d_n_contrib,
@@ -161,6 +184,24 @@ void ComputeRenderer::render(GaussianParams &gaussians)
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
+}
+
+void ComputeRenderer::free()
+{
+    gaussianParams.free();
+    gaussianOptState.free();
+
+    cudaFree(d_pixels);
+    cudaFree(d_T_final);
+    cudaFree(d_n_contrib);
+    cudaFree(d_keys);
+    cudaFree(d_values);
+    cudaFree(d_pair_count);
+    cudaFree(d_keys_sorted);
+    cudaFree(d_values_sorted);
+    cudaFree(d_tile_ranges);
+    if (d_sort_temp)  cudaFree(d_sort_temp);
+    if (d_target_rgb) cudaFree(d_target_rgb);
 }
 
 void ComputeRenderer::uploadToTexture()

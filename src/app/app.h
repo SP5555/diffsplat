@@ -7,7 +7,7 @@
 class App
 {
 public:
-    App(int w, int h);
+    App(int w, int h, const std::string &imagePath);
     ~App();
 
     void start();
@@ -18,12 +18,10 @@ private:
     GLFWwindow* window;
     int width = 1280;
     int height = 720;
+    std::string imagePath;
 
     Input input;
     ComputeRenderer renderer;
-
-    GaussianParams gaussianParams;
-    GaussianOptState gaussianOptState;
 
     double lastFrameTime = 0.0;
     float overlayAccum = 0.f;

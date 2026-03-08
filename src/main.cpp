@@ -11,8 +11,13 @@ int main(int argc, char *argv[])
         height = std::atoi(argv[2]);
     }
 
+    std::string imagePath = "../img/target.jpg";
+    if (argc >= 4) {
+        imagePath = argv[3];
+    }
+
     try {
-        App app(width, height);
+        App app(width, height, imagePath);
         app.start();
     }
     catch (const std::exception &e)
