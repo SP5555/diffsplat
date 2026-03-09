@@ -1,11 +1,15 @@
 #include "compute_renderer.h"
-#include "../loaders/image_loader.h"
-#include "../kernels/forward.cuh"
-#include "../kernels/tile_assign.cuh"
-#include "../kernels/sort.cuh"
 #include <cuda_runtime.h>
 #include <iostream>
 #include <vector>
+#include <chrono>
+
+#include "../loaders/image_loader.h"
+#include "../kernels/tile_assign.cuh"
+#include "../kernels/sort.cuh"
+#include "../kernels/forward.cuh"
+#include "../kernels/backward.cuh"
+#include "../kernels/adam.cuh"
 
 static const float QUAD[] = {
     // x,    y,    u,    v,
@@ -49,6 +53,8 @@ void ComputeRenderer::init(int w, int h)
     std::cout << "[ComputeRenderer] Init " << w << "x" << h
               << " tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
               << " maxPairs=" << maxPairs() << "\n";
+    
+
 }
 
 // Super Ultra Boilerplate Pro-Max OpenGL DOOM
@@ -106,17 +112,20 @@ void ComputeRenderer::loadTargetImage(const std::string &imagePath, int width, i
         throw std::runtime_error("Failed to load target image: " + imagePath);
     }
 
-    cudaMalloc(&d_target_rgb, width * height * 3 * sizeof(float));
+    cudaMalloc(&d_target_pixels, width * height * 3 * sizeof(float));
     cudaMemcpy(
-        d_target_rgb, image.pixels.data(),
+        d_target_pixels, image.pixels.data(),
         width * height * 3 * sizeof(float),
         cudaMemcpyHostToDevice
     );
 }
 
-void ComputeRenderer::randomInitGaussians(int count)
+void ComputeRenderer::randomInitGaussians(int count, int seed)
 {
-    gaussianParams = GaussianParams::randomInit(count);
+    if (seed < 0)
+        seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
+
+    gaussianParams = GaussianParams::randomInit(count, width, height, seed);
     gaussianOptState.allocateDeviceMem(gaussianParams.count);
 }
 
@@ -130,13 +139,20 @@ void ComputeRenderer::render()
     cudaMemset(d_pair_count, 0, sizeof(uint32_t));
     cudaMemset(d_tile_ranges, 0, numTiles * sizeof(int2));
 
+    gaussianOptState.zeroGradients();
+
     // tile assignment: emit (key, value) pairs
     launchTileAssign(
         gaussianParams,
-        d_keys, d_values, d_pair_count, maxPairs(),
-        NUM_TILES_X, NUM_TILES_Y,
-        width, height);
-    cudaDeviceSynchronize();
+        d_keys,
+        d_values,
+        d_pair_count,
+        maxPairs(),
+        NUM_TILES_X,
+        NUM_TILES_Y,
+        width,
+        height
+    );
 
     // read back pair count (need it on CPU for sort)
     uint32_t pair_count = 0;
@@ -151,26 +167,59 @@ void ComputeRenderer::render()
     {
         // sort pairs by key (tile_id | depth)
         launchSort(
-            d_keys, d_values,
-            d_keys_sorted, d_values_sorted,
+            d_keys,
+            d_values,
+            d_keys_sorted,
+            d_values_sorted,
             pair_count,
-            &d_sort_temp, &sort_temp_bytes);
+            &d_sort_temp,
+            &sort_temp_bytes
+        );
 
         // build tile ranges from sorted keys
         launchBuildTileRanges(
             d_keys_sorted,
             d_tile_ranges,
             pair_count,
-            numTiles);
+            numTiles
+        );
 
         // forward rasterizer
         launchForward(
             gaussianParams,
             d_values_sorted,
             d_tile_ranges,
-            d_pixels, d_T_final, d_n_contrib,
-            NUM_TILES_X, NUM_TILES_Y,
-            width, height
+            d_pixels,
+            d_T_final,
+            d_n_contrib,
+            NUM_TILES_X,
+            NUM_TILES_Y,
+            width,
+            height
+        );
+
+        // backward pass to compute gradients
+        launchBackward(
+            gaussianParams,
+            gaussianOptState,
+            d_target_pixels,
+            d_values_sorted,
+            d_tile_ranges,
+            d_pixels,
+            d_T_final,
+            d_n_contrib,
+            NUM_TILES_X,
+            NUM_TILES_Y,
+            width,
+            height
+        );
+
+        // optimizer step (Adam)
+        launchAdam(
+            gaussianParams,
+            gaussianOptState,
+            adamConfig,
+            ++iterCount
         );
 
         cudaDeviceSynchronize();
@@ -191,17 +240,19 @@ void ComputeRenderer::free()
     gaussianParams.free();
     gaussianOptState.free();
 
-    cudaFree(d_pixels);
-    cudaFree(d_T_final);
-    cudaFree(d_n_contrib);
-    cudaFree(d_keys);
-    cudaFree(d_values);
-    cudaFree(d_pair_count);
-    cudaFree(d_keys_sorted);
-    cudaFree(d_values_sorted);
-    cudaFree(d_tile_ranges);
-    if (d_sort_temp)  cudaFree(d_sort_temp);
-    if (d_target_rgb) cudaFree(d_target_rgb);
+    auto f = [](void *p)
+    { if (p) cudaFree(p); };
+    f(d_pixels);
+    f(d_T_final);
+    f(d_n_contrib);
+    f(d_keys);
+    f(d_values);
+    f(d_pair_count);
+    f(d_keys_sorted);
+    f(d_values_sorted);
+    f(d_tile_ranges);
+    f(d_sort_temp);
+    f(d_target_pixels);
 }
 
 void ComputeRenderer::uploadToTexture()

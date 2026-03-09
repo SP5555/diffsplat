@@ -49,7 +49,9 @@ struct GaussianParams
     void free();
 
     // Random init: splats scattered in NDC [-1, 1], small covariance
-    static GaussianParams randomInit(int n, int seed = 42);
+    // width and height are good to have for aspect ratio correction of
+    // initial splat distribution
+    static GaussianParams randomInit(int n, int width, int height, int seed = 42);
 };
 
 /**

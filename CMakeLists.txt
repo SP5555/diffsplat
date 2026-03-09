@@ -43,9 +43,11 @@ set(CPP_SOURCES
 
 set(CUDA_SOURCES
     src/gaussian/gaussian.cu
-    src/kernels/forward.cu
     src/kernels/tile_assign.cu
     src/kernels/sort.cu
+    src/kernels/forward.cu
+    src/kernels/backward.cu
+    src/kernels/adam.cu
 )
 
 # Executable

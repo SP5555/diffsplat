@@ -6,11 +6,14 @@
 /**
  * @brief Creates a 64-bit key tile_id and depth for radix sorting.
  *
- * Dudes from IEEE guarantee that reinterpreting a positive float as uint preserves
- * sort order, so radix sort on the key = sort by tile first, then by depth.
+ * Dudes from IEEE guarantee that reinterpreting a positive float as uint
+ * preserves sort order, so radix sort on the key = sort by tile first,
+ * then by depth.
  *
- * @param[in] tile_id   ID of the tile this splat overlaps with (0-based, row-major)
- * @param[in] depth     Depth of the splat (Z in NDC [-1, 1] with -1 near and 1 far)
+ * @param[in] tile_id   ID of the tile this splat overlaps with
+ *                      (0-based, row-major)
+ * @param[in] depth     Depth of the splat
+ *                      (Z in NDC [-1, 1] with -1 near and 1 far)
  * @return              64-bit key for radix sorting
  */
 __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
@@ -25,7 +28,14 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
 }
 
 /**
- * @brief CUDA kernel to assign splats to screen tiles and emit key-value pairs for sorting. 
+ * @brief CUDA kernel to assign splats to screen tiles and emit
+ * key-value pairs for sorting. 
+ * 
+ * One thread is launched per splat.
+ * 
+ * Each thread computes the screen-space bounding box of its splat
+ * based on position and covariance, determines which tiles it overlaps,
+ * and emits a key-value pair
  * 
  * @param[in] pos_x         X positions of splats in NDC [-1, 1]
  * @param[in] pos_y         Y positions of splats in NDC [-1, 1]
@@ -153,10 +163,8 @@ void launchTileAssign(
     if (gaussians.count == 0)
         return;
 
-    // Launch one thread per splat
     int threads = 256;
     int blocks = (gaussians.count + threads - 1) / threads;
-
     tileAssignKernel<<<blocks, threads>>>(
         gaussians.pos_x, gaussians.pos_y, gaussians.pos_z,
         gaussians.cov_a, gaussians.cov_b, gaussians.cov_d,
@@ -170,4 +178,5 @@ void launchTileAssign(
         width,
         height
     );
+    cudaDeviceSynchronize();
 }

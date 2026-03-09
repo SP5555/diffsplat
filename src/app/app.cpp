@@ -27,7 +27,7 @@ App::App(int w, int h, const std::string &imagePath) :
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    window = glfwCreateWindow(width, height, "2DGS CUDA", nullptr, nullptr);
+    window = glfwCreateWindow(width, height, "Diffsplat", nullptr, nullptr);
     if (!window)
     {
         glfwTerminate();
@@ -69,7 +69,7 @@ void App::start()
 {
     lastFrameTime = glfwGetTime();
 
-    renderer.randomInitGaussians(1024);
+    renderer.randomInitGaussians(80000);
 
     while (!glfwWindowShouldClose(window))
     {

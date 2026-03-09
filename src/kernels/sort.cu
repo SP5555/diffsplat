@@ -40,6 +40,8 @@ void launchSort(
         d_keys, d_keys_sorted,
         d_values, d_values_sorted,
         (int)pair_count);
+
+    cudaDeviceSynchronize();
 }
 
 /**
@@ -99,4 +101,5 @@ void launchBuildTileRanges(
     int blocks = ((int)pair_count + threads - 1) / threads;
     buildTileRangesKernel<<<blocks, threads>>>(
         d_keys_sorted, d_tile_ranges, pair_count, num_tiles);
+    cudaDeviceSynchronize();
 }

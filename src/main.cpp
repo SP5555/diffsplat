@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
         height = std::atoi(argv[2]);
     }
 
-    std::string imagePath = "../img/target.jpg";
+    std::string imagePath = "../img/torii_moon.jpg";
     if (argc >= 4) {
         imagePath = argv[3];
     }

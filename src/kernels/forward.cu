@@ -9,6 +9,8 @@
 /**
  * @brief Forward rasterization kernel
  * 
+ * One thread is launched per pixel.
+ * 
  * Iterates over sorted splats per tile, alpha compositing front-to-back.
  * Stores final pixel colors and T values for backward pass.
  * 
@@ -124,8 +126,10 @@ void launchForward(
     float *d_pixels,
     float *d_T_final,
     int *d_n_contrib,
-    int num_tiles_x, int num_tiles_y,
-    int screen_width, int screen_height)
+    int num_tiles_x,
+    int num_tiles_y,
+    int screen_width,
+    int screen_height)
 {
     (void)num_tiles_y;
 
@@ -134,7 +138,6 @@ void launchForward(
         (screen_width + threads.x - 1) / threads.x,
         (screen_height + threads.y - 1) / threads.y
     );
-
     forwardKernel<<<blocks, threads>>>(
         gaussians.pos_x, gaussians.pos_y,
         gaussians.cov_a, gaussians.cov_b, gaussians.cov_d,
@@ -145,4 +148,5 @@ void launchForward(
         num_tiles_x, num_tiles_y,
         screen_width, screen_height
     );
+    cudaDeviceSynchronize();
 }

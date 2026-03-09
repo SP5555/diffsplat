@@ -12,12 +12,12 @@ static float *deviceAlloc(int n)
 
 void GaussianParams::allocateDeviceMem(int n)
 {
-    count = n;
-
     pos_x = deviceAlloc(n); pos_y = deviceAlloc(n); pos_z = deviceAlloc(n);
     cov_a = deviceAlloc(n); cov_b = deviceAlloc(n); cov_d = deviceAlloc(n);
     color_r = deviceAlloc(n); color_g = deviceAlloc(n); color_b = deviceAlloc(n);
     opacity = deviceAlloc(n);
+
+    count = n;
 }
 
 void GaussianParams::upload(const std::vector<Gaussian3D> &host)
@@ -60,7 +60,7 @@ void GaussianParams::free()
     count = 0;
 }
 
-GaussianParams GaussianParams::randomInit(int n, int seed)
+GaussianParams GaussianParams::randomInit(int n, int width, int height, int seed)
 {
     srand(seed);
     // [-1, 1]
@@ -70,15 +70,17 @@ GaussianParams GaussianParams::randomInit(int n, int seed)
     auto rndu = []()
     { return (float)rand() / RAND_MAX; };
 
+    float invAspect = (float)height / (float)width;
     std::vector<Gaussian3D> host(n);
     for (auto &g : host)
     {
         g.x = rnd();
         g.y = rnd();
         g.z = rnd();
-        g.cov_a = 0.001f; // small isotropic covariance to start
+        // small isotropic covariance to start
+        g.cov_a = (1e-6f + 4e-5f * rndu()) * invAspect * invAspect;
         g.cov_b = 0.f;
-        g.cov_d = 0.001f;
+        g.cov_d = 1e-6f + 4e-5f * rndu();
         g.r = rndu();
         g.g = rndu();
         g.b = rndu();
@@ -107,6 +109,8 @@ void GaussianOptState::allocateDeviceMem(int n)
     m_color_g = deviceAlloc(n); v_color_g = deviceAlloc(n);
     m_color_b = deviceAlloc(n); v_color_b = deviceAlloc(n);
     m_opacity = deviceAlloc(n); v_opacity = deviceAlloc(n);
+
+    count = n;
 }
 
 void GaussianOptState::zeroGradients()
