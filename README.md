@@ -32,8 +32,11 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 
-# Run
-./2dgs_cuda 1280 720 path/to/target/image.png # jpg works too
+# Run with default demo
+./2dgs_cuda
+
+# Run with custom resolution and target image
+./2dgs_cuda -w 1280 -h 720 -i path/to/target/image.png # jpg works too
 ```
 
 > Adjust `CMAKE_CUDA_ARCHITECTURES` in `CMakeLists.txt` to match your GPU.
