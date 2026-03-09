@@ -5,6 +5,7 @@
 #include <chrono>
 
 #include "../loaders/image_loader.h"
+#include "../utils/cuda_utils.h"
 #include "../kernels/tile_assign.cuh"
 #include "../kernels/sort.cuh"
 #include "../kernels/forward.cuh"
@@ -26,22 +27,8 @@ static GLuint buildDisplayProgram();
 
 ComputeRenderer::~ComputeRenderer()
 {
-    cudaFree(d_pixels);
-    cudaFree(d_T_final);
-    cudaFree(d_n_contrib);
-    cudaFree(d_keys);
-    cudaFree(d_values);
-    cudaFree(d_pair_count);
-    cudaFree(d_keys_sorted);
-    cudaFree(d_values_sorted);
-    cudaFree(d_tile_ranges);
-    if (d_sort_temp)
-        cudaFree(d_sort_temp);
-
-    glDeleteTextures(1, &texture);
-    glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
-    glDeleteProgram(shader_program);
+    freeCUDA();
+    freeGL();
 }
 
 void ComputeRenderer::init(int w, int h)
@@ -53,8 +40,6 @@ void ComputeRenderer::init(int w, int h)
     std::cout << "[ComputeRenderer] Init " << w << "x" << h
               << " tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
               << " maxPairs=" << maxPairs() << "\n";
-    
-
 }
 
 // Super Ultra Boilerplate Pro-Max OpenGL DOOM
@@ -228,24 +213,30 @@ void ComputeRenderer::render()
     }
 }
 
-void ComputeRenderer::free()
+void ComputeRenderer::freeCUDA()
 {
     gaussianParams.free();
     gaussianOptState.free();
 
-    auto f = [](void *p)
-    { if (p) cudaFree(p); };
-    f(d_pixels);
-    f(d_T_final);
-    f(d_n_contrib);
-    f(d_keys);
-    f(d_values);
-    f(d_pair_count);
-    f(d_keys_sorted);
-    f(d_values_sorted);
-    f(d_tile_ranges);
-    f(d_sort_temp);
-    f(d_target_pixels);
+    CUDA_FREE(d_pixels);
+    CUDA_FREE(d_T_final);
+    CUDA_FREE(d_n_contrib);
+    CUDA_FREE(d_keys);
+    CUDA_FREE(d_values);
+    CUDA_FREE(d_pair_count);
+    CUDA_FREE(d_keys_sorted);
+    CUDA_FREE(d_values_sorted);
+    CUDA_FREE(d_tile_ranges);
+    CUDA_FREE(d_sort_temp);
+    CUDA_FREE(d_target_pixels);
+}
+
+void ComputeRenderer::freeGL()
+{
+    if (texture)        { glDeleteTextures(1, &texture);    texture = 0; }
+    if (vao)            { glDeleteVertexArrays(1, &vao);    vao = 0; }
+    if (vbo)            { glDeleteBuffers(1, &vbo);         vbo = 0; }
+    if (shader_program) { glDeleteProgram(shader_program);  shader_program = 0; }
 }
 
 int ComputeRenderer::getIterCount()

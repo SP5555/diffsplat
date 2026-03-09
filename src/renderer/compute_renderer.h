@@ -11,7 +11,7 @@
 // which are sorted by depth and rendered in the forward pass
 #define NUM_TILES_X 64
 #define NUM_TILES_Y 64
-#define MAX_PAIRS (NUM_TILES_X * NUM_TILES_Y * 512) // estimate
+#define MAX_PAIRS (NUM_TILES_X * NUM_TILES_Y * 1024) // estimate
 
 class ComputeRenderer
 {
@@ -23,7 +23,8 @@ public:
     void loadTargetImage(const std::string &imagePath, int width, int height);
     void randomInitGaussians(int count, int seed = -1);
     void render();
-    void free();
+    void freeCUDA();
+    void freeGL();
     int getIterCount();
 
 private:

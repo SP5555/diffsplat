@@ -2,6 +2,8 @@
 #include <cstring>
 #include <cmath>
 
+#include "../utils/cuda_utils.h"
+
 static float *deviceAlloc(int n)
 {
     float *ptr = nullptr;
@@ -50,12 +52,10 @@ void GaussianParams::upload(const std::vector<Gaussian3D> &host)
 
 void GaussianParams::free()
 {
-    auto f = [](float *p)
-    { if (p) cudaFree(p); };
-    f(pos_x); f(pos_y); f(pos_z);
-    f(cov_a); f(cov_b); f(cov_d);
-    f(color_r); f(color_g); f(color_b);
-    f(opacity);
+    CUDA_FREE(pos_x); CUDA_FREE(pos_y); CUDA_FREE(pos_z);
+    CUDA_FREE(cov_a); CUDA_FREE(cov_b); CUDA_FREE(cov_d);
+    CUDA_FREE(color_r); CUDA_FREE(color_g); CUDA_FREE(color_b);
+    CUDA_FREE(opacity);
 
     count = 0;
 }
@@ -84,7 +84,7 @@ GaussianParams GaussianParams::randomInit(int n, int width, int height, int seed
         g.r = rndu();
         g.g = rndu();
         g.b = rndu();
-        g.opacity = 0.8f + 0.2f * rndu();
+        g.opacity = 0.6f + 0.4f * rndu();
     }
 
     GaussianParams data;
@@ -125,22 +125,20 @@ void GaussianOptState::zeroGradients()
 
 void GaussianOptState::free()
 {
-    auto f = [](float *p)
-    { if (p) cudaFree(p); };
-    f(grad_pos_x); f(grad_pos_y);
-    f(grad_cov_a); f(grad_cov_b); f(grad_cov_d);
-    f(grad_color_r); f(grad_color_g); f(grad_color_b);
-    f(grad_opacity);
+    CUDA_FREE(grad_pos_x); CUDA_FREE(grad_pos_y);
+    CUDA_FREE(grad_cov_a); CUDA_FREE(grad_cov_b); CUDA_FREE(grad_cov_d);
+    CUDA_FREE(grad_color_r); CUDA_FREE(grad_color_g); CUDA_FREE(grad_color_b);
+    CUDA_FREE(grad_opacity);
 
-    f(m_pos_x); f(v_pos_x);
-    f(m_pos_y); f(v_pos_y);
-    f(m_cov_a); f(v_cov_a);
-    f(m_cov_b); f(v_cov_b);
-    f(m_cov_d); f(v_cov_d);
-    f(m_color_r); f(v_color_r);
-    f(m_color_g); f(v_color_g);
-    f(m_color_b); f(v_color_b);
-    f(m_opacity); f(v_opacity);
+    CUDA_FREE(m_pos_x); CUDA_FREE(v_pos_x);
+    CUDA_FREE(m_pos_y); CUDA_FREE(v_pos_y);
+    CUDA_FREE(m_cov_a); CUDA_FREE(v_cov_a);
+    CUDA_FREE(m_cov_b); CUDA_FREE(v_cov_b);
+    CUDA_FREE(m_cov_d); CUDA_FREE(v_cov_d);
+    CUDA_FREE(m_color_r); CUDA_FREE(v_color_r);
+    CUDA_FREE(m_color_g); CUDA_FREE(v_color_g);
+    CUDA_FREE(m_color_b); CUDA_FREE(v_color_b);
+    CUDA_FREE(m_opacity); CUDA_FREE(v_opacity);
 
     count = 0;
 }

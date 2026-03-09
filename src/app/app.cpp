@@ -57,12 +57,13 @@ App::App(int w, int h, const std::string &imagePath) :
 
 App::~App()
 {
+    renderer.freeCUDA();
+    renderer.freeGL();
+
     if (window)
         glfwDestroyWindow(window);
 
     glfwTerminate();
-
-    renderer.free();
 }
 
 void App::start()

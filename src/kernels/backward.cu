@@ -81,12 +81,6 @@ __global__ void backwardKernel(
 
     int pixel_idx = pixel_y * screen_width + pixel_x;
 
-    // MSE loss gradient w.r.t. pixel color
-    float scale = 1.f / (screen_width * screen_height);
-    float dL_dCr = scale * 2.f * (d_pixels[3 * pixel_idx + 0] - d_target_pixels[3 * pixel_idx + 0]);
-    float dL_dCg = scale * 2.f * (d_pixels[3 * pixel_idx + 1] - d_target_pixels[3 * pixel_idx + 1]);
-    float dL_dCb = scale * 2.f * (d_pixels[3 * pixel_idx + 2] - d_target_pixels[3 * pixel_idx + 2]);
-
     // recover tile ID, tile range and pixel NDC
     int tile_x = (pixel_x * num_tiles_x) / screen_width;
     int tile_y = (pixel_y * num_tiles_y) / screen_height;
@@ -101,7 +95,7 @@ __global__ void backwardKernel(
     // T_final is the final transmittance after compositing all contributing splats
     // then traverse them in reverse order using division trick.
 
-    // first pass: collect the contributing splat indices in order
+    // small preparation pass: collect the contributing splat indices in order
     const int MAX_CONTRIB = 128;
     uint32_t contrib_indices[MAX_CONTRIB];
     int contributed_splats = 0;
@@ -136,9 +130,14 @@ __global__ void backwardKernel(
     }
 
     // backward pass
+    // MSE loss gradient w.r.t. pixel color
+    float scale = 1.f / (screen_width * screen_height);
+    float dL_dCr = scale * 2.f * (d_pixels[3 * pixel_idx + 0] - d_target_pixels[3 * pixel_idx + 0]);
+    float dL_dCg = scale * 2.f * (d_pixels[3 * pixel_idx + 1] - d_target_pixels[3 * pixel_idx + 1]);
+    float dL_dCb = scale * 2.f * (d_pixels[3 * pixel_idx + 2] - d_target_pixels[3 * pixel_idx + 2]);
+
     // start from T_final and recover T_i by dividing out (1 - alpha_i)
     // in reverse order, going from the last splat to the first.
-
     float T_after = d_T_final[pixel_idx];
     float C_back_r = 0.f;
     float C_back_g = 0.f;
