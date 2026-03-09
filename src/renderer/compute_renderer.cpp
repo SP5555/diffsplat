@@ -90,6 +90,8 @@ void ComputeRenderer::initCUDA()
     int pairs = maxPairs();
     int numTiles = NUM_TILES_X * NUM_TILES_Y;
 
+    h_pixels.resize(pixels * 3);
+
     cudaMalloc(&d_pixels, pixels * 3 * sizeof(float));
     cudaMalloc(&d_T_final, pixels * sizeof(float));
     cudaMalloc(&d_n_contrib, pixels * sizeof(int));
@@ -161,7 +163,7 @@ void ComputeRenderer::render()
     if (pair_count == 0)
     {
         // no splats visible, just clear to black and display
-        uploadToTexture();
+        displayFrame();
     }
     else
     {
@@ -222,17 +224,8 @@ void ComputeRenderer::render()
             ++iterCount
         );
 
-        cudaDeviceSynchronize();
-        uploadToTexture();
+        displayFrame();
     }
-
-    // Draw fullscreen quad
-    glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(shader_program);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
 }
 
 void ComputeRenderer::free()
@@ -255,19 +248,31 @@ void ComputeRenderer::free()
     f(d_target_pixels);
 }
 
-void ComputeRenderer::uploadToTexture()
+int ComputeRenderer::getIterCount()
 {
-    std::vector<float> host(width * height * 3);
+    return iterCount;
+}
+
+void ComputeRenderer::displayFrame()
+{
     cudaMemcpy(
-        host.data(),
+        h_pixels.data(),
         d_pixels,
         width * height * 3 * sizeof(float),
         cudaMemcpyDeviceToHost
     );
     glBindTexture(GL_TEXTURE_2D, texture);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
-                    width, height, GL_RGB, GL_FLOAT, host.data());
+                    width, height, GL_RGB, GL_FLOAT, h_pixels.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Draw fullscreen quad
+    glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(shader_program);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
 }
 
 /* ===== ===== GL Boilerplate ===== ===== */

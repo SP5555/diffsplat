@@ -78,9 +78,9 @@ GaussianParams GaussianParams::randomInit(int n, int width, int height, int seed
         g.y = rnd();
         g.z = rnd();
         // small isotropic covariance to start
-        g.cov_a = (1e-6f + 4e-5f * rndu()) * invAspect * invAspect;
+        g.cov_a = (1e-6f + 6e-5f * rndu()) * invAspect * invAspect;
         g.cov_b = 0.f;
-        g.cov_d = 1e-6f + 4e-5f * rndu();
+        g.cov_d = 1e-6f + 6e-5f * rndu();
         g.r = rndu();
         g.g = rndu();
         g.b = rndu();

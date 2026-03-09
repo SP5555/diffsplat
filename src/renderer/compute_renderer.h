@@ -24,11 +24,12 @@ public:
     void randomInitGaussians(int count, int seed = -1);
     void render();
     void free();
+    int getIterCount();
 
 private:
     void initGL();
     void initCUDA();
-    void uploadToTexture();
+    void displayFrame();
 
     int width = 0;
     int height = 0;
@@ -41,7 +42,9 @@ private:
     // Gaussian data
     GaussianParams gaussianParams;
     GaussianOptState gaussianOptState;
-    
+
+    std::vector<float> h_pixels;  // [H * W * 3]
+
     // CUDA buffers
     float*      d_pixels        = nullptr;  // [H * W * 3]
     float*      d_T_final       = nullptr;  // [H * W]

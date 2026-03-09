@@ -15,11 +15,16 @@ LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_
     if (!data)
     {
         std::cerr << "[ImageLoader] Failed to load image: " << path << "\n";
+        std::cerr << "[ImageLoader] Reason: " << stbi_failure_reason() << "\n";
         return {};
     }
 
     // scale to fit inside canvas preserving aspect ratio
-    float scale = std::min((float)target_w / src_w, (float)target_h / src_h);
+    int padding = 10; // on each side
+    float scale = std::min(
+        (float)(target_w - 2 * padding) / src_w,
+        (float)(target_h - 2 * padding) / src_h
+    );
 
     int fit_w = (int)(src_w * scale);
     int fit_h = (int)(src_h * scale);

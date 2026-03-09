@@ -80,7 +80,6 @@ static void stepOne(
         bc2,
         n
     );
-    cudaDeviceSynchronize();
 }
 
 void launchAdam(
@@ -93,6 +92,7 @@ void launchAdam(
     float bc1 = 1.f / (1.f - powf(config.beta1, step));
     float bc2 = 1.f / (1.f - powf(config.beta2, step));
 
+    
     auto go = [&](float* p, const float* g, float* m, float* v, float lr) {
         stepOne(
             p, g, m, v, lr,
@@ -100,14 +100,20 @@ void launchAdam(
             bc1, bc2, n
         );
     };
+    
+    // brevity
+    auto g = gaussians;
+    auto o = opt_state;
+    auto c = config;
+    go(g.pos_x, o.grad_pos_x, o.m_pos_x, o.v_pos_x, c.lr_pos);
+    go(g.pos_y, o.grad_pos_y, o.m_pos_y, o.v_pos_y, c.lr_pos);
+    go(g.cov_a, o.grad_cov_a, o.m_cov_a, o.v_cov_a, c.lr_cov);
+    go(g.cov_b, o.grad_cov_b, o.m_cov_b, o.v_cov_b, c.lr_cov);
+    go(g.cov_d, o.grad_cov_d, o.m_cov_d, o.v_cov_d, c.lr_cov);
+    go(g.color_r, o.grad_color_r, o.m_color_r, o.v_color_r, c.lr_color);
+    go(g.color_g, o.grad_color_g, o.m_color_g, o.v_color_g, c.lr_color);
+    go(g.color_b, o.grad_color_b, o.m_color_b, o.v_color_b, c.lr_color);
+    go(g.opacity, o.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
 
-    go(gaussians.pos_x, opt_state.grad_pos_x, opt_state.m_pos_x, opt_state.v_pos_x, config.lr_pos);
-    go(gaussians.pos_y, opt_state.grad_pos_y, opt_state.m_pos_y, opt_state.v_pos_y, config.lr_pos);
-    go(gaussians.cov_a, opt_state.grad_cov_a, opt_state.m_cov_a, opt_state.v_cov_a, config.lr_cov);
-    go(gaussians.cov_b, opt_state.grad_cov_b, opt_state.m_cov_b, opt_state.v_cov_b, config.lr_cov);
-    go(gaussians.cov_d, opt_state.grad_cov_d, opt_state.m_cov_d, opt_state.v_cov_d, config.lr_cov);
-    go(gaussians.color_r, opt_state.grad_color_r, opt_state.m_color_r, opt_state.v_color_r, config.lr_color);
-    go(gaussians.color_g, opt_state.grad_color_g, opt_state.m_color_g, opt_state.v_color_g, config.lr_color);
-    go(gaussians.color_b, opt_state.grad_color_b, opt_state.m_color_b, opt_state.v_color_b, config.lr_color);
-    go(gaussians.opacity, opt_state.grad_opacity, opt_state.m_opacity, opt_state.v_opacity, config.lr_opacity);
+    cudaDeviceSynchronize();
 }

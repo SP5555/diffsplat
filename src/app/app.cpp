@@ -68,6 +68,7 @@ App::~App()
 void App::start()
 {
     lastFrameTime = glfwGetTime();
+    float avgFPS = 0.f;
 
     renderer.randomInitGaussians(80000);
 
@@ -78,6 +79,21 @@ void App::start()
         double currentTime = glfwGetTime();
         double deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
+        timeSinceUpdate += deltaTime;
+        frameSinceUpdate++;
+
+        if (timeSinceUpdate >= 0.1) {
+            avgFPS = avgFPS * 0.4f + (frameSinceUpdate / timeSinceUpdate) * 0.6f;
+            char title[64];
+            snprintf(
+                title, sizeof(title),
+                "Diffsplat [FPS: %.2f] [Iterations: %d]",
+                avgFPS, renderer.getIterCount()
+            );
+            glfwSetWindowTitle(window, title);
+            timeSinceUpdate = 0.0;
+            frameSinceUpdate = 0;
+        }
 
         handleInput();
         renderer.render();

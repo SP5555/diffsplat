@@ -24,7 +24,6 @@ private:
     ComputeRenderer renderer;
 
     double lastFrameTime = 0.0;
-    float overlayAccum = 0.f;
-    int overlayFrameCount = 0;
-    int iterCount = 0;
+    int frameSinceUpdate = 0;
+    double timeSinceUpdate = 0.0;
 };
