@@ -1,7 +1,9 @@
 #include <cuda_runtime.h>
 #include <math.h>
+#include <float.h>
 
 #include "adam.cuh"
+#include "utils.cuh"
 
 /**
  * @brief Adam optimizer kernel for updating Gaussian parameters on the GPU.
@@ -100,11 +102,15 @@ void launchAdam(
             bc1, bc2, n
         );
     };
+
+    auto cl = [&](float* data, float min_val, float max_val) {
+        launchClampF(data, min_val, max_val, n);
+    };
     
     // brevity
-    auto g = gaussians;
-    auto o = opt_state;
-    auto c = config;
+    auto& g = gaussians;
+    auto& o = opt_state;
+    auto& c = config;
     go(g.pos_x, o.grad_pos_x, o.m_pos_x, o.v_pos_x, c.lr_pos);
     go(g.pos_y, o.grad_pos_y, o.m_pos_y, o.v_pos_y, c.lr_pos);
     go(g.cov_a, o.grad_cov_a, o.m_cov_a, o.v_cov_a, c.lr_cov);
@@ -114,6 +120,13 @@ void launchAdam(
     go(g.color_g, o.grad_color_g, o.m_color_g, o.v_color_g, c.lr_color);
     go(g.color_b, o.grad_color_b, o.m_color_b, o.v_color_b, c.lr_color);
     go(g.opacity, o.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
+
+    cl(g.cov_a, -1e-12f, FLT_MAX);
+    cl(g.cov_d, -1e-12f, FLT_MAX);
+    cl(g.color_r, 0.f, 1.f);
+    cl(g.color_g, 0.f, 1.f);
+    cl(g.color_b, 0.f, 1.f);
+    cl(g.opacity, 0.f, 1.f);
 
     cudaDeviceSynchronize();
 }

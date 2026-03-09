@@ -48,6 +48,7 @@ set(CUDA_SOURCES
     src/kernels/forward.cu
     src/kernels/backward.cu
     src/kernels/adam.cu
+    src/kernels/utils.cu
 )
 
 # Executable
