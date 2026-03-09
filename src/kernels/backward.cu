@@ -116,10 +116,10 @@ __global__ void backwardKernel(
         float det = cxx * cyy - cxy * cxy;
         if (det < 1e-16f) continue; // skip degenerate splats
         
-        float inv_dev = 1.f / det;
-        float inv_cxx =  cyy * inv_dev;
-        float inv_cxy = -cxy * inv_dev;
-        float inv_cyy =  cxx * inv_dev;
+        float inv_det = 1.f / det;
+        float inv_cxx =  cyy * inv_det;
+        float inv_cxy = -cxy * inv_det;
+        float inv_cyy =  cxx * inv_det;
         float dist2 = dx*dx*inv_cxx + 2.f*dx*dy*inv_cxy + dy*dy*inv_cyy;
         if (dist2 > 9.f) continue;
 
