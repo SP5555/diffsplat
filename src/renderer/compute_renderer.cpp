@@ -91,9 +91,9 @@ void ComputeRenderer::initCUDA()
     cudaMalloc(&d_tile_ranges, numTiles * sizeof(int2));
 }
 
-void ComputeRenderer::loadTargetImage(const std::string &imagePath, int width, int height)
+void ComputeRenderer::loadTargetImage(const std::string &imagePath, int width, int height, int padding)
 {
-    auto image = ImageLoader::load(imagePath, width, height);
+    auto image = ImageLoader::load(imagePath, width, height, padding);
     if (image.pixels.empty())
     {
         throw std::runtime_error("Failed to load target image: " + imagePath);

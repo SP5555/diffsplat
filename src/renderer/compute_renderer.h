@@ -20,7 +20,7 @@ public:
     ~ComputeRenderer();
 
     void init(int width, int height);
-    void loadTargetImage(const std::string &imagePath, int width, int height);
+    void loadTargetImage(const std::string &imagePath, int width, int height, int padding = 0);
     void randomInitGaussians(int count, int seed = -1);
     void render();
     void freeCUDA();

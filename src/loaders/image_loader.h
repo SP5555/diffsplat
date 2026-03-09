@@ -22,5 +22,10 @@ struct LoadedImage
 class ImageLoader
 {
 public:
-    static LoadedImage load(const std::string &path, int target_w, int target_h);
+    static LoadedImage load(
+        const std::string &path,
+        int target_w,
+        int target_h,
+        int padding = 0
+    );
 };

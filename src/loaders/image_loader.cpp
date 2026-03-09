@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cstring>
 
-LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_h)
+LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_h, int padding)
 {
     int src_w, src_h, channels;
     unsigned char *data = stbi_load(path.c_str(), &src_w, &src_h, &channels, 3);
@@ -20,7 +20,6 @@ LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_
     }
 
     // scale to fit inside canvas preserving aspect ratio
-    int padding = 10; // on each side
     float scale = std::min(
         (float)(target_w - 2 * padding) / src_w,
         (float)(target_h - 2 * padding) / src_h
