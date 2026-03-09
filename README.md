@@ -1,14 +1,15 @@
 # diffsplat
 A 2D (maybe 3D as well) differentiable Gaussian splatting renderer in CUDA!
 
-<!-- Random splats initialize on screen and optimize toward a target image, live.
-Built mainly to learn CUDA, the 3DGS pipeline, and hand-written backward passes. -->
+Random splats initialize on screen and optimize toward a target image, **live**.
 
 ## TODO
-- [ ] Backward pass (T_final division trick)
-- [ ] Adam optimizer
-- [ ] Watch splats converge live
+- [ ] Proper NDC -> pixel space transform. Don't bake in aspect ratios everywhere bruh
+- [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] PLY file loading for feedforward 3DGS rendering
+- [x] Backward pass (T_final division trick)
+- [x] Adam optimizer
+- [x] Watch splats converge live
 
 ---
 
@@ -18,24 +19,21 @@ Built mainly to learn CUDA, the 3DGS pipeline, and hand-written backward passes.
 - GLFW3 (`sudo apt install libglfw3-dev`)
 - GLM (`sudo apt install libglm-dev`)
 - GLAD (included in `include/`)
+- stb_image (included in `include/`)
 
 ## How to build
-1. Clone the repository
 ```bash
+# Clone the repository
 git clone https://github.com/SP5555/differentiable-splat.git
 cd differentiable-splat
-```
 
-2. Build
-```bash
+# Build
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
-```
 
-3. Run
-```bash
-./2dgs_cuda
+# Run
+./2dgs_cuda 1280 720 path/to/target/image.png # jpg works too
 ```
 
 > Adjust `CMAKE_CUDA_ARCHITECTURES` in `CMakeLists.txt` to match your GPU.
