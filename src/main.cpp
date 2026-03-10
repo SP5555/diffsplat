@@ -39,8 +39,10 @@ int main(int argc, char *argv[])
         printf("No image path specified, defaulting to %s\n", imagePath.c_str());
     }
 
-    std::cout << "Width=" << width << ", Height=" << height
-              << ", Image=" << imagePath << "\n";
+    std::cout << "Running:"
+              << " Width=" << width
+              << " Height=" << height
+              << " Image=" << imagePath << "\n";
 
     // APP STARTS HERE
     try {

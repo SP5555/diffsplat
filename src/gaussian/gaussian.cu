@@ -64,11 +64,9 @@ GaussianParams GaussianParams::randomInit(int n, int width, int height, int seed
 {
     srand(seed);
     // [-1, 1]
-    auto rnd = []()
-    { return ((float)rand() / RAND_MAX) * 2.f - 1.f; };
+    auto rnd = []() { return ((float)rand() / RAND_MAX) * 2.f - 1.f; };
     // [ 0, 1]
-    auto rndu = []()
-    { return (float)rand() / RAND_MAX; };
+    auto rndu = []() { return (float)rand() / RAND_MAX; };\
 
     float invAspect = (float)height / (float)width;
     std::vector<Gaussian3D> host(n);

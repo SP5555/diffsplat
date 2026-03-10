@@ -30,7 +30,9 @@ public:
 private:
     void initGL();
     void initCUDA();
+    void initPBO();
     void displayFrame();
+    bool checkCudaGLInterop();
 
     int width = 0;
     int height = 0;
@@ -43,8 +45,6 @@ private:
     // Gaussian data
     GaussianParams gaussianParams;
     GaussianOptState gaussianOptState;
-
-    std::vector<float> h_pixels;  // [H * W * 3]
 
     // CUDA buffers
     float*      d_pixels        = nullptr;  // [H * W * 3]
@@ -74,4 +74,11 @@ private:
     GLuint vao              = 0;
     GLuint vbo              = 0;
     GLuint shader_program   = 0;
+
+    // for CUDA-GL interop
+    bool cudaGLInteropSupported             = false;
+    GLuint pbo                              = 0;
+    cudaGraphicsResource_t d_pbo_resource   = nullptr;
+    // fallback buffer used when CUDA-GL interop is not available
+    std::vector<float> h_pixels;  // [H * W * 3]
 };

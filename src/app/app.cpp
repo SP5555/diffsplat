@@ -51,8 +51,8 @@ App::App(int w, int h, const std::string &imagePath) :
               << "[App] CUDA Device: " << deviceProp.name << "\n";
 
     Input::install(window, &input);
-    renderer.loadTargetImage(imagePath, width, height, 10);
     renderer.init(width, height);
+    renderer.loadTargetImage(imagePath, width, height, 10);
 }
 
 App::~App()

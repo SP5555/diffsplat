@@ -12,7 +12,6 @@ Random splats initialize on screen and optimize toward a target image, **live**.
 - [x] Watch splats converge live
 
 ---
-
 ## Dependencies
 - CUDA Toolkit 11.8+
 - OpenGL 3.3+
@@ -41,3 +40,9 @@ make -j$(nproc)
 
 > Adjust `CMAKE_CUDA_ARCHITECTURES` in `CMakeLists.txt` to match your GPU.
 > 75 = Turing, 86 = Ampere, 89 = Ada, 90 = Hopper.
+
+### Hybrid GPU Systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)
+By default the renderer falls back to a slower display path. To enable the fast path, run with:
+```bash
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./2dgs_cuda
+```
