@@ -3,7 +3,7 @@
 #include <float.h>
 
 #include "adam.cuh"
-#include "utils.cuh"
+#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Adam optimizer kernel for updating Gaussian parameters on the GPU.
@@ -93,7 +93,6 @@ void launchAdam(
     int n = gaussians.count;
     float bc1 = 1.f / (1.f - powf(config.beta1, step));
     float bc2 = 1.f / (1.f - powf(config.beta2, step));
-
     
     auto go = [&](float* p, const float* g, float* m, float* v, float lr) {
         stepOne(

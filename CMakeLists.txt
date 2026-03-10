@@ -19,13 +19,13 @@ endif()
 # Dependencies
 find_package(OpenGL REQUIRED)
 
-# GLFW — prefer system install, fallback to submodule
+# GLFW: prefer system install
 find_package(glfw3 3.3 QUIET)
 if(NOT glfw3_FOUND)
     message(FATAL_ERROR "GLFW not found")
 endif()
 
-# GLM — header only, prefer system install
+# GLM: prefer system install
 find_package(glm QUIET)
 if(NOT glm_FOUND)
     message(FATAL_ERROR "GLM not found")
@@ -37,18 +37,18 @@ set(CPP_SOURCES
     src/glad.c
     src/app/app.cpp
     src/input/input.cpp
-    src/renderer/compute_renderer.cpp
+
+    src/pipelines/gauss_img_fitter.cpp
     src/loaders/image_loader.cpp
 )
 
 set(CUDA_SOURCES
     src/gaussian/gaussian.cu
-    src/kernels/tile_assign.cu
-    src/kernels/sort.cu
-    src/kernels/forward.cu
-    src/kernels/backward.cu
-    src/kernels/adam.cu
-    src/kernels/utils.cu
+    src/optimizers/adam.cu
+    src/utils/cuda_utils.cu
+    src/layers/ndc_project_layer.cu
+    src/layers/rasterize_layer.cu
+    src/layers/mse_loss_layer.cu
 )
 
 # Executable

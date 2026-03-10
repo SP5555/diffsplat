@@ -3,7 +3,6 @@
 
 #include "app.h"
 #include "../gaussian/gaussian.h"
-#include "../renderer/compute_renderer.h"
 
 static void glfwErrorCallback(int error, const char *description)
 {

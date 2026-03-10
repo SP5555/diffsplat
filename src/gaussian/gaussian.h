@@ -95,6 +95,6 @@ struct GaussianOptState
     float *v_opacity = nullptr;
 
     void allocateDeviceMem(int n);
-    void zeroGradients();
+    void zero_grad();
     void free();
 };

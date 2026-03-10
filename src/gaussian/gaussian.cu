@@ -2,7 +2,7 @@
 #include <cstring>
 #include <cmath>
 
-#include "../utils/cuda_utils.h"
+#include "../utils/cuda_utils.cuh"
 
 static float *deviceAlloc(int n)
 {
@@ -114,7 +114,7 @@ void GaussianOptState::allocateDeviceMem(int n)
     count = n;
 }
 
-void GaussianOptState::zeroGradients()
+void GaussianOptState::zero_grad()
 {
     auto z = [&](float *p)
     { if (p) cudaMemset(p, 0, count * sizeof(float)); };

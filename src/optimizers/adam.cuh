@@ -5,14 +5,14 @@
 
 struct AdamConfig
 {
-    // different parameters may require different learning rates
-    // because of different scalings. manually tune them!
     float lr_master     = 1e-3f;
 
+    // different parameters may require different learning rates
+    // because of different scalings. manually tune them!
     float lr_pos        = lr_master * 20.f;
     float lr_cov        = lr_master * 20.f;
     float lr_color      = lr_master * 4.f;
-    float lr_opacity    = lr_master * 0.1f;
+    float lr_opacity    = lr_master * 0.8f;
 
     float beta1         = 0.9f;
     float beta2         = 0.999f;

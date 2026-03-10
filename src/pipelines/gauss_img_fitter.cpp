@@ -1,17 +1,12 @@
-#include "compute_renderer.h"
+#include "gauss_img_fitter.h"
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 #include <iostream>
-#include <vector>
 #include <chrono>
 
 #include "../loaders/image_loader.h"
-#include "../utils/cuda_utils.h"
-#include "../kernels/tile_assign.cuh"
-#include "../kernels/sort.cuh"
-#include "../kernels/forward.cuh"
-#include "../kernels/backward.cuh"
-#include "../kernels/adam.cuh"
+#include "../utils/cuda_utils.cuh"
+#include "../optimizers/adam.cuh"
 
 static const float QUAD[] = {
     // x,    y,    u,    v,
@@ -36,18 +31,18 @@ ComputeRenderer::~ComputeRenderer()
 
 void ComputeRenderer::init(int w, int h)
 {
-    width = w;
+    width  = w;
     height = h;
 
     initGL();
     initCUDA();
 
-    // check if GL and CUDA are on the same device for zero-copy PBO path
     cudaGLInteropSupported = checkCudaGLInterop();
     if (cudaGLInteropSupported) {
-        std::cout << "[ComputeRenderer] CUDA-GL interop supported, "
-                  << "using PBO for display\n";
         initPBO();
+    } else {
+        // fallback host buffer for cross-device path
+        h_pixels.resize(width * height * 3);
     }
 
     std::cout << "[ComputeRenderer] Init " << w << "x" << h
@@ -56,15 +51,15 @@ void ComputeRenderer::init(int w, int h)
               << " display=" << (cudaGLInteropSupported ? "PBO" : "host-copy") << "\n";
 }
 
-void ComputeRenderer::loadTargetImage(const std::string &imagePath, int width, int height, int padding)
+void ComputeRenderer::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
 {
-    auto image = ImageLoader::load(imagePath, width, height, padding);
+    auto image = ImageLoader::load(imagePath, w, h, padding);
     if (image.pixels.empty())
         throw std::runtime_error("Failed to load target image: " + imagePath);
 
-    cudaMalloc(&d_target_pixels, width * height * 3 * sizeof(float));
+    cudaMalloc(&d_target_pixels, w * h * 3 * sizeof(float));
     cudaMemcpy(d_target_pixels, image.pixels.data(),
-               width * height * 3 * sizeof(float), cudaMemcpyHostToDevice);
+               w * h * 3 * sizeof(float), cudaMemcpyHostToDevice);
 }
 
 void ComputeRenderer::randomInitGaussians(int count, int seed)
@@ -74,6 +69,9 @@ void ComputeRenderer::randomInitGaussians(int count, int seed)
 
     gaussianParams = GaussianParams::randomInit(count, width, height, seed);
     gaussianOptState.allocateDeviceMem(gaussianParams.count);
+
+    // layers can only be wired after gaussians are initialized
+    initLayers();
 }
 
 int ComputeRenderer::getIterCount()
@@ -110,23 +108,8 @@ void ComputeRenderer::initGL()
 
 void ComputeRenderer::initCUDA()
 {
-    int pixels  = width * height;
-    int pairs   = maxPairs();
-    int numTiles = NUM_TILES_X * NUM_TILES_Y;
-
-    h_pixels.resize(pixels * 3); // fallback host buffer for cross-device path
-
-    cudaMalloc(&d_pixels,           pixels * 3 * sizeof(float));
-    cudaMalloc(&d_T_final,          pixels     * sizeof(float));
-    cudaMalloc(&d_n_contrib,        pixels     * sizeof(int));
-
-    cudaMalloc(&d_keys,             pairs * sizeof(uint64_t));
-    cudaMalloc(&d_values,           pairs * sizeof(uint32_t));
-    cudaMalloc(&d_pair_count,               sizeof(uint32_t));
-    cudaMalloc(&d_keys_sorted,      pairs * sizeof(uint64_t));
-    cudaMalloc(&d_values_sorted,    pairs * sizeof(uint32_t));
-
-    cudaMalloc(&d_tile_ranges,      numTiles * sizeof(int2));
+    // cleaned this up too much, now it's chilling at the beach. 
+    return;
 }
 
 void ComputeRenderer::initPBO()
@@ -136,7 +119,8 @@ void ComputeRenderer::initPBO()
     glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * 3 * sizeof(float), nullptr, GL_STREAM_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, pbo, cudaGraphicsMapFlagsWriteDiscard);
+    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, pbo,
+                                                    cudaGraphicsMapFlagsWriteDiscard);
     if (err != cudaSuccess)
     {
         std::cerr << "[ComputeRenderer] PBO registration failed, falling back to host copy: "
@@ -145,6 +129,30 @@ void ComputeRenderer::initPBO()
         pbo = 0;
         cudaGLInteropSupported = false;
     }
+}
+
+void ComputeRenderer::initLayers()
+{
+    int count = gaussianParams.count;
+
+    // allocate
+    orthoLayer.allocate(count);
+    rasterizeLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
+    lossLayer.allocate(width, height);
+
+    // wire forward path
+    // input -> layer -> output 
+    orthoLayer.setInput(&gaussianParams);
+    rasterizeLayer.setInput(&orthoLayer.getOutput());
+    lossLayer.setInput(rasterizeLayer.getOutput());
+    lossLayer.setTarget(d_target_pixels);
+
+    // wire backward path
+    // grad input <- layer <- grad output
+    // I know, vocabulary isn't the best. That's why this comment exists.
+    rasterizeLayer.setGradOutput(lossLayer.getGradInput());
+    orthoLayer.setGradOutput(&rasterizeLayer.getGradInput());
+    orthoLayer.setGradInput(&gaussianOptState);
 }
 
 bool ComputeRenderer::checkCudaGLInterop()
@@ -167,47 +175,22 @@ bool ComputeRenderer::checkCudaGLInterop()
 
 void ComputeRenderer::render()
 {
-    int numTiles = NUM_TILES_X * NUM_TILES_Y;
+    // zero all gradients before each frame
+    lossLayer.zero_grad();
+    rasterizeLayer.zero_grad();
+    orthoLayer.zero_grad();
+    gaussianOptState.zero_grad();
 
-    cudaMemset(d_pixels,     0, width * height * 3 * sizeof(float));
-    cudaMemset(d_pair_count, 0, sizeof(uint32_t));
-    cudaMemset(d_tile_ranges,0, numTiles * sizeof(int2));
-    gaussianOptState.zeroGradients();
+    // forward
+    orthoLayer.forward(width, height);
+    rasterizeLayer.forward(width, height);
 
-    launchTileAssign(
-        gaussianParams, d_keys, d_values, d_pair_count,
-        maxPairs(), NUM_TILES_X, NUM_TILES_Y, width, height
-    );
+    // backward
+    lossLayer.backward();
+    rasterizeLayer.backward(width, height);
+    orthoLayer.backward(width, height);
 
-    uint32_t pair_count = 0;
-    cudaMemcpy(&pair_count, d_pair_count, sizeof(uint32_t), cudaMemcpyDeviceToHost);
-
-    if (pair_count == 0)
-    {
-        displayFrame();
-        return;
-    }
-
-    launchSort(
-        d_keys, d_values, d_keys_sorted, d_values_sorted,
-        pair_count, &d_sort_temp, &sort_temp_bytes
-    );
-
-    launchBuildTileRanges(d_keys_sorted, d_tile_ranges, pair_count, numTiles);
-
-    launchForward(
-        gaussianParams, d_values_sorted, d_tile_ranges,
-        d_pixels, d_T_final, d_n_contrib,
-        NUM_TILES_X, NUM_TILES_Y, width, height
-    );
-
-    launchBackward(
-        gaussianParams, gaussianOptState, d_target_pixels,
-        d_values_sorted, d_tile_ranges,
-        d_pixels, d_T_final, d_n_contrib,
-        NUM_TILES_X, NUM_TILES_Y, width, height
-    );
-
+    // optimizer step
     launchAdam(gaussianParams, gaussianOptState, adamConfig, ++iterCount);
 
     displayFrame();
@@ -215,14 +198,16 @@ void ComputeRenderer::render()
 
 void ComputeRenderer::displayFrame()
 {
+    const float *pixels = rasterizeLayer.getOutput();
+
     if (cudaGLInteropSupported)
     {
         // D2D copy into PBO
         cudaGraphicsMapResources(1, &d_pbo_resource);
-        float *d_pbo = nullptr;
+        float *d_pbo  = nullptr;
         size_t pbo_size = 0;
         cudaGraphicsResourceGetMappedPointer((void **)&d_pbo, &pbo_size, d_pbo_resource);
-        cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
+        cudaMemcpy(d_pbo, pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
         cudaGraphicsUnmapResources(1, &d_pbo_resource);
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
@@ -236,7 +221,7 @@ void ComputeRenderer::displayFrame()
         // fallback: GPU -> CPU -> GPU
         // CUDA Mem to PBO is not possible if GL and CUDA are on different devices
         // e.g. AMD GL + NVIDIA CUDA
-        cudaMemcpy(h_pixels.data(), d_pixels,
+        cudaMemcpy(h_pixels.data(), pixels,
                    width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
         glBindTexture(GL_TEXTURE_2D, texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, h_pixels.data());
@@ -258,16 +243,10 @@ void ComputeRenderer::freeCUDA()
     gaussianParams.free();
     gaussianOptState.free();
 
-    CUDA_FREE(d_pixels);
-    CUDA_FREE(d_T_final);
-    CUDA_FREE(d_n_contrib);
-    CUDA_FREE(d_keys);
-    CUDA_FREE(d_values);
-    CUDA_FREE(d_pair_count);
-    CUDA_FREE(d_keys_sorted);
-    CUDA_FREE(d_values_sorted);
-    CUDA_FREE(d_tile_ranges);
-    CUDA_FREE(d_sort_temp);
+    orthoLayer.free();
+    rasterizeLayer.free();
+    lossLayer.free();
+
     CUDA_FREE(d_target_pixels);
 }
 

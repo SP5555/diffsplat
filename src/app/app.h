@@ -2,7 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "../input/input.h"
-#include "../renderer/compute_renderer.h"
+#include "../pipelines/gauss_img_fitter.h"
 
 class App
 {
