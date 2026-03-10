@@ -28,7 +28,15 @@ endif()
 # GLM: prefer system install
 find_package(glm QUIET)
 if(NOT glm_FOUND)
-    message(FATAL_ERROR "GLM not found")
+    message(STATUS "GLM not found via find_package, trying third_party/glm")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/glm")
+        add_library(glm::glm INTERFACE IMPORTED)
+        set_target_properties(glm::glm PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/glm"
+        )
+    else()
+        message(FATAL_ERROR "GLM not found and no third_party/glm fallback exists")
+    endif()
 endif()
 
 # Sources
@@ -64,6 +72,7 @@ message(STATUS "Sources: ${SOURCES}")
 target_include_directories(2dgs_cuda PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
 )
 
 # Link libraries
