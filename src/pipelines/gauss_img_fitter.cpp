@@ -184,6 +184,9 @@ void GaussImgFitter::render()
     // forward
     orthoLayer.forward(width, height);
     rasterizeLayer.forward(width, height);
+    // you don't really need this unless you wanna benchmark the loss.
+    // float loss = lossLayer.forward();
+    // printf("Iter %d: Loss = %.8f\n", iterCount, loss);
 
     // backward
     lossLayer.backward();
