@@ -14,37 +14,59 @@ Random splats initialize on screen and optimize toward a target image, **live**.
 - [x] Watch splats converge live
 
 ---
+
 ## Dependencies
 - CUDA Toolkit 11.8+
-- OpenGL 3.3+
+- OpenGL 3.3+ (provided by your GPU driver, no install needed)
 - GLFW3 (`sudo apt install libglfw3-dev`)
 - GLM (`sudo apt install libglm-dev`)
 - GLAD (included in `include/`)
 - stb_image (included in `include/`)
 
-## How to build
+## Build
 ```bash
-# Clone the repository
-git clone https://github.com/SP5555/differentiable-splat.git
-cd differentiable-splat
-
-# Build
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-
-# Run with default demo
-./2dgs_cuda
-
-# Run with custom resolution and target image
-./2dgs_cuda -w 1280 -h 720 -i path/to/target/image.png # jpg works too
+git clone https://github.com/SP5555/diffsplat.git
+cd diffsplat
 ```
 
-> Adjust `CMAKE_CUDA_ARCHITECTURES` in `CMakeLists.txt` to match your GPU.
-> 75 = Turing, 86 = Ampere, 89 = Ada, 90 = Hopper.
-
-### Hybrid GPU Systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)
-By default the renderer falls back to a slower display path. To enable the fast path, run with:
+The easy way, use the build script which auto-detects nvcc and defaults to `sm_86`:
 ```bash
-__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./2dgs_cuda
+./build.sh               # defaults to Ampere (sm_86)
+CUDA_ARCH=89 ./build.sh  # override for Ada
+```
+
+Or manually:
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=86
+make -j$(nproc)
+```
+
+> Common architecture values: 75 = Turing, 86 = Ampere, 89 = Ada, 90 = Hopper.
+> Not sure which one you have? `nvidia-smi` will tell you the GPU model.
+
+## Run
+```bash
+./build/2dgs_cuda                                      # default demo
+./build/2dgs_cuda -w 1280 -h 720 -i path/to/image.png  # custom resolution and target
+```
+
+> jpg and png are both supported.
+
+## Troubleshooting
+
+### GLM not found
+If CMake can't find `glm`, fix it with either:
+```bash
+# Option 1: install system package (recommended)
+sudo apt install libglm-dev
+
+# Option 2: pull via submodule (useful without sudo access)
+git submodule update --init --recursive
+```
+
+### Hybrid GPU systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)
+By default the renderer falls back to a slower display path. To force the fast path:
+```bash
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/2dgs_cuda
 ```

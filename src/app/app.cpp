@@ -70,7 +70,7 @@ void App::start()
     lastFrameTime = glfwGetTime();
     float avgFPS = 0.f;
 
-    renderer.randomInitGaussians(16000);
+    renderer.randomInitGaussians(80000);
 
     while (!glfwWindowShouldClose(window))
     {
