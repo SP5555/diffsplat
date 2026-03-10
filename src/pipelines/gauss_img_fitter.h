@@ -17,11 +17,11 @@
 #define NUM_TILES_Y 64
 #define MAX_PAIRS   (NUM_TILES_X * NUM_TILES_Y * 1024)
 
-class ComputeRenderer
+class GaussImgFitter
 {
 public:
-    ComputeRenderer() = default;
-    ~ComputeRenderer();
+    GaussImgFitter() = default;
+    ~GaussImgFitter();
 
     void init(int width, int height);
     void loadTargetImage(const std::string &imagePath, int width, int height, int padding = 0);

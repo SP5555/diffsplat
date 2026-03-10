@@ -23,13 +23,13 @@ static GLuint buildDisplayProgram();
 
 /* ===== ===== Lifecycle ===== ===== */
 
-ComputeRenderer::~ComputeRenderer()
+GaussImgFitter::~GaussImgFitter()
 {
     freeCUDA();
     freeGL();
 }
 
-void ComputeRenderer::init(int w, int h)
+void GaussImgFitter::init(int w, int h)
 {
     width  = w;
     height = h;
@@ -45,13 +45,13 @@ void ComputeRenderer::init(int w, int h)
         h_pixels.resize(width * height * 3);
     }
 
-    std::cout << "[ComputeRenderer] Init " << w << "x" << h
+    std::cout << "[GaussImgFitter] Init " << w << "x" << h
               << " tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
               << " maxPairs=" << maxPairs()
               << " display=" << (cudaGLInteropSupported ? "PBO" : "host-copy") << "\n";
 }
 
-void ComputeRenderer::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
+void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
 {
     auto image = ImageLoader::load(imagePath, w, h, padding);
     if (image.pixels.empty())
@@ -62,7 +62,7 @@ void ComputeRenderer::loadTargetImage(const std::string &imagePath, int w, int h
                w * h * 3 * sizeof(float), cudaMemcpyHostToDevice);
 }
 
-void ComputeRenderer::randomInitGaussians(int count, int seed)
+void GaussImgFitter::randomInitGaussians(int count, int seed)
 {
     if (seed < 0)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
@@ -74,14 +74,14 @@ void ComputeRenderer::randomInitGaussians(int count, int seed)
     initLayers();
 }
 
-int ComputeRenderer::getIterCount()
+int GaussImgFitter::getIterCount()
 {
     return iterCount;
 }
 
 /* ===== ===== Init ===== ===== */
 
-void ComputeRenderer::initGL()
+void GaussImgFitter::initGL()
 {
     // fullscreen quad
     glGenVertexArrays(1, &vao);
@@ -106,13 +106,13 @@ void ComputeRenderer::initGL()
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void ComputeRenderer::initCUDA()
+void GaussImgFitter::initCUDA()
 {
     // cleaned this up too much, now it's chilling at the beach. 
     return;
 }
 
-void ComputeRenderer::initPBO()
+void GaussImgFitter::initPBO()
 {
     glGenBuffers(1, &pbo);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
@@ -123,7 +123,7 @@ void ComputeRenderer::initPBO()
                                                     cudaGraphicsMapFlagsWriteDiscard);
     if (err != cudaSuccess)
     {
-        std::cerr << "[ComputeRenderer] PBO registration failed, falling back to host copy: "
+        std::cerr << "[GaussImgFitter] PBO registration failed, falling back to host copy: "
                   << cudaGetErrorString(err) << "\n";
         glDeleteBuffers(1, &pbo);
         pbo = 0;
@@ -131,7 +131,7 @@ void ComputeRenderer::initPBO()
     }
 }
 
-void ComputeRenderer::initLayers()
+void GaussImgFitter::initLayers()
 {
     int count = gaussianParams.count;
 
@@ -155,7 +155,7 @@ void ComputeRenderer::initLayers()
     orthoLayer.setGradInput(&gaussianOptState);
 }
 
-bool ComputeRenderer::checkCudaGLInterop()
+bool GaussImgFitter::checkCudaGLInterop()
 {
     unsigned int deviceCount = 0;
     int glDevices[4];
@@ -173,7 +173,7 @@ bool ComputeRenderer::checkCudaGLInterop()
 
 /* ===== ===== Render ===== ===== */
 
-void ComputeRenderer::render()
+void GaussImgFitter::render()
 {
     // zero all gradients before each frame
     lossLayer.zero_grad();
@@ -196,7 +196,7 @@ void ComputeRenderer::render()
     displayFrame();
 }
 
-void ComputeRenderer::displayFrame()
+void GaussImgFitter::displayFrame()
 {
     const float *pixels = rasterizeLayer.getOutput();
 
@@ -238,7 +238,7 @@ void ComputeRenderer::displayFrame()
 
 /* ===== ===== Cleanup ===== ===== */
 
-void ComputeRenderer::freeCUDA()
+void GaussImgFitter::freeCUDA()
 {
     gaussianParams.free();
     gaussianOptState.free();
@@ -250,7 +250,7 @@ void ComputeRenderer::freeCUDA()
     CUDA_FREE(d_target_pixels);
 }
 
-void ComputeRenderer::freeGL()
+void GaussImgFitter::freeGL()
 {
     if (pbo)
     {

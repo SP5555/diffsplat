@@ -21,7 +21,7 @@ private:
     std::string imagePath;
 
     Input input;
-    ComputeRenderer renderer;
+    GaussImgFitter renderer;
 
     double lastFrameTime = 0.0;
     int frameSinceUpdate = 0;
