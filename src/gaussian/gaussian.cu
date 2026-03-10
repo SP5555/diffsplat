@@ -66,18 +66,21 @@ GaussianParams GaussianParams::randomInit(int n, int width, int height, int seed
     // [-1, 1]
     auto rnd = []() { return ((float)rand() / RAND_MAX) * 2.f - 1.f; };
     // [ 0, 1]
-    auto rndu = []() { return (float)rand() / RAND_MAX; };\
+    auto rndu = []() { return (float)rand() / RAND_MAX; };
 
-    float invAspect = (float)height / (float)width;
+    float half_w = (float)width * 0.5f;
+    float half_h = (float)height * 0.5f;
+
     std::vector<Gaussian3D> host(n);
     for (auto &g : host)
     {
-        g.x = rnd();
-        g.y = rnd();
+        g.x = rnd() * half_w;
+        g.y = rnd() * half_h;
         g.z = rnd();
-        // small isotropic covariance to start
-        g.cov_a = (1e-6f + 1e-4f * rndu()) * invAspect * invAspect;
-        g.cov_d = 1e-6f + 1e-4f * rndu();
+
+        // small "isotropic" covariance to start
+        g.cov_a = 5.f + 20.f * rndu();
+        g.cov_d = 5.f + 20.f * rndu();
         g.cov_b = rnd() * sqrtf(g.cov_a * g.cov_d) * 0.5f;
         g.r = rndu();
         g.g = rndu();

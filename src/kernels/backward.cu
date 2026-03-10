@@ -90,6 +90,9 @@ __global__ void backwardKernel(
     float x_ndc = (2.f * pixel_x + 1.f) / screen_width - 1.f;
     float y_ndc = (2.f * pixel_y + 1.f) / screen_height - 1.f;
 
+    float scaleX = 2.f / screen_width;
+    float scaleY = 2.f / screen_height;
+
     // recover T_final and walk backwards through
     // the splatting compositing to compute gradients
     // T_final is the final transmittance after compositing all contributing splats
@@ -108,11 +111,11 @@ __global__ void backwardKernel(
     {
         uint32_t splat_id = d_values_sorted[idx];
         
-        float dx = x_ndc - pos_x[splat_id];
-        float dy = y_ndc - pos_y[splat_id];
-        float cxx = cov_a[splat_id];
-        float cxy = cov_b[splat_id];
-        float cyy = cov_d[splat_id];
+        float dx = x_ndc - pos_x[splat_id] * scaleX;
+        float dy = y_ndc - pos_y[splat_id] * scaleY;
+        float cxx = cov_a[splat_id] * scaleX * scaleX;
+        float cxy = cov_b[splat_id] * scaleX * scaleY;
+        float cyy = cov_d[splat_id] * scaleY * scaleY;
         float det = cxx * cyy - cxy * cxy;
         if (det < 1e-16f) continue; // skip degenerate splats
         
@@ -148,11 +151,11 @@ __global__ void backwardKernel(
         uint32_t splat_id = contrib_indices[i];
 
         // recompute geometry for this splat (same as above)
-        float dx = x_ndc - pos_x[splat_id];
-        float dy = y_ndc - pos_y[splat_id];
-        float cxx = cov_a[splat_id];
-        float cxy = cov_b[splat_id];
-        float cyy = cov_d[splat_id];
+        float dx = x_ndc - pos_x[splat_id] * scaleX;
+        float dy = y_ndc - pos_y[splat_id] * scaleY;
+        float cxx = cov_a[splat_id] * scaleX * scaleX;
+        float cxy = cov_b[splat_id] * scaleX * scaleY;
+        float cyy = cov_d[splat_id] * scaleY * scaleY;
         float det = cxx * cyy - cxy * cxy;
         float inv_det = 1.f / det;
         float inv_cxx =  cyy * inv_det;
@@ -192,12 +195,10 @@ __global__ void backwardKernel(
         // gradient w.r.t. position
         // ddist2/dpos_x_i = -2 * (dx * inv_cxx + dy * inv_cxy)
         // ddist2/dpos_y_i = -2 * (dx * inv_cxy + dy * inv_cyy)
-        float px_per_ndc_x = 2.f / screen_width;
-        float px_per_ndc_y = 2.f / screen_height;
         float ddist2_dpos_x = -2.f * (dx * inv_cxx + dy * inv_cxy);
         float ddist2_dpos_y = -2.f * (dx * inv_cxy + dy * inv_cyy);
-        atomicAdd(&grad_pos_x[splat_id], dL_ddist2 * ddist2_dpos_x * px_per_ndc_x);
-        atomicAdd(&grad_pos_y[splat_id], dL_ddist2 * ddist2_dpos_y * px_per_ndc_y);
+        atomicAdd(&grad_pos_x[splat_id], dL_ddist2 * ddist2_dpos_x * scaleX);
+        atomicAdd(&grad_pos_y[splat_id], dL_ddist2 * ddist2_dpos_y * scaleY);
 
         // gradient w.r.t. covariance
         float dx2 = dx * dx;
@@ -208,9 +209,9 @@ __global__ void backwardKernel(
         float ddist2_dcxx = -(dx*cyy - dy*cxy) * (dx*cyy - dy*cxy) * inv_det2;
         float ddist2_dcyy = -(dy*cxx - dx*cxy) * (dy*cxx - dx*cxy) * inv_det2;
         float ddist2_dcxy = 2.f * (cxy*(dx2*cyy + dy2*cxx) - dxdy*(cxx*cyy + cxy*cxy)) * inv_det2;
-        atomicAdd(&grad_cov_a[splat_id], dL_ddist2 * ddist2_dcxx);
-        atomicAdd(&grad_cov_b[splat_id], dL_ddist2 * ddist2_dcxy);
-        atomicAdd(&grad_cov_d[splat_id], dL_ddist2 * ddist2_dcyy);
+        atomicAdd(&grad_cov_a[splat_id], dL_ddist2 * ddist2_dcxx * scaleX * scaleX);
+        atomicAdd(&grad_cov_b[splat_id], dL_ddist2 * ddist2_dcxy * scaleX * scaleY);
+        atomicAdd(&grad_cov_d[splat_id], dL_ddist2 * ddist2_dcyy * scaleY * scaleY);
 
         // update C_back for next iteration
         C_back_r += cR * alpha * T_before;

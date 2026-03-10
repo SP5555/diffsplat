@@ -79,12 +79,18 @@ __global__ void tileAssignKernel(
     float y = pos_y[i];
     float z = pos_z[i];
 
-    if (fabsf(x) > 1.0f || fabsf(y) > 1.0f || fabsf(z) > 1.0f)
+    float half_w = (float)screen_width * 0.5f;
+    float half_h = (float)screen_height * 0.5f;
+
+    if (fabsf(x) > half_w || fabsf(y) > half_h || fabsf(z) > 1.0f)
         return;
 
-    float cxx = cov_a[i];
-    float cxy = cov_b[i];
-    float cyy = cov_d[i];
+    float scaleX = 2.f / (float)screen_width;
+    float scaleY = 2.f / (float)screen_height;
+
+    float cxx = cov_a[i] * scaleX * scaleX;
+    float cxy = cov_b[i] * scaleX * scaleY;
+    float cyy = cov_d[i] * scaleY * scaleY;
 
     float det = cxx * cyy - cxy * cxy;
     if (det <= 0.0f)
@@ -106,10 +112,12 @@ __global__ void tileAssignKernel(
         return;
 
     // bounding box in NDC
-    float min_x = x - max_radius;
-    float max_x = x + max_radius;
-    float min_y = y - max_radius;
-    float max_y = y + max_radius;
+    float x_ndc = x * scaleX;
+    float y_ndc = y * scaleY;
+    float min_x = x_ndc - max_radius;
+    float max_x = x_ndc + max_radius;
+    float min_y = y_ndc - max_radius;
+    float max_y = y_ndc + max_radius;
 
     // convert NDC bounding box to tile range
     auto ndcToTileX = [&](float v) -> int

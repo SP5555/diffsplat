@@ -4,9 +4,10 @@ A 2D (maybe 3D as well) differentiable Gaussian splatting renderer in CUDA!
 Random splats initialize on screen and optimize toward a target image, **live**.
 
 ## TODO
-- [ ] Proper NDC -> pixel space transform. Don't bake in aspect ratios everywhere bruh
+- [ ] (**URGENT**) Modularize the pipeline into "layers" for pytorch like code.
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] PLY file loading for feedforward 3DGS rendering
+- [x] Proper NDC -> pixel space transform. Don't bake in aspect ratios everywhere bruh
 - [x] Backward pass (T_final division trick)
 - [x] Adam optimizer
 - [x] Watch splats converge live

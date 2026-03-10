@@ -66,6 +66,8 @@ __global__ void forwardKernel(
 
     float ndc_x = (2.0f * (pixel_x + 0.5f) / (float)screen_width) - 1.0f;
     float ndc_y = (2.0f * (pixel_y + 0.5f) / (float)screen_height) - 1.0f;
+    float scaleX = 2.f / screen_width;
+    float scaleY = 2.f / screen_height;
 
     // colors
     float C_r = 0.f, C_g = 0.f, C_b = 0.f;
@@ -77,12 +79,12 @@ __global__ void forwardKernel(
     {
         uint32_t sid = values_sorted[idx];
 
-        float dx = ndc_x - pos_x[sid];
-        float dy = ndc_y - pos_y[sid];
+        float dx = ndc_x - pos_x[sid] * scaleX;
+        float dy = ndc_y - pos_y[sid] * scaleY;
 
-        float cxx = cov_a[sid];
-        float cxy = cov_b[sid];
-        float cyy = cov_d[sid];
+        float cxx = cov_a[sid] * scaleX * scaleX;
+        float cxy = cov_b[sid] * scaleX * scaleY;
+        float cyy = cov_d[sid] * scaleY * scaleY;
         float det = cxx * cyy - cxy * cxy;
         if (det <= 0.f)
             continue;
