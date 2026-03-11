@@ -181,7 +181,7 @@ void GaussImgFitter::render()
     covLayer.forward();
     ndcLayer.forward();
     rasLayer.forward();
-    // mseLayer.forward() only needed for logging:
+    // only needed for logging:
     // float loss = mseLayer.forward();
     // printf("Iter %d: Loss = %.8f\n", iterCount, loss);
 

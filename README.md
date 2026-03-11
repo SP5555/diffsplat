@@ -4,10 +4,10 @@ A 2D (maybe 3D as well) differentiable Gaussian splatting renderer in CUDA!
 Random splats initialize on screen and optimize toward a target image, **live**.
 
 ## TODO
-- [X] (**URGENT**) Modularize the pipeline into "layers" for pytorch like code.
 - [ ] Build a device for 3D feedforward rendering
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] PLY file loading for feedforward 3DGS rendering
+- [x] (**URGENT**) Modularize the pipeline into "layers" for pytorch like code.
 - [x] Proper NDC -> pixel space transform. Don't bake in aspect ratios everywhere bruh
 - [x] Backward pass (T_final division trick)
 - [x] Adam optimizer
@@ -43,7 +43,7 @@ make -j$(nproc)
 ```
 
 > Common architecture values: 75 = Turing, 86 = Ampere, 89 = Ada, 90 = Hopper.
-> Not sure which one you have? `nvidia-smi` will tell you the GPU model.
+> Not sure which one you have? `nvidia-smi` will tell you the GPU model. And go to: https://developer.nvidia.com/cuda/gpus
 
 ## Run
 ```bash
