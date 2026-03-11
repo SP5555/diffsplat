@@ -23,12 +23,19 @@ public:
     void backward();
 
 private:
-    // not owned
-    const float *input           = nullptr;
-    const float *d_target_pixels = nullptr;
+    /* ---- forward input (not owned) ---- */
+    const float *input           = nullptr;  // rendered pixels [H*W*3]
+    const float *d_target_pixels = nullptr;  // target image    [H*W*3]
+    
+    /* ---- forward output (owned) ---- */
+    float *d_loss = nullptr;  // scalar loss buffer [1]
 
-    // owned
+    /* ---- backward input (not owned) ---- */
+    // N/A
+
+    /* ---- backward output (owned) ---- */
+    float *d_grad_pixels = nullptr;  // dL/d_pixels [H*W*3]
+
+    /* ---- config ---- */
     size_t numPixels = 0;
-    float *d_grad_pixels   = nullptr;  // [H*W*3]
-    float *d_loss          = nullptr;  // [1]
 };

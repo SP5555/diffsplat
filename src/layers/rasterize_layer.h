@@ -1,7 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <cstdint>
-#include "splat2d_params.h"
+#include "../types/splat2d.h"
 
 /**
  * @brief Rasterizes 2D Gaussian splats into a pixel buffer,
@@ -35,8 +35,8 @@ public:
 
     // wiring
     void setInput(const Splat2DParams *params) { input = params; }
-    void setGradOutput(const float *grad)      { gradOutput = grad; }
     const float        *getOutput() const      { return d_pixels; }
+    void setGradOutput(const float *grad)      { gradOutput = grad; }
     const Splat2DGrads &getGradInput() const   { return gradInput; }
 
     // tile assign + sort + rasterize -> pixels
@@ -47,32 +47,36 @@ public:
     const float *getGradOutput() const { return gradOutput; }
 
 private:
-    // not owned
-    const Splat2DParams *input      = nullptr;
-    const float         *gradOutput = nullptr;
+    /* ---- forward input (not owned) ---- */
+    const Splat2DParams *input = nullptr;
 
-    // owned forward output
-    float *d_pixels    = nullptr;  // [H*W*3]
+    /* ---- forward output (owned) ---- */
+    float *d_pixels    = nullptr; // rendered RGB image [H*W*3]
 
-    float *d_T_final   = nullptr;  // [H*W]
-    int   *d_n_contrib = nullptr;  // [H*W]
+    /* ---- backward input (not owned) ---- */
+    const float *gradOutput = nullptr; // dL/d_pixels [H*W*3]
 
-    uint64_t *d_keys           = nullptr;
-    uint32_t *d_values         = nullptr;
-    uint64_t *d_keys_sorted    = nullptr;
-    uint32_t *d_values_sorted  = nullptr;
-    uint32_t *d_pair_count     = nullptr;
-    int2     *d_tile_ranges    = nullptr;
-    void     *d_sort_temp      = nullptr;
-    size_t    sort_temp_bytes  = 0;
+    /* ---- backward output (owned) ---- */
+    Splat2DGrads gradInput; // dL/d_splat2d
 
-    Splat2DGrads gradInput;
+    /* ---- internals (owned) ---- */
+    float *d_T_final   = nullptr;  // final transmittance per pixel [H*W]
+    int   *d_n_contrib = nullptr;  // contributing splat count      [H*W]
 
-    // config
-    int screen_width = 0;
+    uint64_t *d_keys          = nullptr;
+    uint32_t *d_values        = nullptr;
+    uint64_t *d_keys_sorted   = nullptr;
+    uint32_t *d_values_sorted = nullptr;
+    uint32_t *d_pair_count    = nullptr;
+    int2     *d_tile_ranges   = nullptr;
+    void     *d_sort_temp     = nullptr;
+    size_t    sort_temp_bytes = 0;
+
+    /* ---- config ---- */
+    int screen_width  = 0;
     int screen_height = 0;
-    int numPixels   = 0;
-    int num_tiles_x = 0;
-    int num_tiles_y = 0;
-    int max_pairs   = 0;
+    int numPixels     = 0;
+    int num_tiles_x   = 0;
+    int num_tiles_y   = 0;
+    int max_pairs     = 0;
 };

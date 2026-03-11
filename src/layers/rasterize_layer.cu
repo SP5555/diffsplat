@@ -507,10 +507,10 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
     cudaMalloc(&d_values,        max_pairs * sizeof(uint32_t));
     cudaMalloc(&d_keys_sorted,   max_pairs * sizeof(uint64_t));
     cudaMalloc(&d_values_sorted, max_pairs * sizeof(uint32_t));
-    cudaMalloc(&d_pair_count,               sizeof(uint32_t));
+    cudaMalloc(&d_pair_count,                sizeof(uint32_t));
     cudaMalloc(&d_tile_ranges,   numTiles  * sizeof(int2));
 
-    gradInput.allocate(count);
+    gradInput.allocateDeviceMem(count);
 }
 
 void RasterizeLayer::free()
@@ -551,7 +551,7 @@ void RasterizeLayer::forward()
         int blocks  = (input->count + threads - 1) / threads;
         tileAssignKernel<<<blocks, threads>>>(
             input->pos_x, input->pos_y, input->pos_z,
-            input->cov_a, input->cov_b, input->cov_d,
+            input->cov_xx, input->cov_xy, input->cov_yy,
             input->count,
             d_keys, d_values, d_pair_count,
             max_pairs, num_tiles_x, num_tiles_y,
@@ -613,7 +613,7 @@ void RasterizeLayer::forward()
         );
         rasterizeKernel<<<blocks, threads>>>(
             input->pos_x, input->pos_y,
-            input->cov_a, input->cov_b, input->cov_d,
+            input->cov_xx, input->cov_xy, input->cov_yy,
             input->color_r, input->color_g, input->color_b,
             input->opacity,
             d_values_sorted, d_tile_ranges,
@@ -634,16 +634,16 @@ void RasterizeLayer::backward()
     );
     backwardKernel<<<blocks, threads>>>(
         input->pos_x, input->pos_y,
-        input->cov_a, input->cov_b, input->cov_d,
+        input->cov_xx, input->cov_xy, input->cov_yy,
         input->color_r, input->color_g, input->color_b,
         input->opacity,
         gradOutput,
         d_values_sorted, d_tile_ranges,
         d_pixels, d_T_final, d_n_contrib,
-        gradInput.pos_x, gradInput.pos_y,
-        gradInput.cov_a, gradInput.cov_b, gradInput.cov_d,
-        gradInput.color_r, gradInput.color_g, gradInput.color_b,
-        gradInput.opacity,
+        gradInput.grad_pos_x, gradInput.grad_pos_y,
+        gradInput.grad_cov_xx, gradInput.grad_cov_xy, gradInput.grad_cov_yy,
+        gradInput.grad_color_r, gradInput.grad_color_g, gradInput.grad_color_b,
+        gradInput.grad_opacity,
         num_tiles_x, num_tiles_y,
         screen_width, screen_height
     );

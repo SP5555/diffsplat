@@ -7,7 +7,8 @@
 #include <vector>
 #include <string>
 
-#include "../gaussian/gaussian.h"
+#include "../types/gaussian3d.h"
+#include "../layers/covariance_layer.h"
 #include "../layers/ndc_project_layer.h"
 #include "../layers/rasterize_layer.h"
 #include "../layers/mse_loss_layer.h"
@@ -45,17 +46,17 @@ private:
     int height = 0;
 
     // --- Gaussian data ---
-    GaussianParams      gaussianParams;
-    GaussianOptState    gaussianOptState;
+    Gaussian3DParams   gaussianParams;
 
     // --- Layers ---
-    NDCProjectLayer     orthoLayer;
-    RasterizeLayer      rasterizeLayer;
-    MSELossLayer        lossLayer;
+    CovarianceLayer covLayer;
+    NDCProjectLayer ndcLayer;
+    RasterizeLayer  rasLayer;
+    MSELossLayer    mseLayer;
 
     // --- Adam optimizer ---
-    AdamConfig  adamConfig;
-    uint32_t    iterCount = 0;
+    AdamConfig adamConfig;
+    uint32_t   iterCount = 0;
 
     // --- Target image (owned here, wired into the loss layer) ---
     float *d_target_pixels = nullptr;

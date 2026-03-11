@@ -1,9 +1,9 @@
 #pragma once
-#include "../gaussian/gaussian.h"
-#include "splat2d_params.h"
+#include "../types/splat3d.h"
+#include "../types/splat2d.h"
 
 /**
- * @brief Projects 3D Gaussians to 2D screen space.
+ * @brief Projects Splat3D in world space to Splat2D in screen space.
  * 
  * World space is centered at the origin with:
  * 
@@ -27,25 +27,29 @@ public:
     void zero_grad();
 
     // wiring
-    void setInput(const GaussianParams *params)   { input = params; }
-    void setGradOutput(const Splat2DGrads *grads) { gradOutput = grads; }
-    void setGradInput(GaussianOptState *grads)    { gradInput = grads; }
-    const Splat2DParams &getOutput() const        { return output; }
+    void setInput(const Splat3DParams *params)      { input = params; }
+    const Splat2DParams &getOutput() const          { return output; }
+    void setGradOutput(const Splat2DGrads *grads)   { gradOutput = grads; } 
+    const Splat3DGrads &getGradInput() const        { return gradInput; }
 
     void forward();
     void backward();
 
 private:
-    // not owned
-    const GaussianParams *input      = nullptr;
-    const Splat2DGrads   *gradOutput = nullptr;
-    GaussianOptState     *gradInput  = nullptr;
+    /* ---- forward input (not owned) ---- */
+    const Splat3DParams *input = nullptr;
 
-    // owned
+    /* ---- forward output (owned) ---- */
     Splat2DParams output;
-    int allocatedCount = 0;
 
-    // config
-    int screen_width = 0;
+    /* ---- backward input (not owned) ---- */
+    const Splat2DGrads *gradOutput = nullptr;
+
+    /* ---- backward output (owned) ---- */
+    Splat3DGrads gradInput;
+
+    /* ---- config ---- */
+    int screen_width  = 0;
     int screen_height = 0;
+    int allocatedCount = 0;
 };

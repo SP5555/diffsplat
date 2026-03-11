@@ -46,17 +46,20 @@ set(CPP_SOURCES
     src/app/app.cpp
     src/input/input.cpp
 
-    src/pipelines/gauss_img_fitter.cpp
     src/loaders/image_loader.cpp
-)
-
+    )
+    
 set(CUDA_SOURCES
-    src/gaussian/gaussian.cu
-    src/optimizers/adam.cu
+    src/pipelines/gauss_img_fitter.cu
+
     src/utils/cuda_utils.cu
+
+    src/layers/covariance_layer.cu
     src/layers/ndc_project_layer.cu
     src/layers/rasterize_layer.cu
     src/layers/mse_loss_layer.cu
+
+    src/optimizers/adam.cu
 )
 
 # Executable

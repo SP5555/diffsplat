@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 #include "app.h"
-#include "../gaussian/gaussian.h"
+#include "../types/gaussian3d.h"
 
 static void glfwErrorCallback(int error, const char *description)
 {

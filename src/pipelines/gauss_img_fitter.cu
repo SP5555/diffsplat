@@ -41,7 +41,6 @@ void GaussImgFitter::init(int w, int h)
     if (cudaGLInteropSupported) {
         initPBO();
     } else {
-        // fallback host buffer for cross-device path
         h_pixels.resize(width * height * 3);
     }
 
@@ -67,8 +66,7 @@ void GaussImgFitter::randomInitGaussians(int count, int seed)
     if (seed < 0)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
 
-    gaussianParams = GaussianParams::randomInit(count, width, height, seed);
-    gaussianOptState.allocateDeviceMem(gaussianParams.count);
+    gaussianParams = Gaussian3DParams::randomInit(count, width, height, seed);
 
     // layers can only be wired after gaussians are initialized
     initLayers();
@@ -97,7 +95,6 @@ void GaussImgFitter::initGL()
 
     shader_program = buildDisplayProgram();
 
-    // output texture
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -108,7 +105,7 @@ void GaussImgFitter::initGL()
 
 void GaussImgFitter::initCUDA()
 {
-    // cleaned this up too much, now it's chilling at the beach. 
+    // cleaned this up too much, now it's chilling at the beach.
     return;
 }
 
@@ -136,23 +133,22 @@ void GaussImgFitter::initLayers()
     int count = gaussianParams.count;
 
     // allocate
-    orthoLayer.allocate(width, height, count);
-    rasterizeLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
-    lossLayer.allocate(width, height);
+    covLayer.allocate(count);
+    ndcLayer.allocate(width, height, count);
+    rasLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
+    mseLayer.allocate(width, height);
 
-    // wire forward path
-    // input -> layer -> output 
-    orthoLayer.setInput(&gaussianParams);
-    rasterizeLayer.setInput(&orthoLayer.getOutput());
-    lossLayer.setInput(rasterizeLayer.getOutput());
-    lossLayer.setTarget(d_target_pixels);
+    // wire forward
+    covLayer.setInput(&gaussianParams);
+    ndcLayer.setInput(&covLayer.getOutput());
+    rasLayer.setInput(&ndcLayer.getOutput());
+    mseLayer.setInput(rasLayer.getOutput());
+    mseLayer.setTarget(d_target_pixels);
 
-    // wire backward path
-    // grad input <- layer <- grad output
-    // I know, vocabulary isn't the best. That's why this comment exists.
-    rasterizeLayer.setGradOutput(lossLayer.getGradInput());
-    orthoLayer.setGradOutput(&rasterizeLayer.getGradInput());
-    orthoLayer.setGradInput(&gaussianOptState);
+    // wire backward
+    rasLayer.setGradOutput(mseLayer.getGradInput());
+    ndcLayer.setGradOutput(&rasLayer.getGradInput());
+    covLayer.setGradOutput(&ndcLayer.getGradInput());
 }
 
 bool GaussImgFitter::checkCudaGLInterop()
@@ -176,36 +172,37 @@ bool GaussImgFitter::checkCudaGLInterop()
 void GaussImgFitter::render()
 {
     // zero all gradients before each frame
-    lossLayer.zero_grad();
-    rasterizeLayer.zero_grad();
-    orthoLayer.zero_grad();
-    gaussianOptState.zero_grad();
+    mseLayer.zero_grad();
+    rasLayer.zero_grad();
+    ndcLayer.zero_grad();
+    covLayer.zero_grad();
 
     // forward
-    orthoLayer.forward();
-    rasterizeLayer.forward();
-    // you don't really need this unless you wanna benchmark the loss.
-    // float loss = lossLayer.forward();
+    covLayer.forward();
+    ndcLayer.forward();
+    rasLayer.forward();
+    // mseLayer.forward() only needed for logging:
+    // float loss = mseLayer.forward();
     // printf("Iter %d: Loss = %.8f\n", iterCount, loss);
 
     // backward
-    lossLayer.backward();
-    rasterizeLayer.backward();
-    orthoLayer.backward();
+    mseLayer.backward();
+    rasLayer.backward();
+    ndcLayer.backward();
+    covLayer.backward();
 
     // optimizer step
-    launchAdam(gaussianParams, gaussianOptState, adamConfig, ++iterCount);
+    launchAdam(gaussianParams, covLayer.getGradInput(), adamConfig, ++iterCount);
 
     displayFrame();
 }
 
 void GaussImgFitter::displayFrame()
 {
-    const float *pixels = rasterizeLayer.getOutput();
+    const float *pixels = rasLayer.getOutput();
 
     if (cudaGLInteropSupported)
     {
-        // D2D copy into PBO
         cudaGraphicsMapResources(1, &d_pbo_resource);
         float *d_pbo  = nullptr;
         size_t pbo_size = 0;
@@ -221,9 +218,6 @@ void GaussImgFitter::displayFrame()
     }
     else
     {
-        // fallback: GPU -> CPU -> GPU
-        // CUDA Mem to PBO is not possible if GL and CUDA are on different devices
-        // e.g. AMD GL + NVIDIA CUDA
         cudaMemcpy(h_pixels.data(), pixels,
                    width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
         glBindTexture(GL_TEXTURE_2D, texture);
@@ -244,11 +238,11 @@ void GaussImgFitter::displayFrame()
 void GaussImgFitter::freeCUDA()
 {
     gaussianParams.free();
-    gaussianOptState.free();
 
-    orthoLayer.free();
-    rasterizeLayer.free();
-    lossLayer.free();
+    covLayer.free();
+    ndcLayer.free();
+    rasLayer.free();
+    mseLayer.free();
 
     CUDA_FREE(d_target_pixels);
 }

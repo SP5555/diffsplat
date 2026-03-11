@@ -85,8 +85,8 @@ static void stepOne(
 }
 
 void launchAdam(
-    GaussianParams &gaussians,
-    GaussianOptState &opt_state,
+    Gaussian3DParams &gaussians,
+    const Gaussian3DOptState &opt_state,
     const AdamConfig &config,
     int step)
 {
@@ -110,18 +110,24 @@ void launchAdam(
     auto& g = gaussians;
     auto& o = opt_state;
     auto& c = config;
-    go(g.pos_x, o.grad_pos_x, o.m_pos_x, o.v_pos_x, c.lr_pos);
-    go(g.pos_y, o.grad_pos_y, o.m_pos_y, o.v_pos_y, c.lr_pos);
-    go(g.cov_a, o.grad_cov_a, o.m_cov_a, o.v_cov_a, c.lr_cov);
-    go(g.cov_b, o.grad_cov_b, o.m_cov_b, o.v_cov_b, c.lr_cov);
-    go(g.cov_d, o.grad_cov_d, o.m_cov_d, o.v_cov_d, c.lr_cov);
+    go(g.pos_x,   o.grad_pos_x,   o.m_pos_x,   o.v_pos_x,   c.lr_pos);
+    go(g.pos_y,   o.grad_pos_y,   o.m_pos_y,   o.v_pos_y,   c.lr_pos);
+    go(g.pos_z,   o.grad_pos_z,   o.m_pos_z,   o.v_pos_z,   c.lr_pos);
+    go(g.scale_x, o.grad_scale_x, o.m_scale_x, o.v_scale_x, c.lr_scale);
+    go(g.scale_y, o.grad_scale_y, o.m_scale_y, o.v_scale_y, c.lr_scale);
+    go(g.scale_z, o.grad_scale_z, o.m_scale_z, o.v_scale_z, c.lr_scale);
+    go(g.rot_w,   o.grad_rot_w,   o.m_rot_w,   o.v_rot_w,   c.lr_rot);
+    go(g.rot_x,   o.grad_rot_x,   o.m_rot_x,   o.v_rot_x,   c.lr_rot);
+    go(g.rot_y,   o.grad_rot_y,   o.m_rot_y,   o.v_rot_y,   c.lr_rot);
+    go(g.rot_z,   o.grad_rot_z,   o.m_rot_z,   o.v_rot_z,   c.lr_rot);
     go(g.color_r, o.grad_color_r, o.m_color_r, o.v_color_r, c.lr_color);
     go(g.color_g, o.grad_color_g, o.m_color_g, o.v_color_g, c.lr_color);
     go(g.color_b, o.grad_color_b, o.m_color_b, o.v_color_b, c.lr_color);
     go(g.opacity, o.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
 
-    cl(g.cov_a, -1e-12f, FLT_MAX);
-    cl(g.cov_d, -1e-12f, FLT_MAX);
+    cl(g.scale_x, 0.f, FLT_MAX);
+    cl(g.scale_y, 0.f, FLT_MAX);
+    cl(g.scale_z, 0.f, FLT_MAX);
     cl(g.color_r, 0.f, 1.f);
     cl(g.color_g, 0.f, 1.f);
     cl(g.color_b, 0.f, 1.f);
