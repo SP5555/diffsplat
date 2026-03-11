@@ -1,11 +1,6 @@
 #pragma once
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <cuda_runtime.h>
-#include <cuda_gl_interop.h>
-#include <cstdint>
-#include <vector>
 #include <string>
+#include <cuda_runtime.h>
 
 #include "../types/gaussian3d.h"
 #include "../layers/covariance_layer.h"
@@ -14,64 +9,54 @@
 #include "../layers/mse_loss_layer.h"
 #include "../optimizers/adam.cuh"
 
-#define NUM_TILES_X 64
-#define NUM_TILES_Y 64
-#define MAX_PAIRS   (NUM_TILES_X * NUM_TILES_Y * 1024)
-
+/**
+ * @brief Differentiable Gaussian image fitter.
+ * 
+ * Pure CUDA pipeline — no GL, no display, no window.
+ * Owns Gaussian parameters and all layers.
+ * Call render() each frame, then getOutput() to get the pixel buffer
+ * for display via AppBase::displayFrame().
+ */
 class GaussImgFitter
 {
 public:
-    GaussImgFitter() = default;
     ~GaussImgFitter();
 
     void init(int width, int height);
-    void loadTargetImage(const std::string &imagePath, int width, int height, int padding = 0);
+    void loadTargetImage(const std::string &imagePath, int w, int h, int padding = 0);
     void randomInitGaussians(int count, int seed = -1);
+    void free();
+
     void render();
-    void freeCUDA();
-    void freeGL();
-    int  getIterCount();
+
+    const float *getOutput()    const;
+    int          getIterCount() const { return iterCount; }
 
 private:
-    void initGL();
-    void initCUDA();
-    void initPBO();
     void initLayers();
-    void displayFrame();
-    bool checkCudaGLInterop();
+    int  maxPairs() const { return NUM_TILES_X * NUM_TILES_Y * 512; }
 
-    int maxPairs() const { return MAX_PAIRS; }
-
+    /* ---- config ---- */
     int width  = 0;
     int height = 0;
 
-    // --- Gaussian data ---
-    Gaussian3DParams   gaussianParams;
+    static constexpr int TILE_SIZE   = 16;
+    static constexpr int NUM_TILES_X = 80;   // adjust to your resolution
+    static constexpr int NUM_TILES_Y = 45;
 
-    // --- Layers ---
+    /* ---- Gaussian state ---- */
+    Gaussian3DParams gaussianParams;
+
+    /* ---- layers ---- */
     CovarianceLayer covLayer;
     NDCProjectLayer ndcLayer;
     RasterizeLayer  rasLayer;
     MSELossLayer    mseLayer;
 
-    // --- Adam optimizer ---
+    /* ---- optimizer ---- */
     AdamConfig adamConfig;
-    uint32_t   iterCount = 0;
+    int        iterCount = 0;
 
-    // --- Target image (owned here, wired into the loss layer) ---
+    /* ---- target image ---- */
     float *d_target_pixels = nullptr;
-
-    // --- Display ---
-    std::vector<float> h_pixels; // fallback host buffer (cross-device)
-    bool cudaGLInteropSupported = false;
-
-    // --- OpenGL objects ---
-    GLuint texture        = 0;
-    GLuint vao            = 0;
-    GLuint vbo            = 0;
-    GLuint shader_program = 0;
-
-    // --- PBO (CUDA-GL interop) ---
-    GLuint                 pbo            = 0;
-    cudaGraphicsResource_t d_pbo_resource = nullptr;
 };

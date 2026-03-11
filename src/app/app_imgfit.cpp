@@ -3,7 +3,7 @@
 /* ===== ===== Lifecycle ===== ===== */
 
 AppImgFit::AppImgFit(int width, int height, const std::string &imagePath)
-    : AppBase(width, height, "Diffsplat")
+    : AppBase(width, height, "Diffsplat", false)
     , imagePath(imagePath)
 {
 }
@@ -20,21 +20,12 @@ void AppImgFit::onStart()
 void AppImgFit::onRender()
 {
     renderer.render();
+    displayFrame(renderer.getOutput());
 }
 
 void AppImgFit::onInput()
 {
     // muted for now
-    // if (input.mouseLeft)
-    // {
-    //     std::cout << "[App] Mouse Left Held at (" << input.mousePos.x << ", " << input.mousePos.y << ")\n";
-    // }
-    // if (input.mouseRight)
-    // {
-    //     std::cout << "[App] Mouse Right Held at (" << input.mousePos.x << ", " << input.mousePos.y << ")\n";
-    // }
-    // if (input.scrollDelta != 0.f)
-    // {
-    //     std::cout << "[App] Scroll Delta: " << input.scrollDelta << "\n";
-    // }
+    // if (input.mouseLeft) { ... }
+    // if (input.scrollDelta != 0.f) { ... }
 }
