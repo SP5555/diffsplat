@@ -2,6 +2,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <cstdlib>
+#include <getopt.h>
 
 int main(int argc, char *argv[])
 {
@@ -9,14 +10,24 @@ int main(int argc, char *argv[])
     int height = -1;
     std::string imagePath;
 
-    int opt;
-    while ((opt = getopt(argc, argv, "w:h:i:")) != -1) {
+    static struct option long_options[] = {
+        {"width",  required_argument, 0, 'w'},
+        {"height", required_argument, 0, 'h'},
+        {"image",  required_argument, 0, 'i'},
+        {0, 0, 0, 0}
+    };
+
+    int opt, idx;
+    while ((opt = getopt_long(argc, argv, "w:h:i:", long_options, &idx)) != -1) {
         switch(opt) {
             case 'w': width = std::atoi(optarg); break;
             case 'h': height = std::atoi(optarg); break;
             case 'i': imagePath = optarg; break;
             default:
-                std::cerr << "Usage: " << argv[0] << " -w width -h height -i image_path\n";
+                std::cerr << "Usage: " << argv[0]
+                          << " --width <width>"
+                          << " --height <height>"
+                          << " --image <path_to_image>\n";
                 return 1;
         }
     }
@@ -35,14 +46,9 @@ int main(int argc, char *argv[])
     }
 
     if (imagePath.empty()) {
-        imagePath = "../img/torii_moon.jpg";
+        imagePath = "img/torii_moon.jpg";
         printf("No image path specified, defaulting to %s\n", imagePath.c_str());
     }
-
-    std::cout << "Running:"
-              << " Width=" << width
-              << " Height=" << height
-              << " Image=" << imagePath << "\n";
 
     // APP STARTS HERE
     try {

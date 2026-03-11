@@ -1,11 +1,15 @@
+#include <iostream>
+
 #include "app_imgfit.h"
 
-/* ===== ===== Lifecycle ===== ===== */
-
 AppImgFit::AppImgFit(int width, int height, const std::string &imagePath)
-    : AppBase(width, height, "Diffsplat", false)
+    : AppBase(width, height, "Image Fitter", false)
     , imagePath(imagePath)
 {
+    std::cout << "[AppImgFit] Running:"
+              << " Width=" << width
+              << " Height=" << height
+              << " Image=" << imagePath << "\n";
 }
 
 /* ===== ===== App overrides ===== ===== */
@@ -25,7 +29,9 @@ void AppImgFit::onRender()
 
 void AppImgFit::onInput()
 {
-    // muted for now
-    // if (input.mouseLeft) { ... }
-    // if (input.scrollDelta != 0.f) { ... }
+    // if (input.mouseLeft) {
+    //     std::cout << "[AppImgFit] Mouse at ("
+    //               << input.mousePos.x << ", "
+    //               << input.mousePos.y << ")\n";
+    // }
 }

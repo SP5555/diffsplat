@@ -1,4 +1,7 @@
+#include <unordered_map>
 #include "input.h"
+
+static std::unordered_map<GLFWwindow*, Input*> s_inputs;
 
 void Input::flush()
 {
@@ -8,7 +11,7 @@ void Input::flush()
 
 void Input::install(GLFWwindow *window, Input *input)
 {
-    glfwSetWindowUserPointer(window, input);
+    s_inputs[window] = input;
     glfwSetMouseButtonCallback(window, cbMouseButton);
     glfwSetCursorPosCallback(window, cbMouseMove);
     glfwSetScrollCallback(window, cbMouseScroll);
@@ -16,7 +19,7 @@ void Input::install(GLFWwindow *window, Input *input)
 
 void Input::cbMouseButton(GLFWwindow *window, int button, int action, int mods)
 {
-    Input *input = static_cast<Input *>(glfwGetWindowUserPointer(window));
+    Input *input = s_inputs[window];
     bool pressed = (action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
@@ -30,7 +33,7 @@ void Input::cbMouseButton(GLFWwindow *window, int button, int action, int mods)
 
 void Input::cbMouseMove(GLFWwindow *window, double xpos, double ypos)
 {
-    Input *input = static_cast<Input *>(glfwGetWindowUserPointer(window));
+    Input *input = s_inputs[window];
     glm::vec2 newPos = {static_cast<float>(xpos), static_cast<float>(ypos)};
 
     if (input->firstMouse)
@@ -46,6 +49,6 @@ void Input::cbMouseMove(GLFWwindow *window, double xpos, double ypos)
 
 void Input::cbMouseScroll(GLFWwindow *window, double xoffset, double yoffset)
 {
-    Input *input = static_cast<Input *>(glfwGetWindowUserPointer(window));
+    Input *input = s_inputs[window];
     input->scrollDelta += static_cast<float>(yoffset);
 }

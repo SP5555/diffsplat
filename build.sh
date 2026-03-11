@@ -13,5 +13,5 @@ else
 fi
 
 mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH:-86}
+cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)

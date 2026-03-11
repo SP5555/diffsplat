@@ -35,6 +35,11 @@ void main() {
 }
 )glsl";
 
+void AppBase::glfwErrorCallback(int error, const char *description)
+{
+    std::cerr << "[GLFW] Error " << error << ": " << description << "\n";
+}
+
 static GLuint compileShader(GLenum type, const char *src)
 {
     GLuint s = glCreateShader(type);
@@ -66,13 +71,8 @@ static GLuint buildDisplayProgram()
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void AppBase::glfwErrorCallback(int error, const char *description)
-{
-    std::cerr << "[GLFW] Error " << error << ": " << description << "\n";
-}
-
-AppBase::AppBase(int width, int height, const std::string &title, bool resizeable)
-    : width(width), height(height), title(title)
+AppBase::AppBase(int width, int height, const std::string &title, bool resizable)
+    : width(width), height(height), title(title), resizable(resizable)
 {
     glfwSetErrorCallback(glfwErrorCallback);
 
@@ -82,7 +82,7 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizeabl
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_RESIZABLE, resizeable ? GL_TRUE : GL_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE);
 
     window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
     if (!window)
@@ -116,11 +116,21 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizeabl
         initPBO();
     else
         h_pixels.resize(width * height * 3);
+    
+    glfwSetWindowUserPointer(window, this);
+    if (resizable) {
+        glfwSetFramebufferSizeCallback(window, [](GLFWwindow *win, int w, int h) {
+            auto *app = static_cast<AppBase *>(glfwGetWindowUserPointer(win));
+            if (!app) return;
+            // invoke the subclass's onWindowResize()
+            // so it can react to the new size if needed
+            app->onWindowResize(w, h);
+        });
+    }
 }
 
 AppBase::~AppBase()
 {
-    // GL cleanup
     if (pbo)
     {
         if (d_pbo_resource)
@@ -131,14 +141,47 @@ AppBase::~AppBase()
         glDeleteBuffers(1, &pbo);
         pbo = 0;
     }
-    if (texture)        { glDeleteTextures(1,     &texture);        texture        = 0; }
-    if (vao)            { glDeleteVertexArrays(1, &vao);            vao            = 0; }
-    if (vbo)            { glDeleteBuffers(1,       &vbo);           vbo            = 0; }
-    if (shader_program) { glDeleteProgram(shader_program);          shader_program = 0; }
+    if (texture)        { glDeleteTextures(1,     &texture);   texture        = 0; }
+    if (vao)            { glDeleteVertexArrays(1, &vao);       vao            = 0; }
+    if (vbo)            { glDeleteBuffers(1,      &vbo);       vbo            = 0; }
+    if (shader_program) { glDeleteProgram(shader_program);     shader_program = 0; }
 
     if (window)
         glfwDestroyWindow(window);
     glfwTerminate();
+}
+
+void AppBase::start()
+{
+    onStart();
+    lastFrameTime = glfwGetTime();
+
+    while (!glfwWindowShouldClose(window))
+    {
+        glfwPollEvents();
+
+        double currentTime  = glfwGetTime();
+        double deltaTime    = currentTime - lastFrameTime;
+        lastFrameTime       = currentTime;
+        timeSinceUpdate    += deltaTime;
+        frameSinceUpdate++;
+
+        if (timeSinceUpdate >= 0.1)
+        {
+            avgFPS = avgFPS * 0.4f + (frameSinceUpdate / (float)timeSinceUpdate) * 0.6f;
+            char buf[128];
+            snprintf(buf, sizeof(buf), "%s [FPS: %.1f]", title.c_str(), avgFPS);
+            glfwSetWindowTitle(window, buf);
+            timeSinceUpdate  = 0.0;
+            frameSinceUpdate = 0;
+        }
+
+        onInput();
+        onRender();
+
+        glfwSwapBuffers(window);
+        input.flush();
+    }
 }
 
 /* ===== ===== Private Init ===== ===== */
@@ -202,13 +245,20 @@ bool AppBase::checkCudaGLInterop()
     return false;
 }
 
-/* ===== ===== Display ===== ===== */
+/* ===== ===== Resize ===== ===== */
 
 void AppBase::onResize(int newWidth, int newHeight)
 {
-    width = newWidth;
+    if (newWidth <= 0 || newHeight <= 0)
+        return;
+
+    if (newWidth == width && newHeight == height)
+        return;
+
+    width  = newWidth;
     height = newHeight;
 
+    // recreate PBO for new size
     if (pbo)
     {
         if (d_pbo_resource)
@@ -223,14 +273,17 @@ void AppBase::onResize(int newWidth, int newHeight)
     if (cudaGLInteropSupported)
         initPBO();
     else
-        h_pixels.resize(width * height * 3);
+        h_pixels.resize(newWidth * newHeight * 3);
 
+    // resize texture
     glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, newWidth, newHeight, 0, GL_RGB, GL_FLOAT, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, newWidth, newHeight);
 }
+
+/* ===== ===== Display ===== ===== */
 
 void AppBase::displayFrame(const float *d_pixels)
 {
@@ -264,39 +317,4 @@ void AppBase::displayFrame(const float *d_pixels)
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
-}
-
-/* ===== ===== Main Loop ===== ===== */
-
-void AppBase::start()
-{
-    onStart();
-    lastFrameTime = glfwGetTime();
-
-    while (!glfwWindowShouldClose(window))
-    {
-        glfwPollEvents();
-
-        double currentTime  = glfwGetTime();
-        double deltaTime    = currentTime - lastFrameTime;
-        lastFrameTime       = currentTime;
-        timeSinceUpdate    += deltaTime;
-        frameSinceUpdate++;
-
-        if (timeSinceUpdate >= 0.1)
-        {
-            avgFPS = avgFPS * 0.4f + (frameSinceUpdate / (float)timeSinceUpdate) * 0.6f;
-            char buf[128];
-            snprintf(buf, sizeof(buf), "%s [FPS: %.1f]", title.c_str(), avgFPS);
-            glfwSetWindowTitle(window, buf);
-            timeSinceUpdate  = 0.0;
-            frameSinceUpdate = 0;
-        }
-
-        onInput();
-        onRender();
-
-        glfwSwapBuffers(window);
-        input.flush();
-    }
 }
