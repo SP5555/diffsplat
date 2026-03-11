@@ -47,11 +47,10 @@ set(CPP_SOURCES
     src/input/input.cpp
 
     src/loaders/image_loader.cpp
-    )
+    src/pipelines/gauss_img_fitter.cpp
+)
     
 set(CUDA_SOURCES
-    src/pipelines/gauss_img_fitter.cu
-
     src/utils/cuda_utils.cu
 
     src/layers/covariance_layer.cu
