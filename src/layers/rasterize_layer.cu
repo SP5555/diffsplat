@@ -53,6 +53,7 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
  * @param[in] screen_height Screen height in pixels
  */
 __global__ void tileAssignKernel(
+    // input splat data
     const float *__restrict__ pos_x,
     const float *__restrict__ pos_y,
     const float *__restrict__ pos_z,
@@ -60,10 +61,12 @@ __global__ void tileAssignKernel(
     const float *__restrict__ cov_b,
     const float *__restrict__ cov_d,
     int splat_count,
+    // output
     uint64_t *d_keys,
     uint32_t *d_values,
     uint32_t *d_pair_count,
     int max_pairs,
+    // screen config
     int num_tiles_x,
     int num_tiles_y,
     int screen_width,
@@ -91,7 +94,7 @@ __global__ void tileAssignKernel(
     float temp    = fmaxf(0.f, trace * trace - 4.f * det);
     float lambda1 = 0.5f * (trace + sqrtf(temp));
     float lambda2 = 0.5f * (trace - sqrtf(temp));
-    float max_radius = 3.f * sqrtf(lambda1);
+    float max_radius = 3.f * sqrtf(max(lambda1, lambda2));
 
     // cull splats smaller than half a pixel in NDC
     float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
@@ -158,7 +161,7 @@ __global__ void buildTileRangesKernel(
     int num_tiles)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= (int)pair_count) return;
+    if ((uint32_t)i >= pair_count) return;
 
     int tile_id = (int)(keys_sorted[i] >> 32);
     // invalid tile_id (should never happen if tile assignment is correct)
@@ -202,6 +205,7 @@ __global__ void buildTileRangesKernel(
  * @param screen_height     Screen height in pixels
  */
 __global__ void rasterizeKernel(
+    // input splat data
     const float *__restrict__ pos_x,
     const float *__restrict__ pos_y,
     const float *__restrict__ cov_a,
@@ -211,11 +215,14 @@ __global__ void rasterizeKernel(
     const float *__restrict__ color_g,
     const float *__restrict__ color_b,
     const float *__restrict__ opacity,
+    // input tile data
     const uint32_t *__restrict__ values_sorted,
     const int2     *__restrict__ tile_ranges,
+    // output
     float *d_pixels,
     float *d_T_final,
     int   *d_n_contrib,
+    // screen config
     int num_tiles_x, int num_tiles_y,
     int screen_width, int screen_height)
 {
@@ -327,6 +334,7 @@ __global__ void rasterizeKernel(
  * @param[in] screen_height     Screen height in pixels
  */
 __global__ void backwardKernel(
+    // read-only splat data
     const float *__restrict__ pos_x,
     const float *__restrict__ pos_y,
     const float *__restrict__ cov_a,
@@ -336,12 +344,15 @@ __global__ void backwardKernel(
     const float *__restrict__ color_g,
     const float *__restrict__ color_b,
     const float *__restrict__ opacity,
-    const float    *__restrict__ d_grad_output,
+    // read-only tile data
     const uint32_t *__restrict__ d_values_sorted,
     const int2     *__restrict__ d_tile_ranges,
     const float *__restrict__ d_pixels,
     const float *__restrict__ d_T_final,
     const int   *__restrict__ d_n_contrib,
+    // out gradients
+    const float *__restrict__ d_grad_output,
+    // in gradients
     float *grad_pos_x,
     float *grad_pos_y,
     float *grad_cov_a,
@@ -637,9 +648,9 @@ void RasterizeLayer::backward()
         input->cov_xx, input->cov_xy, input->cov_yy,
         input->color_r, input->color_g, input->color_b,
         input->opacity,
-        gradOutput,
         d_values_sorted, d_tile_ranges,
         d_pixels, d_T_final, d_n_contrib,
+        gradOutput,
         gradInput.grad_pos_x, gradInput.grad_pos_y,
         gradInput.grad_cov_xx, gradInput.grad_cov_xy, gradInput.grad_cov_yy,
         gradInput.grad_color_r, gradInput.grad_color_g, gradInput.grad_color_b,
