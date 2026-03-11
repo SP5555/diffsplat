@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(2dgs_cuda LANGUAGES C CXX CUDA)
+project(diffsplat LANGUAGES C CXX CUDA)
 
 # Standards
 set(CMAKE_CXX_STANDARD 17)
@@ -40,17 +40,13 @@ if(NOT glm_FOUND)
 endif()
 
 # Sources
-set(CPP_SOURCES
-    src/main.cpp
+set(CPP_SHARED_SOURCES
     src/glad.c
-    src/app/app.cpp
     src/input/input.cpp
-
-    src/loaders/image_loader.cpp
-    src/pipelines/gauss_img_fitter.cpp
+    src/app/app_base.cpp
 )
     
-set(CUDA_SOURCES
+set(CUDA_SHARED_SOURCES
     src/utils/cuda_utils.cu
 
     src/layers/covariance_layer.cu
@@ -60,25 +56,29 @@ set(CUDA_SOURCES
 
     src/optimizers/adam.cu
 )
-
+    
 # Executable
-add_executable(2dgs_cuda
-    ${CPP_SOURCES}
-    ${CUDA_SOURCES}
+add_executable(imgfitapp
+    src/main_imgfit.cpp
+    src/app/app_imgfit.cpp
+    src/loaders/image_loader.cpp
+    src/pipelines/gauss_img_fitter.cpp
+    ${CPP_SHARED_SOURCES}
+    ${CUDA_SHARED_SOURCES}
 )
 
-get_target_property(SOURCES 2dgs_cuda SOURCES)
+get_target_property(SOURCES imgfitapp SOURCES)
 message(STATUS "Sources: ${SOURCES}")
 
 # Include paths
-target_include_directories(2dgs_cuda PRIVATE
+target_include_directories(imgfitapp PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
 )
 
 # Link libraries
-target_link_libraries(2dgs_cuda PRIVATE
+target_link_libraries(imgfitapp PRIVATE
     OpenGL::GL
     glfw
     glm::glm
@@ -86,11 +86,11 @@ target_link_libraries(2dgs_cuda PRIVATE
 )
 
 # CUDA-specific flags
-set_target_properties(2dgs_cuda PROPERTIES
+set_target_properties(imgfitapp PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
 
-target_compile_options(2dgs_cuda PRIVATE
+target_compile_options(imgfitapp PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:
         --use_fast_math
         -lineinfo

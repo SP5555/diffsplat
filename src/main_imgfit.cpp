@@ -1,4 +1,4 @@
-#include "app/app.h"
+#include "app/app_imgfit.h"
 #include <iostream>
 #include <unistd.h>
 #include <cstdlib>
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 
     // APP STARTS HERE
     try {
-        App app(width, height, imagePath);
+        AppImgFit app(width, height, imagePath);
         app.start();
     }
     catch (const std::exception &e)
