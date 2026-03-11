@@ -113,8 +113,10 @@ __global__ void ndcBackwardKernel(
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void NDCProjectLayer::allocate(int count)
+void NDCProjectLayer::allocate(int width, int height, int count)
 {
+    screen_width = width;
+    screen_height = height;
     allocatedCount = count;
 
     auto alloc = [](int n) {
@@ -150,10 +152,10 @@ void NDCProjectLayer::zero_grad()
 
 /* ===== ===== Forward / Backward ===== ===== */
 
-void NDCProjectLayer::forward(int width, int height)
+void NDCProjectLayer::forward()
 {
-    float sx = 2.f / (float)width;
-    float sy = 2.f / (float)height;
+    float sx = 2.f / (float)screen_width;
+    float sy = 2.f / (float)screen_height;
     int count = input->count;
 
     // wire pass-through aliases (no copy, just pointer assignment)
@@ -176,10 +178,10 @@ void NDCProjectLayer::forward(int width, int height)
     cudaDeviceSynchronize();
 }
 
-void NDCProjectLayer::backward(int width, int height)
+void NDCProjectLayer::backward()
 {
-    float sx = 2.f / (float)width;
-    float sy = 2.f / (float)height;
+    float sx = 2.f / (float)screen_width;
+    float sy = 2.f / (float)screen_height;
     int count = input->count;
 
     int threads = 256;

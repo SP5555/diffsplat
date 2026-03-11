@@ -22,7 +22,7 @@ class NDCProjectLayer
 public:
     ~NDCProjectLayer() { free(); }
 
-    void allocate(int count);
+    void allocate(int width, int height, int count);
     void free();
     void zero_grad();
 
@@ -32,8 +32,8 @@ public:
     void setGradInput(GaussianOptState *grads)    { gradInput = grads; }
     const Splat2DParams &getOutput() const        { return output; }
 
-    void forward(int width, int height);
-    void backward(int width, int height);
+    void forward();
+    void backward();
 
 private:
     // not owned
@@ -44,4 +44,8 @@ private:
     // owned
     Splat2DParams output;
     int allocatedCount = 0;
+
+    // config
+    int screen_width = 0;
+    int screen_height = 0;
 };

@@ -491,6 +491,8 @@ __global__ void backwardKernel(
 void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_tiles_y,
                                int _max_pairs, int count)
 {
+    screen_width = width;
+    screen_height = height;
     numPixels   = width * height;
     num_tiles_x = _num_tiles_x;
     num_tiles_y = _num_tiles_y;
@@ -534,7 +536,7 @@ void RasterizeLayer::zero_grad()
 
 /* ===== ===== Forward / Backward ===== ===== */
 
-void RasterizeLayer::forward(int width, int height)
+void RasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
@@ -553,7 +555,7 @@ void RasterizeLayer::forward(int width, int height)
             input->count,
             d_keys, d_values, d_pair_count,
             max_pairs, num_tiles_x, num_tiles_y,
-            width, height
+            screen_width, screen_height
         );
         cudaDeviceSynchronize();
     }
@@ -606,8 +608,8 @@ void RasterizeLayer::forward(int width, int height)
     {
         dim3 threads(16, 16);
         dim3 blocks(
-            (width  + threads.x - 1) / threads.x,
-            (height + threads.y - 1) / threads.y
+            (screen_width  + threads.x - 1) / threads.x,
+            (screen_height + threads.y - 1) / threads.y
         );
         rasterizeKernel<<<blocks, threads>>>(
             input->pos_x, input->pos_y,
@@ -617,18 +619,18 @@ void RasterizeLayer::forward(int width, int height)
             d_values_sorted, d_tile_ranges,
             d_pixels, d_T_final, d_n_contrib,
             num_tiles_x, num_tiles_y,
-            width, height
+            screen_width, screen_height
         );
         cudaDeviceSynchronize();
     }
 }
 
-void RasterizeLayer::backward(int width, int height)
+void RasterizeLayer::backward()
 {
     dim3 threads(16, 16);
     dim3 blocks(
-        (width  + threads.x - 1) / threads.x,
-        (height + threads.y - 1) / threads.y
+        (screen_width  + threads.x - 1) / threads.x,
+        (screen_height + threads.y - 1) / threads.y
     );
     backwardKernel<<<blocks, threads>>>(
         input->pos_x, input->pos_y,
@@ -643,7 +645,7 @@ void RasterizeLayer::backward(int width, int height)
         gradInput.color_r, gradInput.color_g, gradInput.color_b,
         gradInput.opacity,
         num_tiles_x, num_tiles_y,
-        width, height
+        screen_width, screen_height
     );
     cudaDeviceSynchronize();
     

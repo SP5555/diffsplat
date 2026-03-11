@@ -40,8 +40,8 @@ public:
     const Splat2DGrads &getGradInput() const   { return gradInput; }
 
     // tile assign + sort + rasterize -> pixels
-    void forward(int width, int height);
-    void backward(int width, int height);
+    void forward();
+    void backward();
 
     // debug
     const float *getGradOutput() const { return gradOutput; }
@@ -50,7 +50,7 @@ private:
     // not owned
     const Splat2DParams *input      = nullptr;
     const float         *gradOutput = nullptr;
-    
+
     // owned forward output
     float *d_pixels    = nullptr;  // [H*W*3]
 
@@ -68,6 +68,9 @@ private:
 
     Splat2DGrads gradInput;
 
+    // config
+    int screen_width = 0;
+    int screen_height = 0;
     int numPixels   = 0;
     int num_tiles_x = 0;
     int num_tiles_y = 0;

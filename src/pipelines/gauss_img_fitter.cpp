@@ -136,7 +136,7 @@ void GaussImgFitter::initLayers()
     int count = gaussianParams.count;
 
     // allocate
-    orthoLayer.allocate(count);
+    orthoLayer.allocate(width, height, count);
     rasterizeLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
     lossLayer.allocate(width, height);
 
@@ -182,16 +182,16 @@ void GaussImgFitter::render()
     gaussianOptState.zero_grad();
 
     // forward
-    orthoLayer.forward(width, height);
-    rasterizeLayer.forward(width, height);
+    orthoLayer.forward();
+    rasterizeLayer.forward();
     // you don't really need this unless you wanna benchmark the loss.
     // float loss = lossLayer.forward();
     // printf("Iter %d: Loss = %.8f\n", iterCount, loss);
 
     // backward
     lossLayer.backward();
-    rasterizeLayer.backward(width, height);
-    orthoLayer.backward(width, height);
+    rasterizeLayer.backward();
+    orthoLayer.backward();
 
     // optimizer step
     launchAdam(gaussianParams, gaussianOptState, adamConfig, ++iterCount);
