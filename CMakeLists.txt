@@ -75,6 +75,7 @@ function(diffsplat_target_setup TARGET)
         $<$<COMPILE_LANGUAGE:CUDA>:
             --use_fast_math
             -lineinfo
+            -diag-suppress=20012
         >
     )
 endfunction()
