@@ -122,6 +122,8 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
         glfwSetFramebufferSizeCallback(window, [](GLFWwindow *win, int w, int h) {
             auto *app = static_cast<AppBase *>(glfwGetWindowUserPointer(win));
             if (!app) return;
+            // update PBO/texture sizes
+            app->onResize(w, h);
             // invoke the subclass's onWindowResize()
             // so it can react to the new size if needed
             app->onWindowResize(w, h);

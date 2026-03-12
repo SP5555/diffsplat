@@ -11,7 +11,7 @@
 class AppImgFit : public AppBase
 {
 public:
-    AppImgFit(int width, int height, const std::string &imagePath);
+    AppImgFit(int width, int height, const std::string &imagePath, int splatCount = 60000);
 
 protected:
     void onStart()  override;
@@ -19,6 +19,7 @@ protected:
     void onInput()  override;
 
 private:
-    std::string    imagePath;
-    GaussImgFitter renderer;
+    std::string     imagePath;
+    int             splatCount;
+    GaussImgFitter  renderer;
 };

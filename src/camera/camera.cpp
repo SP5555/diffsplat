@@ -14,11 +14,11 @@ Camera::Camera(float aspect, float fovDegrees, float nearPlane, float farPlane)
 
 /* ===== ===== Update ===== ===== */
 
-bool Camera::update(glm::vec2 mouseDelta, float scrollDelta, bool shiftHeld, float dt)
+bool Camera::update(const Input &input, float dt)
 {
     // clamp large deltas from click jumps
-    mouseDelta.x = glm::clamp(mouseDelta.x, -50.f, 50.f);
-    mouseDelta.y = glm::clamp(mouseDelta.y, -50.f, 50.f);
+    float mouseDelta_x =  glm::clamp(input.mouseDelta.x, -50.f, 50.f);
+    float mouseDelta_y = -glm::clamp(input.mouseDelta.y, -50.f, 50.f);
 
     glm::vec3 offset   = position - target;
     glm::vec3 viewDir  = glm::normalize(-offset);
@@ -27,15 +27,15 @@ bool Camera::update(glm::vec2 mouseDelta, float scrollDelta, bool shiftHeld, flo
     bool isDirty = false;
 
     // ===== orbit =====
-    if (!shiftHeld && (mouseDelta.x != 0.f || mouseDelta.y != 0.f))
+    if (!input.shiftPressed && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
     {
         glm::vec3 dir = glm::normalize(offset);
 
         float pitch = glm::asin(glm::clamp(dir.y, -1.f, 1.f));
         float yaw   = glm::atan(dir.x, dir.z);
 
-        pitch += mouseDelta.y * rotateSpeed * dt;
-        yaw   -= mouseDelta.x * rotateSpeed * dt;
+        pitch += mouseDelta_y * rotateSpeed * dt;
+        yaw   -= mouseDelta_x * rotateSpeed * dt;
 
         pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
         yaw   = glm::mod(yaw, glm::two_pi<float>());
@@ -51,11 +51,11 @@ bool Camera::update(glm::vec2 mouseDelta, float scrollDelta, bool shiftHeld, flo
     }
 
     // ===== pan =====
-    if (shiftHeld && (mouseDelta.x != 0.f || mouseDelta.y != 0.f))
+    if (input.shiftPressed && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
     {
         glm::vec3 translation =
-            right * (-mouseDelta.x * distance * panSpeed) +
-            up    * ( mouseDelta.y * distance * panSpeed);
+            right * (-mouseDelta_x * distance * panSpeed) +
+            up    * ( mouseDelta_y * distance * panSpeed);
 
         position += translation;
         target   += translation;
@@ -63,9 +63,9 @@ bool Camera::update(glm::vec2 mouseDelta, float scrollDelta, bool shiftHeld, flo
     }
 
     // ===== zoom =====
-    if (scrollDelta != 0.f)
+    if (input.scrollDelta != 0.f)
     {
-        glm::vec3 translation = viewDir * (-scrollDelta * distance * zoomSpeed);
+        glm::vec3 translation = viewDir * (input.scrollDelta * distance * zoomSpeed);
         position += translation;
 
         float newDist = glm::distance(position, target);

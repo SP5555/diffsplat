@@ -3,7 +3,7 @@
 
 #include "../types/gaussian3d.h"
 #include "../layers/gauss_activ_layer.h"
-// #include "../layers/perspective_project_layer.h"  // TODO
+#include "../layers/persp_project_layer.h"
 #include "../layers/rasterize_layer.h"
 
 /**
@@ -18,23 +18,23 @@ public:
     ~GaussPlyViewer();
 
     void init(int w, int h);
-    void loadPLY(const std::string &path);
+    void loadPLY(const std::string &path, const float sceneScale = 1.f);
     void initLayers();
 
-    void render(/* const glm::mat4 &view, const glm::mat4 &proj */);
+    void render(const glm::mat4 &view, const glm::mat4 &proj);
+    void resize(int newWidth, int newHeight);
 
     const float *getOutput() const;
 
     void free();
 
 private:
-    void normalizeSplats(std::vector<Gaussian3D> &splats);
+    void normalizeSplats(std::vector<Gaussian3D> &splats, const float sceneScale);
 
     // ---- config ----
-    static constexpr int TILE_SIZE   = 16;
-    int NUM_TILES_X = 0;
-    int NUM_TILES_Y = 0;
-    int maxPairs() const { return NUM_TILES_X * NUM_TILES_Y * 50; }
+    static constexpr int NUM_TILES_X = 64;
+    static constexpr int NUM_TILES_Y = 64;
+    int maxPairs() const { return NUM_TILES_X * NUM_TILES_Y * 4096; }
 
     // ---- state ----
     int width  = 0;
@@ -44,7 +44,7 @@ private:
     Gaussian3DParams gaussianParams;
 
     // ---- layers ----
-    GaussActivLayer  activLayer;
-    // PerspectiveProjectLayer perspLayer;  // TODO
-    RasterizeLayer   rasLayer;
+    GaussActivLayer   activLayer;
+    PerspProjectLayer perspLayer;
+    RasterizeLayer    rasLayer;
 };

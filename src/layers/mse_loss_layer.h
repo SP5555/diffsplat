@@ -37,5 +37,5 @@ private:
     float *d_grad_pixels = nullptr;  // dL/d_pixels [H*W*3]
 
     /* ---- config ---- */
-    size_t numPixels = 0;
+    size_t num_pixels = 0;
 };

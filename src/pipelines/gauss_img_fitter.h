@@ -40,9 +40,8 @@ private:
     int width  = 0;
     int height = 0;
 
-    static constexpr int TILE_SIZE   = 16;
-    static constexpr int NUM_TILES_X = 80;   // adjust to your resolution
-    static constexpr int NUM_TILES_Y = 45;
+    static constexpr int NUM_TILES_X = 32;
+    static constexpr int NUM_TILES_Y = 32;
 
     /* ---- Gaussian state ---- */
     Gaussian3DParams gaussianParams;

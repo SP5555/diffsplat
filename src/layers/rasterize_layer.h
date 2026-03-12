@@ -33,6 +33,8 @@ public:
     void free();
     void zero_grad();
 
+    void resize(int new_width, int new_height);
+
     // wiring
     void setInput(const Splat2DParams *params) { input = params; }
     const float        *getOutput() const      { return d_pixels; }
@@ -75,7 +77,7 @@ private:
     /* ---- config ---- */
     int screen_width  = 0;
     int screen_height = 0;
-    int numPixels     = 0;
+    int num_pixels     = 0;
     int num_tiles_x   = 0;
     int num_tiles_y   = 0;
     int max_pairs     = 0;

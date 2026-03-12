@@ -1,13 +1,14 @@
 # diffsplat
-A differentiable Gaussian splatting renderer in CUDA, with 3D forward rendering in progress.
+A differentiable Gaussian splatting renderer built from scratch in CUDA.
 
-Random splats initialize on screen and optimize toward a target image, **live**.
+Implements the full pipeline, forward rasterization, analytic backward pass, and Adam
+optimization, entirely on the GPU, with no deep learning framework dependencies.
 
 ## TODO
-- [ ] Build a device for 3D feedforward rendering
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
-- [ ] World space to NDC layer with proper camera transforms
-- [ ] PLY file loading for feedforward 3DGS rendering
+- [X] Build a device for 3D feedforward rendering
+- [X] World space to NDC layer with proper camera transforms
+- [X] PLY file loading for feedforward 3DGS rendering
 - [x] Make modular base app so specific purpose apps can build on top of it
 - [x] Modularize the pipeline into "layers" for PyTorch-like code
 - [x] Proper NDC → pixel space transform
@@ -52,16 +53,22 @@ make -j$(nproc)
 > Common architecture values: 75 = Turing (RTX 20xx), 86 = Ampere (RTX 30xx), 89 = Ada (RTX 40xx), 90 = Hopper, 120 = Blackwell (RTX 50xx)
 > Not sure which one you have? `nvidia-smi` will tell you the GPU model. And look it up: https://developer.nvidia.com/cuda/gpus
 
-## Run
+---
+
+## Apps
+
+### imgfitapp (Image Fitter)
+Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** as the renderer learns to reconstruct the image iteration by iteration.
+
 ```sh
-# default demo
-./build/imgfitapp
+./build/imgfitapp --width 1280 --height 720 --image path/to/image.png --splat-count 50000
+```
 
-# custom resolution and target image (jpg and png supported)
-./build/imgfitapp --width 1280 --height 720 --image path/to/image.png
+### plyviewapp (PLY Scene Viewer)
+Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines.
 
-# PLY viewer (work in progress, right now it's black screen. dead inside)
-./build/plyviewapp --scene path/to/scene.ply
+```sh
+./build/plyviewapp --scene path/to/scene.ply --scale 1.0
 ```
 
 ---
@@ -89,7 +96,8 @@ __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/<app>
 Most likely a CUDA architecture mismatch.
 If you're on an older or newer GPU, rebuild with the correct architecture manually:
 ```sh
-cd build # navigate to build directory
+rm -rf build            # nuke the broken build
+mkdir build && cd build # navigate
 
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=75   # Turing (RTX 20xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=86   # Ampere (RTX 30xx)

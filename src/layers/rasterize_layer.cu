@@ -504,15 +504,15 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
 {
     screen_width = width;
     screen_height = height;
-    numPixels   = width * height;
+    num_pixels   = width * height;
     num_tiles_x = _num_tiles_x;
     num_tiles_y = _num_tiles_y;
     max_pairs   = _max_pairs;
     int numTiles = num_tiles_x * num_tiles_y;
 
-    cudaMalloc(&d_pixels,    numPixels * 3 * sizeof(float));
-    cudaMalloc(&d_T_final,   numPixels     * sizeof(float));
-    cudaMalloc(&d_n_contrib, numPixels     * sizeof(int));
+    cudaMalloc(&d_pixels,    num_pixels * 3 * sizeof(float));
+    cudaMalloc(&d_T_final,   num_pixels     * sizeof(float));
+    cudaMalloc(&d_n_contrib, num_pixels     * sizeof(int));
 
     cudaMalloc(&d_keys,          max_pairs * sizeof(uint64_t));
     cudaMalloc(&d_values,        max_pairs * sizeof(uint32_t));
@@ -537,12 +537,30 @@ void RasterizeLayer::free()
     CUDA_FREE(d_tile_ranges);
     CUDA_FREE(d_sort_temp);
     gradInput.free();
-    numPixels = 0;
+    num_pixels = 0;
 }
 
 void RasterizeLayer::zero_grad()
 {
     gradInput.zero();
+}
+
+void RasterizeLayer::resize(int new_width, int new_height)
+{
+    if (new_width == screen_width && new_height == screen_height)
+        return;
+
+    screen_width = new_width;
+    screen_height = new_height;
+    num_pixels = screen_width * screen_height;
+
+    CUDA_FREE(d_pixels);
+    CUDA_FREE(d_T_final);
+    CUDA_FREE(d_n_contrib);
+
+    cudaMalloc(&d_pixels,    num_pixels * 3 * sizeof(float));
+    cudaMalloc(&d_T_final,   num_pixels     * sizeof(float));
+    cudaMalloc(&d_n_contrib, num_pixels     * sizeof(int));
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -552,7 +570,7 @@ void RasterizeLayer::forward()
     int numTiles = num_tiles_x * num_tiles_y;
 
     // clear per-frame buffers
-    cudaMemset(d_pixels,     0, numPixels * 3 * sizeof(float));
+    cudaMemset(d_pixels,     0, num_pixels * 3 * sizeof(float));
     cudaMemset(d_pair_count, 0, sizeof(uint32_t));
     cudaMemset(d_tile_ranges,0, numTiles  * sizeof(int2));
 

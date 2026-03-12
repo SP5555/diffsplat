@@ -63,8 +63,8 @@ __global__ void mseLossKernel(
 
 void MSELossLayer::allocate(int width, int height)
 {
-    numPixels = width * height;
-    cudaMalloc(&d_grad_pixels, numPixels * 3 * sizeof(float));
+    num_pixels = width * height;
+    cudaMalloc(&d_grad_pixels, num_pixels * 3 * sizeof(float));
     cudaMalloc(&d_loss,                   sizeof(float));
 }
 
@@ -72,13 +72,13 @@ void MSELossLayer::free()
 {
     CUDA_FREE(d_grad_pixels);
     CUDA_FREE(d_loss);
-    numPixels = 0;
+    num_pixels = 0;
 }
 
 void MSELossLayer::zero_grad()
 {
     if (d_grad_pixels)
-        cudaMemset(d_grad_pixels, 0, numPixels * 3 * sizeof(float));
+        cudaMemset(d_grad_pixels, 0, num_pixels * 3 * sizeof(float));
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -86,10 +86,10 @@ void MSELossLayer::zero_grad()
 float MSELossLayer::forward()
 {
     int threads = 256;
-    int blocks  = (numPixels + threads - 1) / threads;
+    int blocks  = (num_pixels + threads - 1) / threads;
 
     cudaMemset(d_loss, 0, sizeof(float));
-    mseLossKernel<<<blocks, threads>>>(input, d_target_pixels, d_loss, numPixels);
+    mseLossKernel<<<blocks, threads>>>(input, d_target_pixels, d_loss, num_pixels);
     cudaDeviceSynchronize();
 
     float h_loss = 0.f;
@@ -100,7 +100,7 @@ float MSELossLayer::forward()
 void MSELossLayer::backward()
 {
     int threads = 256;
-    int blocks  = (numPixels + threads - 1) / threads;
-    mseGradKernel<<<blocks, threads>>>(input, d_target_pixels, d_grad_pixels, numPixels);
+    int blocks  = (num_pixels + threads - 1) / threads;
+    mseGradKernel<<<blocks, threads>>>(input, d_target_pixels, d_grad_pixels, num_pixels);
     cudaDeviceSynchronize();
 }

@@ -15,6 +15,7 @@ void Input::install(GLFWwindow *window, Input *input)
     glfwSetMouseButtonCallback(window, cbMouseButton);
     glfwSetCursorPosCallback(window, cbMouseMove);
     glfwSetScrollCallback(window, cbMouseScroll);
+    glfwSetKeyCallback(window, cbKey);
 }
 
 void Input::cbMouseButton(GLFWwindow *window, int button, int action, int mods)

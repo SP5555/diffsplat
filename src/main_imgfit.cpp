@@ -9,25 +9,29 @@ int main(int argc, char *argv[])
     int width = -1;
     int height = -1;
     std::string imagePath;
+    int splatCount = 60000;
 
     static struct option long_options[] = {
         {"width",  required_argument, 0, 'w'},
         {"height", required_argument, 0, 'h'},
         {"image",  required_argument, 0, 'i'},
+        {"splat-count", required_argument, 0, 's'},
         {0, 0, 0, 0}
     };
 
     int opt, idx;
-    while ((opt = getopt_long(argc, argv, "w:h:i:", long_options, &idx)) != -1) {
+    while ((opt = getopt_long(argc, argv, "w:h:i:s:", long_options, &idx)) != -1) {
         switch(opt) {
             case 'w': width = std::atoi(optarg); break;
             case 'h': height = std::atoi(optarg); break;
             case 'i': imagePath = optarg; break;
+            case 's': splatCount = std::atoi(optarg); break;
             default:
                 std::cerr << "Usage: " << argv[0]
                           << " --width <width>"
                           << " --height <height>"
-                          << " --image <path_to_image>\n";
+                          << " --image <path_to_image>"
+                          << " --splat-count <count>\n";
                 return 1;
         }
     }
@@ -52,7 +56,7 @@ int main(int argc, char *argv[])
 
     // APP STARTS HERE
     try {
-        AppImgFit app(width, height, imagePath);
+        AppImgFit app(width, height, imagePath, splatCount);
         app.start();
     }
     catch (const std::exception &e)

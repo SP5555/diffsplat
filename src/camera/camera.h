@@ -2,6 +2,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "../input/input.h"
+
 /**
  * @brief Orbit camera with pan and zoom.
  * 
@@ -17,11 +19,11 @@
 class Camera
 {
 public:
-    Camera(float aspect, float fovDegrees = 60.f,
+    Camera(float aspect, float fovDegrees = 40.f,
            float nearPlane = 0.01f, float farPlane = 100.f);
 
     // call every frame, returns true if matrices changed
-    bool update(glm::vec2 mouseDelta, float scrollDelta, bool shiftHeld, float dt);
+    bool update(const Input &input, float dt);
 
     // call on window resize
     void setAspect(float aspect);
@@ -30,7 +32,7 @@ public:
     const glm::mat4 &getProjectionMatrix() const { return pMatrix; }
 
     // ---- config ----
-    float rotateSpeed = 0.1f;
+    float rotateSpeed = 0.2f;
     float panSpeed    = 0.005f;
     float zoomSpeed   = 0.1f;
     float minDistance = 0.1f;

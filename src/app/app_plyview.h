@@ -13,7 +13,7 @@
 class AppPlyView : public AppBase
 {
 public:
-    AppPlyView(const std::string &plyPath);
+    AppPlyView(const std::string &plyPath, float sceneScale = 1.f);
 
 protected:
     void onStart()  override;
@@ -22,7 +22,8 @@ protected:
     void onWindowResize(int newWidth, int newHeight) override;
 
 private:
-    std::string      plyPath;
-    GaussPlyViewer   renderer;
-    Camera           camera;
+    std::string     plyPath;
+    float           sceneScale;
+    GaussPlyViewer  renderer;
+    Camera          camera;
 };

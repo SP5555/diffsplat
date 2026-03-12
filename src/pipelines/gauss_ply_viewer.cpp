@@ -18,24 +18,21 @@ void GaussPlyViewer::init(int w, int h)
 {
     width       = w;
     height      = h;
-    NUM_TILES_X = (w + TILE_SIZE - 1) / TILE_SIZE;
-    NUM_TILES_Y = (h + TILE_SIZE - 1) / TILE_SIZE;
 
     std::cout << "[GaussPlyViewer] Init " << w << "x" << h
               << " tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
               << " maxPairs=" << maxPairs() << "\n";
 }
 
-void GaussPlyViewer::loadPLY(const std::string &path)
+void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)
 {
     auto splats = PLYLoader::load(path);
     if (splats.empty())
         throw std::runtime_error("[GaussPlyViewer] PLY loaded 0 splats: " + path);
 
-    normalizeSplats(splats);
+    normalizeSplats(splats, sceneScale);
 
     gaussianParams.upload(splats);
-    initLayers();
 }
 
 const float *GaussPlyViewer::getOutput() const
@@ -45,7 +42,7 @@ const float *GaussPlyViewer::getOutput() const
 
 /* ===== ===== Normalization ===== ===== */
 
-void GaussPlyViewer::normalizeSplats(std::vector<Gaussian3D> &splats)
+void GaussPlyViewer::normalizeSplats(std::vector<Gaussian3D> &splats, const float sceneScale)
 {
     // compute centroid
     float cx = 0.f, cy = 0.f, cz = 0.f;
@@ -71,7 +68,7 @@ void GaussPlyViewer::normalizeSplats(std::vector<Gaussian3D> &splats)
     // scale to [-1, 1]
     if (maxExt > 0.f)
     {
-        float linearScale = 1.f / maxExt;
+        float linearScale = sceneScale / maxExt;
         float logScale = logf(linearScale);
         for (auto &g : splats)
         {
@@ -94,26 +91,34 @@ void GaussPlyViewer::initLayers()
 
     // allocate
     activLayer.allocate(count);
-    // perspLayer.allocate(width, height, count);  // TODO
+    perspLayer.allocate(count);
     rasLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
 
     // wire forward
-    // activLayer.setInput(&gaussianParams);
-    // perspLayer.setInput(&activLayer.getOutput());  // TODO
-    // rasLayer.setInput(&perspLayer.getOutput());    // TODO
-    // rasLayer.setInput(&activLayer.getOutput());
+    activLayer.setInput(&gaussianParams);
+    perspLayer.setInput(&activLayer.getOutput());
+    rasLayer.setInput(&perspLayer.getOutput());
 
     // no backward wiring, forward-only pipeline
 }
 
 /* ===== ===== Render ===== ===== */
 
-void GaussPlyViewer::render(/* const glm::mat4 &view, const glm::mat4 &proj */)
+void GaussPlyViewer::render(const glm::mat4 &view, const glm::mat4 &proj)
 {
-    // activLayer.forward();
-    // perspLayer.setCamera(view, proj);  // TODO
-    // perspLayer.forward();              // TODO
-    // rasLayer.forward();
+    perspLayer.setCamera(view, proj);
+
+    activLayer.forward();
+    perspLayer.forward();
+    rasLayer.forward();
+}
+
+void GaussPlyViewer::resize(int newWidth, int newHeight)
+{
+    width  = newWidth;
+    height = newHeight;
+
+    rasLayer.resize(width, height);
 }
 
 /* ===== ===== Cleanup ===== ===== */
@@ -122,6 +127,6 @@ void GaussPlyViewer::free()
 {
     gaussianParams.free();
     activLayer.free();
-    // perspLayer.free();  // TODO
+    perspLayer.free();
     rasLayer.free();
 }
