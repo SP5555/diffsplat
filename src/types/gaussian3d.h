@@ -132,7 +132,9 @@ struct Gaussian3DParams
             g.r       = rndu();
             g.g       = rndu();
             g.b       = rndu();
-            g.opacity = 0.6f + 0.4f * rndu();
+            float o_raw = 0.6f + 0.4f * rndu();
+            // logit
+            g.opacity = logf(o_raw / (1.f - o_raw));
         }
 
         Gaussian3DParams data;

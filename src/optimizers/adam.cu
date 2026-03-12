@@ -125,13 +125,9 @@ void launchAdam(
     go(g.color_b, o.grad_color_b, o.m_color_b, o.v_color_b, c.lr_color);
     go(g.opacity, o.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
 
-    cl(g.scale_x, 0.f, FLT_MAX);
-    cl(g.scale_y, 0.f, FLT_MAX);
-    cl(g.scale_z, 0.f, FLT_MAX);
     cl(g.color_r, 0.f, 1.f);
     cl(g.color_g, 0.f, 1.f);
     cl(g.color_b, 0.f, 1.f);
-    cl(g.opacity, 0.f, 1.f);
 
     cudaDeviceSynchronize();
 }

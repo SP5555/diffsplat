@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 
 #include "../types/gaussian3d.h"
-#include "../layers/covariance_layer.h"
+#include "../layers/gauss_activ_layer.h"
 #include "../layers/ndc_project_layer.h"
 #include "../layers/rasterize_layer.h"
 #include "../layers/mse_loss_layer.h"
@@ -48,7 +48,7 @@ private:
     Gaussian3DParams gaussianParams;
 
     /* ---- layers ---- */
-    CovarianceLayer covLayer;
+    GaussActivLayer covLayer;
     NDCProjectLayer ndcLayer;
     RasterizeLayer  rasLayer;
     MSELossLayer    mseLayer;

@@ -46,7 +46,7 @@ set(CPP_SHARED_SOURCES
 
 set(CUDA_SHARED_SOURCES
     src/utils/cuda_utils.cu
-    src/layers/covariance_layer.cu
+    src/layers/gauss_activ_layer.cu
     src/layers/ndc_project_layer.cu
     src/layers/rasterize_layer.cu
     src/layers/mse_loss_layer.cu
