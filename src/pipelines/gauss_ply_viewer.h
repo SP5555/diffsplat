@@ -29,12 +29,12 @@ public:
     void free();
 
 private:
+    int maxPairs() const { return powf(2.f, 25.f); }
     void normalizeSplats(std::vector<Gaussian3D> &splats, const float sceneScale);
 
     // ---- config ----
     static constexpr int NUM_TILES_X = 64;
     static constexpr int NUM_TILES_Y = 64;
-    int maxPairs() const { return NUM_TILES_X * NUM_TILES_Y * 4096; }
 
     // ---- state ----
     int width  = 0;

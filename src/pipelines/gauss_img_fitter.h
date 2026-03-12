@@ -34,7 +34,7 @@ public:
     int          getIterCount() const { return iterCount; }
 
 private:
-    int  maxPairs() const { return NUM_TILES_X * NUM_TILES_Y * 512; }
+    int maxPairs() const { return powf(2.f, 20.f); }
 
     /* ---- config ---- */
     int width  = 0;
