@@ -23,11 +23,11 @@ void Input::cbMouseButton(GLFWwindow *window, int button, int action, int mods)
     bool pressed = (action == GLFW_PRESS);
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        input->mouseLeft = pressed;
+        input->mouseLeftPressed = pressed;
     }
     else if (button == GLFW_MOUSE_BUTTON_RIGHT)
     {
-        input->mouseRight = pressed;
+        input->mouseRightPressed = pressed;
     }
 }
 
@@ -51,4 +51,13 @@ void Input::cbMouseScroll(GLFWwindow *window, double xoffset, double yoffset)
 {
     Input *input = s_inputs[window];
     input->scrollDelta += static_cast<float>(yoffset);
+}
+
+void Input::cbKey(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    Input *input = s_inputs[window];
+    if (key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT)
+    {
+        input->shiftPressed = (action != GLFW_RELEASE);
+    }
 }

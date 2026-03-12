@@ -19,6 +19,9 @@ void AppImgFit::onStart()
     renderer.init(width, height);
     renderer.loadTargetImage(imagePath, width, height, 10);
     renderer.randomInitGaussians(80000);
+    // layers can only be wired after gaussians are initialized
+    // as it needs to know the gaussian count for allocation
+    renderer.initLayers();
 }
 
 void AppImgFit::onRender()
@@ -29,7 +32,7 @@ void AppImgFit::onRender()
 
 void AppImgFit::onInput()
 {
-    // if (input.mouseLeft) {
+    // if (input.mouseLeftPressed) {
     //     std::cout << "[AppImgFit] Mouse at ("
     //               << input.mousePos.x << ", "
     //               << input.mousePos.y << ")\n";

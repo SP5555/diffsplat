@@ -162,6 +162,7 @@ void AppBase::start()
 
         double currentTime  = glfwGetTime();
         double deltaTime    = currentTime - lastFrameTime;
+        dt                  = static_cast<float>(deltaTime);
         lastFrameTime       = currentTime;
         timeSinceUpdate    += deltaTime;
         frameSinceUpdate++;

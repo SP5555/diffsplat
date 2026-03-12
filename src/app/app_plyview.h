@@ -1,11 +1,14 @@
 #pragma once
 #include <string>
 #include "app_base.h"
+#include "../pipelines/gauss_ply_viewer.h"
+#include "../camera/camera.h"
 
 /**
  * @brief App for viewing a 3D Gaussian scene from a PLY file.
  * 
- * Supports window resizing. Rendering is not yet implemented.
+ * Supports window resizing, orbit/pan/zoom camera controls.
+ * Perspective projection is pending PerspectiveProjectLayer.
  */
 class AppPlyView : public AppBase
 {
@@ -19,6 +22,7 @@ protected:
     void onWindowResize(int newWidth, int newHeight) override;
 
 private:
-
-    std::string plyPath;
+    std::string      plyPath;
+    GaussPlyViewer   renderer;
+    Camera           camera;
 };

@@ -12,7 +12,7 @@
 /**
  * @brief Differentiable Gaussian image fitter.
  * 
- * Pure CUDA pipeline — no GL, no display, no window.
+ * Pure CUDA pipeline, no GL, no display, no window.
  * Owns Gaussian parameters and all layers.
  * Call render() each frame, then getOutput() to get the pixel buffer
  * for display via AppBase::displayFrame().
@@ -25,6 +25,7 @@ public:
     void init(int width, int height);
     void loadTargetImage(const std::string &imagePath, int w, int h, int padding = 0);
     void randomInitGaussians(int count, int seed = -1);
+    void initLayers();
     void free();
 
     void render();
@@ -33,7 +34,6 @@ public:
     int          getIterCount() const { return iterCount; }
 
 private:
-    void initLayers();
     int  maxPairs() const { return NUM_TILES_X * NUM_TILES_Y * 512; }
 
     /* ---- config ---- */
@@ -48,7 +48,7 @@ private:
     Gaussian3DParams gaussianParams;
 
     /* ---- layers ---- */
-    GaussActivLayer covLayer;
+    GaussActivLayer atvLayer;
     NDCProjectLayer ndcLayer;
     RasterizeLayer  rasLayer;
     MSELossLayer    mseLayer;

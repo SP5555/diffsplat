@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     }
 
     if (plyPath.empty()) {
-        plyPath = "../scenes/default.ply";
+        plyPath = "data/ply/fly.ply";
         printf("No PLY path specified, defaulting to %s\n", plyPath.c_str());
     }
 

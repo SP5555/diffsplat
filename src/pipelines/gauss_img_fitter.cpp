@@ -41,9 +41,6 @@ void GaussImgFitter::randomInitGaussians(int count, int seed)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
 
     gaussianParams = Gaussian3DParams::randomInit(count, width, height, seed);
-
-    // layers can only be wired after gaussians are initialized
-    initLayers();
 }
 
 const float *GaussImgFitter::getOutput() const
@@ -58,14 +55,14 @@ void GaussImgFitter::initLayers()
     int count = gaussianParams.count;
 
     // allocate
-    covLayer.allocate(count);
+    atvLayer.allocate(count);
     ndcLayer.allocate(width, height, count);
     rasLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
     mseLayer.allocate(width, height);
 
     // wire forward
-    covLayer.setInput(&gaussianParams);
-    ndcLayer.setInput(&covLayer.getOutput());
+    atvLayer.setInput(&gaussianParams);
+    ndcLayer.setInput(&atvLayer.getOutput());
     rasLayer.setInput(&ndcLayer.getOutput());
     mseLayer.setInput(rasLayer.getOutput());
     mseLayer.setTarget(d_target_pixels);
@@ -73,7 +70,7 @@ void GaussImgFitter::initLayers()
     // wire backward
     rasLayer.setGradOutput(mseLayer.getGradInput());
     ndcLayer.setGradOutput(&rasLayer.getGradInput());
-    covLayer.setGradOutput(&ndcLayer.getGradInput());
+    atvLayer.setGradOutput(&ndcLayer.getGradInput());
 }
 
 /* ===== ===== Render ===== ===== */
@@ -84,10 +81,10 @@ void GaussImgFitter::render()
     mseLayer.zero_grad();
     rasLayer.zero_grad();
     ndcLayer.zero_grad();
-    covLayer.zero_grad();
+    atvLayer.zero_grad();
 
     // forward
-    covLayer.forward();
+    atvLayer.forward();
     ndcLayer.forward();
     rasLayer.forward();
     // only needed for logging:
@@ -98,10 +95,10 @@ void GaussImgFitter::render()
     mseLayer.backward();
     rasLayer.backward();
     ndcLayer.backward();
-    covLayer.backward();
+    atvLayer.backward();
 
     // optimizer step
-    launchAdam(gaussianParams, covLayer.getGradInput(), adamConfig, ++iterCount);
+    launchAdam(gaussianParams, atvLayer.getGradInput(), adamConfig, ++iterCount);
 }
 
 /* ===== ===== Cleanup ===== ===== */
@@ -110,7 +107,7 @@ void GaussImgFitter::free()
 {
     gaussianParams.free();
 
-    covLayer.free();
+    atvLayer.free();
     ndcLayer.free();
     rasLayer.free();
     mseLayer.free();

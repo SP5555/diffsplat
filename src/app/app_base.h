@@ -50,6 +50,9 @@ protected:
     int height = 0;
     bool resizable = false;
 
+    // loop state
+    float  dt = 0.f;
+
 private:
     void initGL();
     void initPBO();

@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     }
 
     if (imagePath.empty()) {
-        imagePath = "img/torii_moon.jpg";
+        imagePath = "data/img/torii_moon.jpg";
         printf("No image path specified, defaulting to %s\n", imagePath.c_str());
     }
 

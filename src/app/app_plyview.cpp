@@ -1,9 +1,15 @@
-#include "app_plyview.h"
 #include <iostream>
 
+#include "app_plyview.h"
+#include "../camera/camera.h"
+
+const int START_WIDTH = 1280;
+const int START_HEIGHT = 720;
+
 AppPlyView::AppPlyView(const std::string &plyPath)
-    : AppBase(1280, 720, "Splat viewer", true)
+    : AppBase(START_WIDTH, START_HEIGHT, "Splat viewer", true)
     , plyPath(plyPath)
+    , camera((float)START_WIDTH / START_HEIGHT)
 {
     std::cout << "[AppPlyView] Running:"
               << " PLY=" << plyPath << "\n";
@@ -13,30 +19,30 @@ AppPlyView::AppPlyView(const std::string &plyPath)
 
 void AppPlyView::onStart()
 {
-    // TODO: load PLY, initialize renderer
+    renderer.init(width, height);
+    renderer.loadPLY(plyPath);
+
+    renderer.initLayers();
 }
 
 void AppPlyView::onRender()
 {
-    // TODO: implement rendering
-
-    // black screen for now
-    glClearColor(0.f, 0.f, 0.f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    renderer.render(/* camera.getViewMatrix(), camera.getProjectionMatrix() */);
+    // displayFrame(renderer.getOutput());
 }
 
 void AppPlyView::onInput()
 {
-    // TODO: camera controls (orbit, pan, zoom)
-    if (input.mouseLeft) {
-        std::cout << "[AppPlyView] Mouse at ("
-        << input.mousePos.x << ", "
-        << input.mousePos.y << ")\n";
+    // TODO: pass dt once AppBase exposes it
+    camera.update(input.mouseDelta, input.scrollDelta, input.shiftPressed, dt);
+
+    if (input.mouseLeftPressed) {
+        printf("[AppPlyView] Mouse delta : (%.2f, %.2f)\n", input.mouseDelta.x, input.mouseDelta.y);
     }
 }
 
-void AppPlyView::onWindowResize(int width, int height)
+void AppPlyView::onWindowResize(int newWidth, int newHeight)
 {
-    // TODO: rebuild projection matrix
-    std::cout << "[AppPlyView] Resized to " << width << "x" << height << "\n";
+    camera.setAspect((float)newWidth / newHeight);
+    std::cout << "[AppPlyView] Resized to " << newWidth << "x" << newHeight << "\n";
 }

@@ -92,6 +92,9 @@ diffsplat_target_setup(imgfitapp)
 add_executable(plyviewapp
     src/main_plyview.cpp
     src/app/app_plyview.cpp
+    src/loaders/ply_loader.cpp
+    src/camera/camera.cpp
+    src/pipelines/gauss_ply_viewer.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
 )
