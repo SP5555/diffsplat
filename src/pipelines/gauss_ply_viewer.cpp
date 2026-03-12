@@ -60,6 +60,14 @@ void GaussPlyViewer::normalizeSplats(std::vector<Gaussian3D> &splats, const floa
     for (auto &g : splats)
     {
         g.x -= cx; g.y -= cy; g.z -= cz;
+
+        // OpenCV -> OpenGL convention
+        // flip along any one axis to fix left-handedness
+        // here we flip Z. Flipping Y would make the world upside down.
+        g.z      = -g.z;
+        g.rot_w  = -g.rot_w;
+        g.rot_z  = -g.rot_z;
+
         maxExt = std::max(maxExt, std::abs(g.x));
         maxExt = std::max(maxExt, std::abs(g.y));
         maxExt = std::max(maxExt, std::abs(g.z));

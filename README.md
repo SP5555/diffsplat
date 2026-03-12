@@ -65,6 +65,10 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 ```
 
 ### plyviewapp (PLY Scene Viewer)
+<p align="center">
+  <img src="assets/train.png" width="720"/>
+  <br><em><a href="https://huggingface.co/datasets/Voxel51/gaussian_splatting">Train Scene</a></em>
+</p>
 Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines.
 
 ```sh
