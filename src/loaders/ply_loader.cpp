@@ -1,5 +1,6 @@
 #include "ply_loader.h"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -13,6 +14,11 @@ static constexpr float C0 = 0.28209f;  // DC SH coefficient
 
 std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
 {
+    std::string ext = path.substr(path.find_last_of(".") + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext != "ply")
+        throw std::runtime_error("[PLYLoader] Unsupported file extension: " + ext);
+
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open())
         throw std::runtime_error("[PLYLoader] Failed to open: " + path);

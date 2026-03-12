@@ -25,7 +25,7 @@
  * One thread is launched per splat.
  */
 __global__ void perspProjectForwardKernel(
-    // splat3d inputs
+    // splat3d inputs (world space)
     const float *__restrict__ pos_x,
     const float *__restrict__ pos_y,
     const float *__restrict__ pos_z,
@@ -150,7 +150,7 @@ __global__ void perspProjectBackwardKernel(
     const float *__restrict__ grad_color_g,
     const float *__restrict__ grad_color_b,
     const float *__restrict__ grad_opacity,
-    // grad input (to GaussActivLayer)
+    // grad input (to GaussActivLayer, in world space)
     float *grad_in_pos_x,
     float *grad_in_pos_y,
     float *grad_in_pos_z,

@@ -35,13 +35,15 @@ protected:
     virtual void onStart()  = 0;   // called once before the loop
     virtual void onRender() = 0;   // called every frame
 
-    // override when subclass needs access to input states 
-    virtual void onInput() {}
-    // override when subclass needs sizes of resized framebuffer 
+    // override when subclass needs sizes of resized framebuffer
     virtual void onWindowResize(int width, int height) {};
 
     // call at the end of onRender() with your CUDA device pixel buffer [H*W*3]
     void displayFrame(const float *d_pixels);
+
+    // screenshot utility
+    void saveScreenshot();
+    void saveScreenshot(const std::string &path);
 
     // window / input state
     GLFWwindow *window = nullptr;
@@ -63,6 +65,7 @@ private:
 
     static void glfwErrorCallback(int error, const char *description);
 
+
     /* ---- GL objects ---- */
     GLuint vao            = 0;
     GLuint vbo            = 0;
@@ -74,6 +77,12 @@ private:
     cudaGraphicsResource *d_pbo_resource     = nullptr;
     bool                  cudaGLInteropSupported = false;
     std::vector<float>    h_pixels;
+
+    /* ---- render state ---- */
+    const float *lastPixels = nullptr;
+
+    /* ---- screenshot state ---- */
+    bool f12WasPressed = false;
 
     /* ---- loop state ---- */
     double lastFrameTime    = 0.0;

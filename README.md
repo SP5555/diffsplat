@@ -97,7 +97,7 @@ Most likely a CUDA architecture mismatch.
 If you're on an older or newer GPU, rebuild with the correct architecture manually:
 ```sh
 rm -rf build            # nuke the broken build
-mkdir build && cd build # navigate
+mkdir build && cd build # go back in
 
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=75   # Turing (RTX 20xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=86   # Ampere (RTX 30xx)

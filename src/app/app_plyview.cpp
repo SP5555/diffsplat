@@ -29,13 +29,9 @@ void AppPlyView::onStart()
 
 void AppPlyView::onRender()
 {
+    camera.update(input, dt);
     renderer.render(camera.getViewMatrix(), camera.getProjectionMatrix());
     displayFrame(renderer.getOutput());
-}
-
-void AppPlyView::onInput()
-{
-    camera.update(input, dt);
 }
 
 void AppPlyView::onWindowResize(int newWidth, int newHeight)

@@ -18,7 +18,6 @@ public:
 protected:
     void onStart()  override;
     void onRender() override;
-    void onInput()  override;
     void onWindowResize(int newWidth, int newHeight) override;
 
 private:

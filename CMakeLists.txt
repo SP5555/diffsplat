@@ -13,7 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Common values: 75=Turing, 86=Ampere, 89=Ada, 90=Hopper
 # Override: cmake -DCMAKE_CUDA_ARCHITECTURES=89 ..
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES 75 86 89 90 120)
+    set(CMAKE_CUDA_ARCHITECTURES 86 89 90)
 endif()
 
 # ===== Dependencies =====
@@ -42,6 +42,7 @@ set(CPP_SHARED_SOURCES
     src/glad.c
     src/input/input.cpp
     src/app/app_base.cpp
+    src/loaders/image_saver.cpp
 )
 
 set(CUDA_SHARED_SOURCES

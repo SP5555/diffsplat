@@ -31,12 +31,3 @@ void AppImgFit::onRender()
     renderer.render();
     displayFrame(renderer.getOutput());
 }
-
-void AppImgFit::onInput()
-{
-    // if (input.mouseLeftPressed) {
-    //     std::cout << "[AppImgFit] Mouse at ("
-    //               << input.mousePos.x << ", "
-    //               << input.mousePos.y << ")\n";
-    // }
-}

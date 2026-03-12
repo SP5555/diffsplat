@@ -1,6 +1,8 @@
-#include "app_base.h"
 #include <iostream>
 #include <stdexcept>
+
+#include "app_base.h"
+#include "../loaders/image_saver.h"
 
 /* ===== ===== GL Boilerplate ===== ===== */
 
@@ -162,6 +164,8 @@ void AppBase::start()
     {
         glfwPollEvents();
 
+        onRender();
+
         double currentTime  = glfwGetTime();
         double deltaTime    = currentTime - lastFrameTime;
         dt                  = static_cast<float>(deltaTime);
@@ -179,10 +183,17 @@ void AppBase::start()
             frameSinceUpdate = 0;
         }
 
-        onInput();
-        onRender();
-
         glfwSwapBuffers(window);
+
+        bool f12Pressed = (glfwGetKey(window, GLFW_KEY_F12) == GLFW_PRESS);
+        if (f12Pressed && !f12WasPressed)
+            saveScreenshot();
+        f12WasPressed = f12Pressed;
+
+        // exit on ESC
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
+
         input.flush();
     }
 }
@@ -290,6 +301,8 @@ void AppBase::onResize(int newWidth, int newHeight)
 
 void AppBase::displayFrame(const float *d_pixels)
 {
+    lastPixels = d_pixels;
+
     if (cudaGLInteropSupported)
     {
         cudaGraphicsMapResources(1, &d_pbo_resource);
@@ -320,4 +333,20 @@ void AppBase::displayFrame(const float *d_pixels)
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
+}
+
+/* ===== ===== Screenshot ===== ===== */
+void AppBase::saveScreenshot()
+{
+    if (!lastPixels) return;
+    time_t t = time(nullptr);
+    char buf[64];
+    strftime(buf, sizeof(buf), "screenshot_%y%m%d_%H%M%S.png", localtime(&t));
+    saveScreenshot(buf);
+}
+
+void AppBase::saveScreenshot(const std::string &path)
+{
+    ImageSaver::saveAsPNG(lastPixels, width, height, path);
+    std::cout << "[App] Screenshot saved: " << path << "\n";
 }

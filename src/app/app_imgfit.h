@@ -16,7 +16,6 @@ public:
 protected:
     void onStart()  override;
     void onRender() override;
-    void onInput()  override;
 
 private:
     std::string     imagePath;
