@@ -1,4 +1,6 @@
 #pragma once
+
+#include "layer.h"
 #include "../types/splat3d.h"
 #include "../types/splat2d.h"
 
@@ -17,23 +19,22 @@
  * out with a perspective project layer that applies
  * the correct non-linear transform forward and backward pass.
  */
-class NDCProjectLayer
+class NDCProjectLayer : public Layer
 {
 public:
     ~NDCProjectLayer() { free(); }
 
     void allocate(int width, int height, int count);
-    void free();
-    void zero_grad();
+    void forward()      override;
+    void backward()     override;
+    void zero_grad()    override;
+    void free()         override;
 
     // wiring
     void setInput(const Splat3DParams *params)      { input = params; }
     const Splat2DParams &getOutput() const          { return output; }
     void setGradOutput(const Splat2DGrads *grads)   { gradOutput = grads; } 
     const Splat3DGrads &getGradInput() const        { return gradInput; }
-
-    void forward();
-    void backward();
 
 private:
     /* ---- forward input (not owned) ---- */

@@ -11,7 +11,7 @@ optimization, entirely on the GPU, with no deep learning framework dependencies.
 - [X] PLY file loading for feedforward 3DGS rendering
 - [x] Make modular base app so specific purpose apps can build on top of it
 - [x] Modularize the pipeline into "layers" for PyTorch-like code
-- [x] Proper NDC → pixel space transform
+- [x] Proper NDC to pixel space transform
 - [x] Watch splats converge live
 - [x] Adam optimizer
 - [x] Backward pass (T_final division trick)
@@ -90,7 +90,7 @@ git submodule update --init --recursive
 ```
 
 ### Hybrid GPU systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)
-By default the renderer falls back to a host-copy display path (GPU→CPU→GPU) since
+By default the renderer falls back to a host-copy display path (GPU->CPU->GPU) since
 CUDA and OpenGL are on different devices. To force direct GPU display:
 ```sh
 __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/<app>

@@ -1,6 +1,8 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <cstdint>
+
+#include "layer.h"
 #include "../types/splat2d.h"
 
 /**
@@ -23,15 +25,17 @@
  * accumulated via `atomicAdd` since multiple pixels may contribute
  * back to the same splat.
  */
-class RasterizeLayer
+class RasterizeLayer : public Layer
 {
 public:
     ~RasterizeLayer() { free(); }
 
     void allocate(int width, int height, int num_tiles_x, int num_tiles_y,
                   int max_pairs, int count);
-    void free();
-    void zero_grad();
+    void forward()      override;
+    void backward()     override;
+    void zero_grad()    override;
+    void free()         override;
 
     void resize(int new_width, int new_height);
 
@@ -41,9 +45,6 @@ public:
     void setGradOutput(const float *grad)      { gradOutput = grad; }
     const Splat2DGrads &getGradInput() const   { return gradInput; }
 
-    // tile assign + sort + rasterize -> pixels
-    void forward();
-    void backward();
 
     // debug
     const float *getGradOutput() const { return gradOutput; }

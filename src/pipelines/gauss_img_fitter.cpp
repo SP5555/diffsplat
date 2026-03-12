@@ -71,31 +71,23 @@ void GaussImgFitter::initLayers()
     rasLayer.setGradOutput(mseLayer.getGradInput());
     ndcLayer.setGradOutput(&rasLayer.getGradInput());
     atvLayer.setGradOutput(&ndcLayer.getGradInput());
+
+    // register in pipeline
+    pipeline.add(&atvLayer);
+    pipeline.add(&ndcLayer);
+    pipeline.add(&rasLayer);
+    pipeline.add(&mseLayer);
 }
 
 /* ===== ===== Render ===== ===== */
 
 void GaussImgFitter::render()
 {
-    // zero all gradients
-    mseLayer.zero_grad();
-    rasLayer.zero_grad();
-    ndcLayer.zero_grad();
-    atvLayer.zero_grad();
-
-    // forward
-    atvLayer.forward();
-    ndcLayer.forward();
-    rasLayer.forward();
-    // only needed for logging:
-    // float loss = mseLayer.forward();
-    // printf("Iter %d: Loss = %.8f\n", iterCount, loss);
-
-    // backward
-    mseLayer.backward();
-    rasLayer.backward();
-    ndcLayer.backward();
-    atvLayer.backward();
+    pipeline.zero_grad();
+    pipeline.forward();
+    if (iterCount % 10 == 0)
+        printf("Iter %d: Loss = %.8f\n", iterCount, mseLayer.getLoss());
+    pipeline.backward();
 
     // optimizer step
     launchAdam(gaussianParams, atvLayer.getGradInput(), adamConfig, ++iterCount);

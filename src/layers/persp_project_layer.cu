@@ -118,7 +118,7 @@ __global__ void perspProjectForwardKernel(
 }
 
 /**
- * Backward kernel: chains dL/dSplat2D → dL/dSplat3D.
+ * Backward kernel: chains dL/dSplat2D -> dL/dSplat3D.
  *
  * Position backward: dL/d(world) = J^T * dL/d(ndc)
  * Covariance backward: dL/dCov_3D = J^T * dL/dCov_2D_sym * J

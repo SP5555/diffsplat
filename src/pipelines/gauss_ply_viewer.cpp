@@ -108,6 +108,11 @@ void GaussPlyViewer::initLayers()
     rasLayer.setInput(&perspLayer.getOutput());
 
     // no backward wiring, forward-only pipeline
+
+    // register in pipeline
+    pipeline.add(&activLayer);
+    pipeline.add(&perspLayer);
+    pipeline.add(&rasLayer);
 }
 
 /* ===== ===== Render ===== ===== */
@@ -116,9 +121,7 @@ void GaussPlyViewer::render(const glm::mat4 &view, const glm::mat4 &proj)
 {
     perspLayer.setCamera(view, proj);
 
-    activLayer.forward();
-    perspLayer.forward();
-    rasLayer.forward();
+    pipeline.forward();
 }
 
 void GaussPlyViewer::resize(int newWidth, int newHeight)

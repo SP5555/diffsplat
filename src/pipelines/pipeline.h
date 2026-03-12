@@ -1,0 +1,30 @@
+#pragma once
+#include <vector>
+#include "../layers/layer.h"
+
+class Pipeline
+{
+public:
+    void add(Layer *layer) { layers.push_back(layer); }
+
+    void zero_grad()
+    {
+        for (auto *l : layers)
+            l->zero_grad();
+    }
+
+    void forward()
+    {
+        for (auto *l : layers)
+            l->forward();
+    }
+
+    void backward()
+    {
+        for (auto it = layers.rbegin(); it != layers.rend(); ++it)
+            (*it)->backward();
+    }
+
+private:
+    std::vector<Layer*> layers;
+};

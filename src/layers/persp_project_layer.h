@@ -1,5 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
+
+#include "layer.h"
 #include "../types/splat3d.h"
 #include "../types/splat2d.h"
 
@@ -19,14 +21,16 @@
  * Call setCamera() every frame before forward().
  * Backward pass is differentiable w.r.t. Splat3D params (not camera).
  */
-class PerspProjectLayer
+class PerspProjectLayer : public Layer
 {
 public:
     ~PerspProjectLayer() { free(); }
 
     void allocate(int count);
-    void free();
-    void zero_grad();
+    void forward()      override;
+    void backward()     override;
+    void zero_grad()    override;
+    void free()         override;
 
     // call every frame with updated camera matrices
     void setCamera(const glm::mat4 &view, const glm::mat4 &proj);
@@ -36,9 +40,6 @@ public:
     const Splat2DParams &getOutput() const          { return output; }
     void setGradOutput(const Splat2DGrads *grads)   { gradOutput = grads; }
     const Splat3DGrads &getGradInput() const        { return gradInput; }
-
-    void forward();
-    void backward();
 
 private:
     /* ---- forward input (not owned) ---- */

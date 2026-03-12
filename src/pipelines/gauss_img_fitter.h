@@ -2,6 +2,7 @@
 #include <string>
 #include <cuda_runtime.h>
 
+#include "pipeline.h"
 #include "../types/gaussian3d.h"
 #include "../layers/gauss_activ_layer.h"
 #include "../layers/ndc_project_layer.h"
@@ -45,6 +46,9 @@ private:
 
     /* ---- Gaussian state ---- */
     Gaussian3DParams gaussianParams;
+
+    /* ---- pipeline ---- */
+    Pipeline pipeline;
 
     /* ---- layers ---- */
     GaussActivLayer atvLayer;

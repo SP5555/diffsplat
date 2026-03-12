@@ -115,7 +115,7 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
         g.rot_y = row[i_rot2];
         g.rot_z = row[i_rot3];
 
-        // DC spherical harmonic → linear RGB
+        // DC spherical harmonic -> linear RGB
         g.r = row[i_dc0] * C0 + 0.5f;
         g.g = row[i_dc1] * C0 + 0.5f;
         g.b = row[i_dc2] * C0 + 0.5f;

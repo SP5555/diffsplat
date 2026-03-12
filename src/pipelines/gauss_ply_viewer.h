@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 
+#include "pipeline.h"
 #include "../types/gaussian3d.h"
 #include "../layers/gauss_activ_layer.h"
 #include "../layers/persp_project_layer.h"
@@ -32,18 +33,21 @@ private:
     int maxPairs() const { return powf(2.f, 25.f); }
     void normalizeSplats(std::vector<Gaussian3D> &splats, const float sceneScale);
 
-    // ---- config ----
+    /* ---- config ---- */
     static constexpr int NUM_TILES_X = 64;
     static constexpr int NUM_TILES_Y = 64;
 
-    // ---- state ----
+    /* ---- state ---- */
     int width  = 0;
     int height = 0;
 
-    // ---- data ----
+    /* ---- data ---- */
     Gaussian3DParams gaussianParams;
 
-    // ---- layers ----
+    /* ---- pipeline ---- */
+    Pipeline pipeline;
+
+    /* ---- layers ---- */
     GaussActivLayer   activLayer;
     PerspProjectLayer perspLayer;
     RasterizeLayer    rasLayer;
