@@ -30,14 +30,4 @@ void AppImgFit::onRender()
 {
     fitter.render();
     displayFrame(fitter.getOutput());
-
-    if (fitter.getIterCount() == 1 ||
-        fitter.getIterCount() == 100 ||
-        fitter.getIterCount() == 500 ||
-        fitter.getIterCount() == 10000 ||
-        fitter.getIterCount() == 20000
-    )
-    {
-        saveScreenshot("fit_iter_" + std::to_string(fitter.getIterCount()) + ".png");
-    }
 }

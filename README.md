@@ -62,6 +62,7 @@ make -j$(nproc)
 Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** as the renderer learns to reconstruct the image iteration by iteration.
 
 ```sh
+# Example usage
 ./build/imgfitapp --width 1280 --height 720 --image path/to/image.png --splat-count 50000
 ```
 
@@ -75,6 +76,7 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines.
 
 ```sh
+# Example usage
 ./build/plyviewapp --scene path/to/scene.ply --scale 1.0
 ```
 
@@ -115,5 +117,7 @@ cmake .. -DCMAKE_CUDA_ARCHITECTURES=75   # Turing (RTX 20xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=86   # Ampere (RTX 30xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=89   # Ada (RTX 40xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=120  # Blackwell (RTX 50xx)
+
+make # and compile
 ```
 Not sure which architecture you need? Check https://developer.nvidia.com/cuda/gpus
