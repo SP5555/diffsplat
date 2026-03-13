@@ -20,20 +20,6 @@ struct Gaussian3D
     float opacity;
 };
 
-/* ===== ===== Helpers ===== ===== */
-
-namespace gaussian3d_detail {
-
-inline float *deviceAlloc(int n)
-{
-    float *ptr = nullptr;
-    cudaMalloc(&ptr, n * sizeof(float));
-    cudaMemset(ptr, 0, n * sizeof(float));
-    return ptr;
-}
-
-} // namespace gaussian3d_detail
-
 /* ===== ===== Gaussian3DParams ===== ===== */
 
 /**
@@ -44,27 +30,26 @@ struct Gaussian3DParams
 {
     int count = 0;
 
-    float *pos_x   = nullptr, *pos_y   = nullptr, *pos_z   = nullptr;
-    float *scale_x = nullptr, *scale_y = nullptr, *scale_z = nullptr;
-    float *rot_w   = nullptr, *rot_x   = nullptr, *rot_y   = nullptr, *rot_z   = nullptr;
-    float *color_r = nullptr, *color_g = nullptr, *color_b = nullptr;
-    float *opacity = nullptr;
+    CudaBuffer<float> pos_x,   pos_y,   pos_z;
+    CudaBuffer<float> scale_x, scale_y, scale_z;
+    CudaBuffer<float> rot_w,   rot_x,   rot_y,   rot_z;
+    CudaBuffer<float> color_r, color_g, color_b;
+    CudaBuffer<float> opacity;
 
-    void allocateDeviceMem(int n)
+    void allocate(int n)
     {
-        using namespace gaussian3d_detail;
-        pos_x   = deviceAlloc(n); pos_y   = deviceAlloc(n); pos_z   = deviceAlloc(n);
-        scale_x = deviceAlloc(n); scale_y = deviceAlloc(n); scale_z = deviceAlloc(n);
-        rot_w   = deviceAlloc(n); rot_x   = deviceAlloc(n); rot_y   = deviceAlloc(n); rot_z   = deviceAlloc(n);
-        color_r = deviceAlloc(n); color_g = deviceAlloc(n); color_b = deviceAlloc(n);
-        opacity = deviceAlloc(n);
+        pos_x.allocate(n);   pos_y.allocate(n);   pos_z.allocate(n);
+        scale_x.allocate(n); scale_y.allocate(n); scale_z.allocate(n);
+        rot_w.allocate(n);   rot_x.allocate(n);   rot_y.allocate(n);   rot_z.allocate(n);
+        color_r.allocate(n); color_g.allocate(n); color_b.allocate(n);
+        opacity.allocate(n);
         count = n;
     }
 
     void upload(const std::vector<Gaussian3D> &host)
     {
         int n = (int)host.size();
-        allocateDeviceMem(n);
+        allocate(n);
 
         std::vector<float> tmp(n);
         auto up = [&](float *dst, auto getter) {
@@ -86,17 +71,6 @@ struct Gaussian3DParams
         up(color_g, [](const Gaussian3D &g) { return g.g; });
         up(color_b, [](const Gaussian3D &g) { return g.b; });
         up(opacity, [](const Gaussian3D &g) { return g.opacity; });
-    }
-
-    void free()
-    {
-        CUDA_FREE(pos_x);   CUDA_FREE(pos_y);   CUDA_FREE(pos_z);
-        CUDA_FREE(scale_x); CUDA_FREE(scale_y); CUDA_FREE(scale_z);
-        CUDA_FREE(rot_w);   CUDA_FREE(rot_x);
-        CUDA_FREE(rot_y);   CUDA_FREE(rot_z);
-        CUDA_FREE(color_r); CUDA_FREE(color_g); CUDA_FREE(color_b);
-        CUDA_FREE(opacity);
-        count = 0;
     }
 
     static Gaussian3DParams randomInit(int n, int width, int height, int seed = 42)
@@ -153,89 +127,59 @@ struct Gaussian3DOptState
     int count = 0;
 
     // gradients (zeroed each iteration)
-    float *grad_pos_x = nullptr, *grad_pos_y = nullptr, *grad_pos_z = nullptr;
-    float *grad_scale_x = nullptr, *grad_scale_y = nullptr, *grad_scale_z = nullptr;
-    float *grad_rot_w = nullptr, *grad_rot_x = nullptr;
-    float *grad_rot_y = nullptr, *grad_rot_z = nullptr;
-    float *grad_color_r = nullptr, *grad_color_g = nullptr, *grad_color_b = nullptr;
-    float *grad_opacity = nullptr;
+    CudaBuffer<float> grad_pos_x,   grad_pos_y,   grad_pos_z;
+    CudaBuffer<float> grad_scale_x, grad_scale_y, grad_scale_z;
+    CudaBuffer<float> grad_rot_w,   grad_rot_x,   grad_rot_y,   grad_rot_z;
+    CudaBuffer<float> grad_color_r, grad_color_g, grad_color_b;
+    CudaBuffer<float> grad_opacity;
 
     // Adam first moments
-    float *m_pos_x = nullptr, *m_pos_y = nullptr, *m_pos_z = nullptr;
-    float *m_scale_x = nullptr, *m_scale_y = nullptr, *m_scale_z = nullptr;
-    float *m_rot_w = nullptr, *m_rot_x = nullptr, *m_rot_y = nullptr, *m_rot_z = nullptr;
-    float *m_color_r = nullptr, *m_color_g = nullptr, *m_color_b = nullptr;
-    float *m_opacity = nullptr;
+    CudaBuffer<float> m_pos_x,   m_pos_y,   m_pos_z;
+    CudaBuffer<float> m_scale_x, m_scale_y, m_scale_z;
+    CudaBuffer<float> m_rot_w,   m_rot_x,   m_rot_y,   m_rot_z;
+    CudaBuffer<float> m_color_r, m_color_g, m_color_b;
+    CudaBuffer<float> m_opacity;
 
     // Adam second moments
-    float *v_pos_x = nullptr, *v_pos_y = nullptr, *v_pos_z = nullptr;
-    float *v_scale_x = nullptr, *v_scale_y = nullptr, *v_scale_z = nullptr;
-    float *v_rot_w = nullptr, *v_rot_x = nullptr, *v_rot_y = nullptr, *v_rot_z = nullptr;
-    float *v_color_r = nullptr, *v_color_g = nullptr, *v_color_b = nullptr;
-    float *v_opacity = nullptr;
+    CudaBuffer<float> v_pos_x,   v_pos_y,   v_pos_z;
+    CudaBuffer<float> v_scale_x, v_scale_y, v_scale_z;
+    CudaBuffer<float> v_rot_w,   v_rot_x,   v_rot_y,   v_rot_z;
+    CudaBuffer<float> v_color_r, v_color_g, v_color_b;
+    CudaBuffer<float> v_opacity;
 
-    void allocateDeviceMem(int n)
+    void allocate(int n)
     {
-        using namespace gaussian3d_detail;
-        grad_pos_x   = deviceAlloc(n); grad_pos_y   = deviceAlloc(n); grad_pos_z   = deviceAlloc(n);
-        grad_scale_x = deviceAlloc(n); grad_scale_y = deviceAlloc(n); grad_scale_z = deviceAlloc(n);
-        grad_rot_w   = deviceAlloc(n); grad_rot_x   = deviceAlloc(n);
-        grad_rot_y   = deviceAlloc(n); grad_rot_z   = deviceAlloc(n);
-        grad_color_r = deviceAlloc(n); grad_color_g = deviceAlloc(n); grad_color_b = deviceAlloc(n);
-        grad_opacity = deviceAlloc(n);
+        grad_pos_x.allocate(n);   grad_pos_y.allocate(n);   grad_pos_z.allocate(n);
+        grad_scale_x.allocate(n); grad_scale_y.allocate(n); grad_scale_z.allocate(n);
+        grad_rot_w.allocate(n);   grad_rot_x.allocate(n);
+        grad_rot_y.allocate(n);   grad_rot_z.allocate(n);
+        grad_color_r.allocate(n); grad_color_g.allocate(n); grad_color_b.allocate(n);
+        grad_opacity.allocate(n);
 
-        m_pos_x   = deviceAlloc(n); v_pos_x   = deviceAlloc(n);
-        m_pos_y   = deviceAlloc(n); v_pos_y   = deviceAlloc(n);
-        m_pos_z   = deviceAlloc(n); v_pos_z   = deviceAlloc(n);
-        m_scale_x = deviceAlloc(n); v_scale_x = deviceAlloc(n);
-        m_scale_y = deviceAlloc(n); v_scale_y = deviceAlloc(n);
-        m_scale_z = deviceAlloc(n); v_scale_z = deviceAlloc(n);
-        m_rot_w   = deviceAlloc(n); v_rot_w   = deviceAlloc(n);
-        m_rot_x   = deviceAlloc(n); v_rot_x   = deviceAlloc(n);
-        m_rot_y   = deviceAlloc(n); v_rot_y   = deviceAlloc(n);
-        m_rot_z   = deviceAlloc(n); v_rot_z   = deviceAlloc(n);
-        m_color_r = deviceAlloc(n); v_color_r = deviceAlloc(n);
-        m_color_g = deviceAlloc(n); v_color_g = deviceAlloc(n);
-        m_color_b = deviceAlloc(n); v_color_b = deviceAlloc(n);
-        m_opacity = deviceAlloc(n); v_opacity = deviceAlloc(n);
+        m_pos_x.allocate(n);   v_pos_x.allocate(n);
+        m_pos_y.allocate(n);   v_pos_y.allocate(n);
+        m_pos_z.allocate(n);   v_pos_z.allocate(n);
+        m_scale_x.allocate(n); v_scale_x.allocate(n);
+        m_scale_y.allocate(n); v_scale_y.allocate(n);
+        m_scale_z.allocate(n); v_scale_z.allocate(n);
+        m_rot_w.allocate(n);   v_rot_w.allocate(n);
+        m_rot_x.allocate(n);   v_rot_x.allocate(n);
+        m_rot_y.allocate(n);   v_rot_y.allocate(n);
+        m_rot_z.allocate(n);   v_rot_z.allocate(n);
+        m_color_r.allocate(n); v_color_r.allocate(n);
+        m_color_g.allocate(n); v_color_g.allocate(n);
+        m_color_b.allocate(n); v_color_b.allocate(n);
+        m_opacity.allocate(n); v_opacity.allocate(n);
 
         count = n;
     }
 
     void zero_grad()
     {
-        auto z = [&](float *p) { if (p) cudaMemset(p, 0, count * sizeof(float)); };
-        z(grad_pos_x);   z(grad_pos_y);   z(grad_pos_z);
-        z(grad_scale_x); z(grad_scale_y); z(grad_scale_z);
-        z(grad_rot_w);   z(grad_rot_x);   z(grad_rot_y);   z(grad_rot_z);
-        z(grad_color_r); z(grad_color_g); z(grad_color_b);
-        z(grad_opacity);
-    }
-
-    void free()
-    {
-        CUDA_FREE(grad_pos_x);   CUDA_FREE(grad_pos_y);   CUDA_FREE(grad_pos_z);
-        CUDA_FREE(grad_scale_x); CUDA_FREE(grad_scale_y); CUDA_FREE(grad_scale_z);
-        CUDA_FREE(grad_rot_w);   CUDA_FREE(grad_rot_x);
-        CUDA_FREE(grad_rot_y);   CUDA_FREE(grad_rot_z);
-        CUDA_FREE(grad_color_r); CUDA_FREE(grad_color_g); CUDA_FREE(grad_color_b);
-        CUDA_FREE(grad_opacity);
-
-        CUDA_FREE(m_pos_x);   CUDA_FREE(v_pos_x);
-        CUDA_FREE(m_pos_y);   CUDA_FREE(v_pos_y);
-        CUDA_FREE(m_pos_z);   CUDA_FREE(v_pos_z);
-        CUDA_FREE(m_scale_x); CUDA_FREE(v_scale_x);
-        CUDA_FREE(m_scale_y); CUDA_FREE(v_scale_y);
-        CUDA_FREE(m_scale_z); CUDA_FREE(v_scale_z);
-        CUDA_FREE(m_rot_w);   CUDA_FREE(v_rot_w);
-        CUDA_FREE(m_rot_x);   CUDA_FREE(v_rot_x);
-        CUDA_FREE(m_rot_y);   CUDA_FREE(v_rot_y);
-        CUDA_FREE(m_rot_z);   CUDA_FREE(v_rot_z);
-        CUDA_FREE(m_color_r); CUDA_FREE(v_color_r);
-        CUDA_FREE(m_color_g); CUDA_FREE(v_color_g);
-        CUDA_FREE(m_color_b); CUDA_FREE(v_color_b);
-        CUDA_FREE(m_opacity); CUDA_FREE(v_opacity);
-
-        count = 0;
+        grad_pos_x.zero();   grad_pos_y.zero();   grad_pos_z.zero();
+        grad_scale_x.zero(); grad_scale_y.zero(); grad_scale_z.zero();
+        grad_rot_w.zero();   grad_rot_x.zero();   grad_rot_y.zero();   grad_rot_z.zero();
+        grad_color_r.zero(); grad_color_g.zero(); grad_color_b.zero();
+        grad_opacity.zero();
     }
 };

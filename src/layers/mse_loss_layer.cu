@@ -64,15 +64,8 @@ __global__ void mseLossKernel(
 void MSELossLayer::allocate(int width, int height)
 {
     num_pixels = width * height;
-    cudaMalloc(&d_grad_pixels, num_pixels * 3 * sizeof(float));
-    cudaMalloc(&d_loss,                   sizeof(float));
-}
-
-void MSELossLayer::free()
-{
-    CUDA_FREE(d_grad_pixels);
-    CUDA_FREE(d_loss);
-    num_pixels = 0;
+    d_grad_pixels.allocate(num_pixels * 3);
+    d_loss.allocate(1);
 }
 
 void MSELossLayer::zero_grad()

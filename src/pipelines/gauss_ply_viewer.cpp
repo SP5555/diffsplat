@@ -9,11 +9,6 @@
 
 /* ===== ===== Lifecycle ===== ===== */
 
-GaussPlyViewer::~GaussPlyViewer()
-{
-    free();
-}
-
 void GaussPlyViewer::init(int w, int h)
 {
     width       = w;
@@ -35,7 +30,7 @@ void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)
     gaussianParams.upload(splats);
 }
 
-const float *GaussPlyViewer::getOutput() const
+float *GaussPlyViewer::getOutput()
 {
     return rasLayer.getOutput();
 }
@@ -130,14 +125,4 @@ void GaussPlyViewer::resize(int newWidth, int newHeight)
     height = newHeight;
 
     rasLayer.resize(width, height);
-}
-
-/* ===== ===== Cleanup ===== ===== */
-
-void GaussPlyViewer::free()
-{
-    gaussianParams.free();
-    activLayer.free();
-    perspLayer.free();
-    rasLayer.free();
 }

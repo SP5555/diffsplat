@@ -9,11 +9,6 @@
 
 /* ===== ===== Lifecycle ===== ===== */
 
-GaussImgFitter::~GaussImgFitter()
-{
-    free();
-}
-
 void GaussImgFitter::init(int w, int h)
 {
     width  = w;
@@ -30,7 +25,7 @@ void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h,
     if (image.pixels.empty())
         throw std::runtime_error("Failed to load target image: " + imagePath);
 
-    cudaMalloc(&d_target_pixels, w * h * 3 * sizeof(float));
+    d_target_pixels.allocate(w * h * 3);
     cudaMemcpy(d_target_pixels, image.pixels.data(),
                w * h * 3 * sizeof(float), cudaMemcpyHostToDevice);
 }
@@ -43,7 +38,7 @@ void GaussImgFitter::randomInitGaussians(int count, int seed)
     gaussianParams = Gaussian3DParams::randomInit(count, width, height, seed);
 }
 
-const float *GaussImgFitter::getOutput() const
+float *GaussImgFitter::getOutput()
 {
     return rasLayer.getOutput();
 }
@@ -91,18 +86,4 @@ void GaussImgFitter::render()
 
     // optimizer step
     launchAdam(gaussianParams, atvLayer.getGradInput(), adamConfig, ++iterCount);
-}
-
-/* ===== ===== Cleanup ===== ===== */
-
-void GaussImgFitter::free()
-{
-    gaussianParams.free();
-
-    atvLayer.free();
-    ndcLayer.free();
-    rasLayer.free();
-    mseLayer.free();
-
-    CUDA_FREE(d_target_pixels);
 }

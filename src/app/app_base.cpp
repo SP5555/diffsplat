@@ -58,19 +58,6 @@ static GLuint compileShader(GLenum type, const char *src)
     return s;
 }
 
-static GLuint buildDisplayProgram()
-{
-    GLuint vs   = compileShader(GL_VERTEX_SHADER,   VS_SRC);
-    GLuint fs   = compileShader(GL_FRAGMENT_SHADER, FS_SRC);
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-    return prog;
-}
-
 /* ===== ===== Lifecycle ===== ===== */
 
 AppBase::AppBase(int width, int height, const std::string &title, bool resizable)
@@ -109,8 +96,6 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
               << "[App] Renderer: " << glGetString(GL_RENDERER) << "\n"
               << "[App] CUDA Device: " << deviceProp.name << "\n";
 
-    Input::install(window, &input);
-
     initGL();
 
     cudaGLInteropSupported = checkCudaGLInterop();
@@ -131,24 +116,18 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
             app->onWindowResize(w, h);
         });
     }
+
+    Input::install(window, &input);
 }
 
 AppBase::~AppBase()
 {
-    if (pbo)
+    if (d_pbo_resource)
     {
-        if (d_pbo_resource)
-        {
-            cudaGraphicsUnregisterResource(d_pbo_resource);
-            d_pbo_resource = nullptr;
-        }
-        glDeleteBuffers(1, &pbo);
-        pbo = 0;
+        cudaGraphicsUnregisterResource(d_pbo_resource);
+        d_pbo_resource = nullptr;
+    
     }
-    if (texture)        { glDeleteTextures(1,     &texture);   texture        = 0; }
-    if (vao)            { glDeleteVertexArrays(1, &vao);       vao            = 0; }
-    if (vbo)            { glDeleteBuffers(1,      &vbo);       vbo            = 0; }
-    if (shader_program) { glDeleteProgram(shader_program);     shader_program = 0; }
 
     if (window)
         glfwDestroyWindow(window);
@@ -202,10 +181,13 @@ void AppBase::start()
 
 void AppBase::initGL()
 {
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    shader_program  = GLShaderProgram{};
+    texture         = GLTexture{};
+    vao             = GLVertexArray{};
+    vbo             = GLBuffer{};
+
+    glBindVertexArray(*vao);
+    glBindBuffer(GL_ARRAY_BUFFER, *vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(QUAD), QUAD, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
@@ -213,10 +195,16 @@ void AppBase::initGL()
     glEnableVertexAttribArray(1);
     glBindVertexArray(0);
 
-    shader_program = buildDisplayProgram();
+    // build shader program
+    GLuint vs = compileShader(GL_VERTEX_SHADER,   VS_SRC);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER, FS_SRC);
+    glAttachShader(*shader_program, vs);
+    glAttachShader(*shader_program, fs);
+    glLinkProgram(*shader_program);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
 
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindTexture(GL_TEXTURE_2D, *texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
@@ -225,19 +213,18 @@ void AppBase::initGL()
 
 void AppBase::initPBO()
 {
-    glGenBuffers(1, &pbo);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    pbo = GLBuffer{};
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, *pbo);
     glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * 3 * sizeof(float), nullptr, GL_STREAM_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, pbo,
+    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, *pbo,
                                                     cudaGraphicsMapFlagsWriteDiscard);
     if (err != cudaSuccess)
     {
         std::cerr << "[AppBase] PBO registration failed, falling back to host copy: "
                   << cudaGetErrorString(err) << "\n";
-        glDeleteBuffers(1, &pbo);
-        pbo = 0;
+        pbo.reset();
         cudaGLInteropSupported = false;
         h_pixels.resize(width * height * 3);
     }
@@ -273,15 +260,14 @@ void AppBase::onResize(int newWidth, int newHeight)
     height = newHeight;
 
     // recreate PBO for new size
-    if (pbo)
+    if (pbo.has_value())
     {
         if (d_pbo_resource)
         {
             cudaGraphicsUnregisterResource(d_pbo_resource);
             d_pbo_resource = nullptr;
         }
-        glDeleteBuffers(1, &pbo);
-        pbo = 0;
+        pbo.reset();
     }
 
     if (cudaGLInteropSupported)
@@ -290,7 +276,7 @@ void AppBase::onResize(int newWidth, int newHeight)
         h_pixels.resize(newWidth * newHeight * 3);
 
     // resize texture
-    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindTexture(GL_TEXTURE_2D, *texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, newWidth, newHeight, 0, GL_RGB, GL_FLOAT, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -312,8 +298,8 @@ void AppBase::displayFrame(const float *d_pixels)
         cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
         cudaGraphicsUnmapResources(1, &d_pbo_resource);
 
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, *pbo);
+        glBindTexture(GL_TEXTURE_2D, *texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -322,15 +308,15 @@ void AppBase::displayFrame(const float *d_pixels)
     {
         cudaMemcpy(h_pixels.data(), d_pixels,
                    width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindTexture(GL_TEXTURE_2D, *texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, h_pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(shader_program);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glBindVertexArray(vao);
+    glUseProgram(*shader_program);
+    glBindTexture(GL_TEXTURE_2D, *texture);
+    glBindVertexArray(*vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }

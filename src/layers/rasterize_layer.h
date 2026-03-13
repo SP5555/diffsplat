@@ -4,6 +4,7 @@
 
 #include "layer.h"
 #include "../types/splat2d.h"
+#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Rasterizes 2D Gaussian splats into a pixel buffer,
@@ -28,22 +29,21 @@
 class RasterizeLayer : public Layer
 {
 public:
-    ~RasterizeLayer() { free(); }
+    ~RasterizeLayer() {}
 
     void allocate(int width, int height, int num_tiles_x, int num_tiles_y,
                   int max_pairs, int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
-    void free()         override;
 
     void resize(int new_width, int new_height);
 
     // wiring
     void setInput(const Splat2DParams *params) { input = params; }
-    const float        *getOutput() const      { return d_pixels; }
+    float        *getOutput()                  { return d_pixels; }
     void setGradOutput(const float *grad)      { gradOutput = grad; }
-    const Splat2DGrads &getGradInput() const   { return gradInput; }
+    Splat2DGrads &getGradInput()               { return gradInput; }
 
 
     // debug
@@ -54,7 +54,7 @@ private:
     const Splat2DParams *input = nullptr;
 
     /* ---- forward output (owned) ---- */
-    float *d_pixels    = nullptr; // rendered RGB image [H*W*3]
+    CudaBuffer<float> d_pixels; // rendered RGB image [H*W*3]
 
     /* ---- backward input (not owned) ---- */
     const float *gradOutput = nullptr; // dL/d_pixels [H*W*3]
@@ -63,16 +63,16 @@ private:
     Splat2DGrads gradInput; // dL/d_splat2d
 
     /* ---- internals (owned) ---- */
-    float *d_T_final   = nullptr;  // final transmittance per pixel [H*W]
-    int   *d_n_contrib = nullptr;  // contributing splat count      [H*W]
+    CudaBuffer<float> d_T_final;   // final transmittance per pixel [H*W]
+    CudaBuffer<int>   d_n_contrib; // contributing splat count      [H*W]
 
-    uint64_t *d_keys          = nullptr;
-    uint32_t *d_values        = nullptr;
-    uint64_t *d_keys_sorted   = nullptr;
-    uint32_t *d_values_sorted = nullptr;
-    uint32_t *d_pair_count    = nullptr;
-    int2     *d_tile_ranges   = nullptr;
-    void     *d_sort_temp     = nullptr;
+    CudaBuffer<uint64_t> d_keys;
+    CudaBuffer<uint32_t> d_values;
+    CudaBuffer<uint64_t> d_keys_sorted;
+    CudaBuffer<uint32_t> d_values_sorted;
+    CudaBuffer<uint32_t> d_pair_count;
+    CudaBuffer<int2>     d_tile_ranges;
+    CudaBuffer<uint8_t>  d_sort_temp;
     size_t    sort_temp_bytes = 0;
 
     /* ---- config ---- */

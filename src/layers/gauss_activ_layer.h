@@ -3,6 +3,7 @@
 #include "layer.h"
 #include "../types/gaussian3d.h"
 #include "../types/splat3d.h"
+#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Computes 3D Gaussian covariance matrices from scale and rotation.
@@ -21,19 +22,18 @@
 class GaussActivLayer : public Layer
 {
 public:
-    ~GaussActivLayer() { free(); }
+    ~GaussActivLayer() {}
 
     void allocate(int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
-    void free()         override;
 
     // wiring
     void setInput(const Gaussian3DParams *params) { input = params; }
-    const Splat3DParams &getOutput()   const      { return output; }
+    Splat3DParams &getOutput()                    { return output; }
     void setGradOutput(const Splat3DGrads *grads) { gradOutput = grads; }
-    const Gaussian3DOptState &getGradInput() const { return gradInput; }
+    Gaussian3DOptState &getGradInput()            { return gradInput; }
 
 private:
     /* ---- forward input (not owned) ---- */
@@ -45,7 +45,7 @@ private:
     /* ---- backward input (not owned) ---- */
     const Splat3DGrads *gradOutput = nullptr;
 
-    /* ---- backward output (not owned) ---- */
+    /* ---- backward output (owned) ---- */
     Gaussian3DOptState gradInput;
 
     /* ---- config ---- */

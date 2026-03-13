@@ -3,6 +3,7 @@
 #include "layer.h"
 #include "../types/splat3d.h"
 #include "../types/splat2d.h"
+#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Projects Splat3D in world space to Splat2D in screen space.
@@ -22,19 +23,18 @@
 class NDCProjectLayer : public Layer
 {
 public:
-    ~NDCProjectLayer() { free(); }
+    ~NDCProjectLayer() {}
 
     void allocate(int width, int height, int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
-    void free()         override;
 
     // wiring
-    void setInput(const Splat3DParams *params)      { input = params; }
-    const Splat2DParams &getOutput() const          { return output; }
-    void setGradOutput(const Splat2DGrads *grads)   { gradOutput = grads; } 
-    const Splat3DGrads &getGradInput() const        { return gradInput; }
+    void setInput(const Splat3DParams *params)    { input = params; }
+    Splat2DParams &getOutput()                    { return output; }
+    void setGradOutput(const Splat2DGrads *grads) { gradOutput = grads; } 
+    Splat3DGrads &getGradInput()                  { return gradInput; }
 
 private:
     /* ---- forward input (not owned) ---- */

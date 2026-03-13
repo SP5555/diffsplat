@@ -21,18 +21,17 @@
 class GaussImgFitter
 {
 public:
-    ~GaussImgFitter();
+    ~GaussImgFitter() {};
 
     void init(int width, int height);
     void loadTargetImage(const std::string &imagePath, int w, int h, int padding = 0);
     void randomInitGaussians(int count, int seed = -1);
     void initLayers();
-    void free();
 
     void render();
 
-    const float *getOutput()    const;
-    int          getIterCount() const { return iterCount; }
+    float *getOutput();
+    int    getIterCount() const { return iterCount; }
 
 private:
     int maxPairs() const { return powf(2.f, 20.f); }
@@ -61,5 +60,5 @@ private:
     int        iterCount = 0;
 
     /* ---- target image ---- */
-    float *d_target_pixels = nullptr;
+    CudaBuffer<float> d_target_pixels;
 };

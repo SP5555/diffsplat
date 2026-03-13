@@ -30,7 +30,7 @@ struct AdamConfig
  */
 void launchAdam(
     Gaussian3DParams &gaussians,
-    const Gaussian3DOptState &opt_state,
+    Gaussian3DOptState &opt_state,
     const AdamConfig &config,
     int step
 );

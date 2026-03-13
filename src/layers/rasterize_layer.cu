@@ -510,34 +510,18 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
     max_pairs   = _max_pairs;
     int numTiles = num_tiles_x * num_tiles_y;
 
-    cudaMalloc(&d_pixels,    num_pixels * 3 * sizeof(float));
-    cudaMalloc(&d_T_final,   num_pixels     * sizeof(float));
-    cudaMalloc(&d_n_contrib, num_pixels     * sizeof(int));
+    d_pixels.allocate       (num_pixels * 3);
+    d_T_final.allocate      (num_pixels);
+    d_n_contrib.allocate    (num_pixels);
 
-    cudaMalloc(&d_keys,          max_pairs * sizeof(uint64_t));
-    cudaMalloc(&d_values,        max_pairs * sizeof(uint32_t));
-    cudaMalloc(&d_keys_sorted,   max_pairs * sizeof(uint64_t));
-    cudaMalloc(&d_values_sorted, max_pairs * sizeof(uint32_t));
-    cudaMalloc(&d_pair_count,                sizeof(uint32_t));
-    cudaMalloc(&d_tile_ranges,   numTiles  * sizeof(int2));
+    d_keys.allocate         (max_pairs);
+    d_values.allocate       (max_pairs);
+    d_keys_sorted.allocate  (max_pairs);
+    d_values_sorted.allocate(max_pairs);
+    d_pair_count.allocate   (1);
+    d_tile_ranges.allocate  (numTiles);
 
-    gradInput.allocateDeviceMem(count);
-}
-
-void RasterizeLayer::free()
-{
-    CUDA_FREE(d_pixels);
-    CUDA_FREE(d_T_final);
-    CUDA_FREE(d_n_contrib);
-    CUDA_FREE(d_keys);
-    CUDA_FREE(d_values);
-    CUDA_FREE(d_keys_sorted);
-    CUDA_FREE(d_values_sorted);
-    CUDA_FREE(d_pair_count);
-    CUDA_FREE(d_tile_ranges);
-    CUDA_FREE(d_sort_temp);
-    gradInput.free();
-    num_pixels = 0;
+    gradInput.allocate(count);
 }
 
 void RasterizeLayer::zero_grad()
@@ -554,13 +538,9 @@ void RasterizeLayer::resize(int new_width, int new_height)
     screen_height = new_height;
     num_pixels = screen_width * screen_height;
 
-    CUDA_FREE(d_pixels);
-    CUDA_FREE(d_T_final);
-    CUDA_FREE(d_n_contrib);
-
-    cudaMalloc(&d_pixels,    num_pixels * 3 * sizeof(float));
-    cudaMalloc(&d_T_final,   num_pixels     * sizeof(float));
-    cudaMalloc(&d_n_contrib, num_pixels     * sizeof(int));
+    d_pixels.allocate   (num_pixels * 3);
+    d_T_final.allocate  (num_pixels);
+    d_n_contrib.allocate(num_pixels);
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -603,23 +583,22 @@ void RasterizeLayer::forward()
         // this call does no sorting
         cub::DeviceRadixSort::SortPairs(
             nullptr, required,
-            d_keys, d_keys_sorted,
-            d_values, d_values_sorted,
+            d_keys.ptr,   d_keys_sorted.ptr,
+            d_values.ptr, d_values_sorted.ptr,
             (int)pair_count);
 
         // reallocate temp buffer if needed
         if (required > sort_temp_bytes)
         {
-            CUDA_FREE(d_sort_temp);
-            cudaMalloc(&d_sort_temp, required);
+            d_sort_temp.allocate(required);
             sort_temp_bytes = required;
         }
 
         // actual sort
         cub::DeviceRadixSort::SortPairs(
-            d_sort_temp, required,
-            d_keys, d_keys_sorted,
-            d_values, d_values_sorted,
+            (void *)d_sort_temp.ptr, required,
+            d_keys.ptr,   d_keys_sorted.ptr,
+            d_values.ptr, d_values_sorted.ptr,
             (int)pair_count);
         cudaDeviceSynchronize();
     }

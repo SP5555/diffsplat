@@ -99,15 +99,8 @@ void NDCProjectLayer::allocate(int width, int height, int count)
     screen_width  = width;
     screen_height = height;
     allocatedCount = count;
-    output.allocateDeviceMem(count);
-    gradInput.allocateDeviceMem(count);
-}
-
-void NDCProjectLayer::free()
-{
-    output.free();
-    gradInput.free();
-    allocatedCount = 0;
+    output.allocate(count);
+    gradInput.allocate(count);
 }
 
 void NDCProjectLayer::zero_grad()

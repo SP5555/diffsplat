@@ -86,7 +86,7 @@ static void stepOne(
 
 void launchAdam(
     Gaussian3DParams &gaussians,
-    const Gaussian3DOptState &opt_state,
+    Gaussian3DOptState &opt_state,
     const AdamConfig &config,
     int step)
 {
@@ -94,7 +94,12 @@ void launchAdam(
     float bc1 = 1.f / (1.f - powf(config.beta1, step));
     float bc2 = 1.f / (1.f - powf(config.beta2, step));
     
-    auto go = [&](float* p, const float* g, float* m, float* v, float lr) {
+    auto go = [&](
+        CudaBuffer<float>& p,
+        const CudaBuffer<float>& g,
+        CudaBuffer<float>& m,
+        CudaBuffer<float>& v,
+        float lr) {
         stepOne(
             p, g, m, v, lr,
             config.beta1, config.beta2, config.epsilon,
@@ -102,7 +107,7 @@ void launchAdam(
         );
     };
 
-    auto cl = [&](float* data, float min_val, float max_val) {
+    auto cl = [&](CudaBuffer<float>& data, float min_val, float max_val) {
         launchClampF(data, min_val, max_val, n);
     };
     

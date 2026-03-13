@@ -16,7 +16,7 @@
 class GaussPlyViewer
 {
 public:
-    ~GaussPlyViewer();
+    ~GaussPlyViewer() {};
 
     void init(int w, int h);
     void loadPLY(const std::string &path, const float sceneScale = 1.f);
@@ -25,9 +25,7 @@ public:
     void render(const glm::mat4 &view, const glm::mat4 &proj);
     void resize(int newWidth, int newHeight);
 
-    const float *getOutput() const;
-
-    void free();
+    float *getOutput();
 
 private:
     int maxPairs() const { return powf(2.f, 25.f); }

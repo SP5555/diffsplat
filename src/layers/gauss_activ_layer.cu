@@ -228,15 +228,8 @@ __global__ void covBackwardKernel(
 void GaussActivLayer::allocate(int count)
 {
     allocatedCount = count;
-    output.allocateDeviceMem(count);
-    gradInput.allocateDeviceMem(count);
-}
-
-void GaussActivLayer::free()
-{
-    output.free();
-    gradInput.free();
-    allocatedCount = 0;
+    output.allocate(count);
+    gradInput.allocate(count);
 }
 
 void GaussActivLayer::zero_grad()

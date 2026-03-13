@@ -249,17 +249,9 @@ __global__ void perspProjectBackwardKernel(
 void PerspProjectLayer::allocate(int count)
 {
     allocatedCount = count;
-    output.allocateDeviceMem(count);
-    gradInput.allocateDeviceMem(count);
+    output.allocate(count);
+    gradInput.allocate(count);
     cudaMalloc(&d_pv, 16 * sizeof(float));
-}
-
-void PerspProjectLayer::free()
-{
-    output.free();
-    gradInput.free();
-    CUDA_FREE(d_pv);
-    allocatedCount = 0;
 }
 
 void PerspProjectLayer::zero_grad()

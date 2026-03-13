@@ -1,12 +1,14 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <optional>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
 #include "../input/input.h"
+#include "../utils/gl_utils.h"
 
 /**
  * @brief Base class for all apps.
@@ -67,11 +69,11 @@ private:
 
 
     /* ---- GL objects ---- */
-    GLuint vao            = 0;
-    GLuint vbo            = 0;
-    GLuint texture        = 0;
-    GLuint shader_program = 0;
-    GLuint pbo            = 0;
+    std::optional<GLShaderProgram> shader_program;
+    std::optional<GLTexture>       texture;
+    std::optional<GLVertexArray>   vao;
+    std::optional<GLBuffer>        vbo;
+    std::optional<GLBuffer>        pbo;
 
     /* ---- CUDA/GL interop ---- */
     cudaGraphicsResource *d_pbo_resource     = nullptr;

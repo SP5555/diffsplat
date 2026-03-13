@@ -4,6 +4,7 @@
 #include "layer.h"
 #include "../types/splat3d.h"
 #include "../types/splat2d.h"
+#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Projects Splat3D in world space to Splat2D in NDC/screen space
@@ -24,22 +25,21 @@
 class PerspProjectLayer : public Layer
 {
 public:
-    ~PerspProjectLayer() { free(); }
+    ~PerspProjectLayer() {}
 
     void allocate(int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
-    void free()         override;
 
     // call every frame with updated camera matrices
     void setCamera(const glm::mat4 &view, const glm::mat4 &proj);
 
     // wiring
-    void setInput(const Splat3DParams *params)      { input = params; }
-    const Splat2DParams &getOutput() const          { return output; }
-    void setGradOutput(const Splat2DGrads *grads)   { gradOutput = grads; }
-    const Splat3DGrads &getGradInput() const        { return gradInput; }
+    void setInput(const Splat3DParams *params)    { input = params; }
+    Splat2DParams &getOutput()                    { return output; }
+    void setGradOutput(const Splat2DGrads *grads) { gradOutput = grads; }
+    Splat3DGrads &getGradInput()                  { return gradInput; }
 
 private:
     /* ---- forward input (not owned) ---- */
