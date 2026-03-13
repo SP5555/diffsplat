@@ -20,5 +20,5 @@ protected:
 private:
     std::string     imagePath;
     int             splatCount;
-    GaussImgFitter  renderer;
+    GaussImgFitter  fitter;
 };

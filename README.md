@@ -58,22 +58,30 @@ make -j$(nproc)
 ## Apps
 
 ### imgfitapp (Image Fitter)
+
 Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** as the renderer learns to reconstruct the image iteration by iteration.
 
 ```sh
 ./build/imgfitapp --width 1280 --height 720 --image path/to/image.png --splat-count 50000
 ```
 
-### plyviewapp (PLY Scene Viewer)
 <p align="center">
-  <img src="assets/train.png" width="720"/>
-  <br><em><a href="https://huggingface.co/datasets/Voxel51/gaussian_splatting">Train Scene</a></em>
+  <img src="assets/fit_progress.png" width="800">
+  <br><em>Training Example</em>
 </p>
+
+### plyviewapp (PLY Scene Viewer)
+
 Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines.
 
 ```sh
 ./build/plyviewapp --scene path/to/scene.ply --scale 1.0
 ```
+
+<p align="center">
+  <img src="assets/train.png" width="800"/>
+  <br><em><a href="https://huggingface.co/datasets/Voxel51/gaussian_splatting">Train Scene</a></em>
+</p>
 
 ---
 

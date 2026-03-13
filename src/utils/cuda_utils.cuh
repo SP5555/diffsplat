@@ -13,20 +13,6 @@
         }                                                       \
     } while (0)
 
-__global__ void clampFKernel(
-    float *data,
-    float min_val,
-    float max_val,
-    int n
-);
-
-void launchClampF(
-    float *data,
-    float min_val,
-    float max_val,
-    int n
-);
-
 template<typename T>
 struct CudaBuffer
 {
@@ -89,3 +75,7 @@ struct CudaBuffer
     operator T*()             { return ptr; }
     operator const T*() const { return ptr; }
 };
+
+/* ===== utilities ===== */
+
+void launchClampF(float* data, float min_val, float max_val, int n);

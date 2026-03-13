@@ -18,16 +18,26 @@ AppImgFit::AppImgFit(int width, int height, const std::string &imagePath, int sp
 
 void AppImgFit::onStart()
 {
-    renderer.init(width, height);
-    renderer.loadTargetImage(imagePath, width, height, 10);
-    renderer.randomInitGaussians(splatCount);
+    fitter.init(width, height);
+    fitter.loadTargetImage(imagePath, width, height, 10);
+    fitter.randomInitGaussians(splatCount);
     // layers can only be wired after gaussians are initialized
     // as it needs to know the gaussian count for allocation
-    renderer.initLayers();
+    fitter.initLayers();
 }
 
 void AppImgFit::onRender()
 {
-    renderer.render();
-    displayFrame(renderer.getOutput());
+    fitter.render();
+    displayFrame(fitter.getOutput());
+
+    if (fitter.getIterCount() == 1 ||
+        fitter.getIterCount() == 100 ||
+        fitter.getIterCount() == 500 ||
+        fitter.getIterCount() == 10000 ||
+        fitter.getIterCount() == 20000
+    )
+    {
+        saveScreenshot("fit_iter_" + std::to_string(fitter.getIterCount()) + ".png");
+    }
 }
