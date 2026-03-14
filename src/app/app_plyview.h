@@ -1,8 +1,11 @@
 #pragma once
 #include <string>
+#include <memory>
 #include "app_base.h"
 #include "../pipelines/gauss_ply_viewer.h"
 #include "../camera/camera.h"
+
+enum class CameraMode { Arcball, Fly };
 
 /**
  * @brief App for viewing a 3D Gaussian scene from a PLY file.
@@ -13,7 +16,8 @@
 class AppPlyView : public AppBase
 {
 public:
-    AppPlyView(const std::string &plyPath, float sceneScale = 1.f);
+    AppPlyView(const std::string &plyPath, float sceneScale = 1.f,
+               CameraMode cameraMode = CameraMode::Fly);
 
 protected:
     void onStart()  override;
@@ -24,5 +28,6 @@ private:
     std::string     plyPath;
     float           sceneScale;
     GaussPlyViewer  renderer;
-    Camera          camera;
+
+    std::unique_ptr<Camera> camera;
 };

@@ -94,11 +94,13 @@ __global__ void tileAssignKernel(
     float temp    = fmaxf(0.f, trace * trace - 4.f * det);
     float lambda1 = 0.5f * (trace + sqrtf(temp));
     float lambda2 = 0.5f * (trace - sqrtf(temp));
-    float max_radius = 3.f * sqrtf(max(lambda1, lambda2));
-
-    // cull splats smaller than half a pixel in NDC
+    
     float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
-    if (max_radius * 4.f < pixel_ndc) return;
+    // cull splats thinner than a pixel in pixel space
+    if (3.f * sqrtf(lambda1 * 2.f) < pixel_ndc) return;
+    // cull splats smaller than a pixel in pixel space
+    if (3.f * sqrtf(lambda2 * 2.f) < pixel_ndc) return;
+    float max_radius = 3.f * sqrtf(max(lambda1, lambda2));
 
     // bounding box in NDC
     float min_x = x - max_radius;

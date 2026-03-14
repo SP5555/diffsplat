@@ -1,20 +1,23 @@
 # diffsplat
-A differentiable Gaussian splatting renderer built from scratch in CUDA.
+A differentiable 3D Gaussian Splatting renderer built from scratch in CUDA, inspired by
+[3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)
+(Kerbl et al., SIGGRAPH 2023).
 
-Implements the full pipeline, forward rasterization, analytic backward pass, and Adam
-optimization, entirely on the GPU, with no deep learning framework dependencies.
+Implements the full pipeline (forward rasterization, analytic backward pass, and Adam optimization) entirely on the GPU, with no deep learning framework dependencies.
 
 ## TODO
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
+- [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
+- [X] Fly Camera
 - [X] Build a device for 3D feedforward rendering
 - [X] World space to NDC layer with proper camera transforms
 - [X] PLY file loading for feedforward 3DGS rendering
-- [x] Make modular base app so specific purpose apps can build on top of it
-- [x] Modularize the pipeline into "layers" for PyTorch-like code
-- [x] Proper NDC to pixel space transform
-- [x] Watch splats converge live
-- [x] Adam optimizer
-- [x] Backward pass (T_final division trick)
+- [X] Make modular base app so specific purpose apps can build on top of it
+- [X] Modularize the pipeline into "layers" for PyTorch-like code
+- [X] Proper NDC to pixel space transform
+- [X] Watch splats converge live
+- [X] Adam optimizer
+- [X] Backward pass (with transmittance division trick)
 
 ---
 
@@ -61,9 +64,17 @@ make -j$(nproc)
 
 Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** as the renderer learns to reconstruct the image iteration by iteration.
 
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--image` | REQUIRED | Path to target image (`.png` or `.jpg`) |
+| `--width` | `1280` | Render window width in pixels |
+| `--height` | `720` | Render window height in pixels |
+| `--splats` | `60000` | Number of Gaussian splats |
+
+> `--width` and `--height` must be specified together or not at all.
+
 ```sh
-# Example usage
-./build/imgfitapp --width 1280 --height 720 --image path/to/image.png --splat-count 50000
+./build/imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 ```
 
 <p align="center">
@@ -75,9 +86,14 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 
 Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines.
 
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--scene` | REQUIRED | Path to `.ply` file |
+| `--scale` | `1.0` | Scene normalization scale |
+| `--camera` | `arcball` | Camera mode: `fly` or `arcball` |
+
 ```sh
-# Example usage
-./build/plyviewapp --scene path/to/scene.ply --scale 1.0
+./build/plyviewapp --scene path/to/scene.ply [--scale 1.0] [--camera fly|arcball]
 ```
 
 <p align="center">

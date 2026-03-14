@@ -1,20 +1,28 @@
-#include "camera.h"
-#include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <iostream>
+#include "arcball_camera.h"
+#include <glm/gtc/matrix_transform.hpp>
 
-Camera::Camera(float aspect, float fovDegrees, float nearPlane, float farPlane)
+ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
     , nearP(nearPlane)
     , farP(farPlane)
     , fov(glm::radians(fovDegrees))
 {
+    std::cout << "[ArcballCamera] Controls:\n" 
+              << "\e[1;36m"
+              << "  Left Click + Drag         -> Orbit\n"
+              << "  Shift + Left Click + Drag -> Pan\n"
+              << "  Scroll                    -> Zoom\n"
+              << "\e[0m";
+
     updateViewSpaceVectors();
     updateMatrices();
 }
 
 /* ===== ===== Update ===== ===== */
 
-bool Camera::update(const Input &input, float dt)
+bool ArcballCamera::update(const Input &input, float dt)
 {
     // clamp large deltas from click jumps
     float mouseDelta_x =  glm::clamp(input.mouseDelta.x, -50.f, 50.f);
@@ -27,7 +35,7 @@ bool Camera::update(const Input &input, float dt)
     bool isDirty = false;
 
     // ===== orbit =====
-    if (!input.shiftPressed && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
+    if (!input.isShiftDown() && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
     {
         glm::vec3 dir = glm::normalize(offset);
 
@@ -51,7 +59,7 @@ bool Camera::update(const Input &input, float dt)
     }
 
     // ===== pan =====
-    if (input.shiftPressed && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
+    if (input.isShiftDown() && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
     {
         glm::vec3 translation =
             right * (-mouseDelta_x * distance * panSpeed) +
@@ -69,10 +77,10 @@ bool Camera::update(const Input &input, float dt)
         position += translation;
 
         float newDist = glm::distance(position, target);
-        if (newDist < minDistance)
-            position = target + (-viewDir) * minDistance;
-        if (newDist > maxDistance)
-            position = target + (-viewDir) * maxDistance;
+        if (newDist < zoomMinDist)
+            position = target + (-viewDir) * zoomMinDist;
+        if (newDist > zoomMaxDist)
+            position = target + (-viewDir) * zoomMaxDist;
 
         isDirty = true;
     }
@@ -85,7 +93,7 @@ bool Camera::update(const Input &input, float dt)
 
 /* ===== ===== Resize ===== ===== */
 
-void Camera::setAspect(float newAspect)
+void ArcballCamera::setAspect(float newAspect)
 {
     aspect  = newAspect;
     pMatrix = glm::perspective(fov, aspect, nearP, farP);
@@ -93,14 +101,14 @@ void Camera::setAspect(float newAspect)
 
 /* ===== ===== Helpers ===== ===== */
 
-void Camera::updateViewSpaceVectors()
+void ArcballCamera::updateViewSpaceVectors()
 {
     forward = glm::normalize(target - position);
     right   = glm::normalize(glm::cross(forward, glm::vec3(0.f, 1.f, 0.f)));
     up      = glm::normalize(glm::cross(right, forward));
 }
 
-void Camera::updateMatrices()
+void ArcballCamera::updateMatrices()
 {
     vMatrix = glm::lookAt(position, target, up);
     pMatrix = glm::perspective(fov, aspect, nearP, farP);

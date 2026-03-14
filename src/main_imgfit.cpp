@@ -1,8 +1,8 @@
-#include "app/app_imgfit.h"
-#include <iostream>
-#include <unistd.h>
 #include <cstdlib>
 #include <getopt.h>
+#include <iostream>
+#include <unistd.h>
+#include "app/app_imgfit.h"
 
 int main(int argc, char *argv[])
 {
@@ -52,6 +52,11 @@ int main(int argc, char *argv[])
     if (imagePath.empty()) {
         imagePath = "data/img/torii_moon.jpg";
         printf("No image path specified, defaulting to %s\n", imagePath.c_str());
+    }
+
+    if (splatCount <= 0) {
+        std::cerr << "Error: splat count must be positive.\n";
+        return 1;
     }
 
     // APP STARTS HERE
