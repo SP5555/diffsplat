@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 
 #define T_THRESHOLD     0.0001f
 #define ALPHA_THRESHOLD (1.0f / 255.0f)

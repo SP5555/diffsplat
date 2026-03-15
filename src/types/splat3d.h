@@ -1,7 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
 
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 
 /**
  * @brief GPU-side SoA storage for 3D Gaussian splats in world space.

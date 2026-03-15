@@ -75,7 +75,3 @@ struct CudaBuffer
     operator T*()             { return ptr; }
     operator const T*() const { return ptr; }
 };
-
-/* ===== utilities ===== */
-
-void launchClampF(float* data, float min_val, float max_val, int n);

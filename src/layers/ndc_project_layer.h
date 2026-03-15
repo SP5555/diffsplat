@@ -3,7 +3,6 @@
 #include "layer.h"
 #include "../types/splat3d.h"
 #include "../types/splat2d.h"
-#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Projects Splat3D in world space to Splat2D in screen space.

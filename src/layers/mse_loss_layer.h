@@ -2,7 +2,7 @@
 #include <cuda_runtime.h>
 
 #include "layer.h"
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 
 /**
  * @brief Calculates MSE loss between rendered image and target,

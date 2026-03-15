@@ -4,7 +4,6 @@
 
 #include "layer.h"
 #include "../types/splat2d.h"
-#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Rasterizes 2D Gaussian splats into a pixel buffer,

@@ -2,7 +2,7 @@
 #include <cuda_runtime.h>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 
 /* ===== ===== Kernels ===== ===== */
 

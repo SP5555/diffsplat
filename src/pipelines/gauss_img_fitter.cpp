@@ -5,7 +5,7 @@
 
 #include "../loaders/image_loader.h"
 #include "../utils/splat_utils.h"
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 #include "../optimizers/adam.cuh"
 
 /* ===== ===== Lifecycle ===== ===== */

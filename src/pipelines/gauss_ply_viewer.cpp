@@ -5,7 +5,7 @@
 #include <cmath>
 
 #include "../loaders/ply_loader.h"
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 #include "../utils/splat_utils.h"
 
 /* ===== ===== Lifecycle ===== ===== */

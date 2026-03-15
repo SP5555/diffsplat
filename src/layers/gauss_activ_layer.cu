@@ -2,7 +2,9 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
+
+static constexpr float C0 = 0.28209f;  // DC SH coefficient
 
 /* ===== ===== Kernels ===== ===== */
 
@@ -31,10 +33,14 @@ __global__ void covForwardKernel(
     const float *__restrict__ rot_x,
     const float *__restrict__ rot_y,
     const float *__restrict__ rot_z,
+    const float *__restrict__ color_DC_SH_r,
+    const float *__restrict__ color_DC_SH_g,
+    const float *__restrict__ color_DC_SH_b,
     const float *__restrict__ logit_opacity,
     // outputs: 3D covariance upper triangle + activated opacity
-    float *cov_xx, float *cov_xy, float *cov_xz,
-    float *cov_yy, float *cov_yz, float *cov_zz,
+    float *cov_xx,      float *cov_xy,      float *cov_xz,
+    float *cov_yy,      float *cov_yz,      float *cov_zz,
+    float *color_lin_r, float *color_lin_g, float *color_lin_b,
     float *opacity,
     int count)
 {
@@ -77,6 +83,11 @@ __global__ void covForwardKernel(
     cov_yz[i] = m10*m20 + m11*m21 + m12*m22;
     cov_zz[i] = m20*m20 + m21*m21 + m22*m22;
 
+    // DC SH coefficient -> linear RGB
+    color_lin_r[i] = fminf(fmaxf(color_DC_SH_r[i] * C0 + 0.5f, 0.f), 1.f);
+    color_lin_g[i] = fminf(fmaxf(color_DC_SH_g[i] * C0 + 0.5f, 0.f), 1.f);
+    color_lin_b[i] = fminf(fmaxf(color_DC_SH_b[i] * C0 + 0.5f, 0.f), 1.f);
+
     // sigmoid activation on opacity
     opacity[i] = 1.f / (1.f + expf(-logit_opacity[i]));
 }
@@ -107,7 +118,6 @@ __global__ void covBackwardKernel(
     const float *__restrict__ rot_x,
     const float *__restrict__ rot_y,
     const float *__restrict__ rot_z,
-    // saved from forward: activated opacity (needed for sigmoid backward)
     const float *__restrict__ opacity,
     // grad_output: dL/dΣ upper triangle and dL/dopacity
     const float *__restrict__ grad_cov_xx,
@@ -116,6 +126,9 @@ __global__ void covBackwardKernel(
     const float *__restrict__ grad_cov_yy,
     const float *__restrict__ grad_cov_yz,
     const float *__restrict__ grad_cov_zz,
+    const float *__restrict__ grad_color_lin_r,
+    const float *__restrict__ grad_color_lin_g,
+    const float *__restrict__ grad_color_lin_b,
     const float *__restrict__ grad_opacity,
     // grad_input: gradients w.r.t. log-scale, raw quaternion, logit-opacity
     float *grad_scale_x,
@@ -125,6 +138,9 @@ __global__ void covBackwardKernel(
     float *grad_rot_x,
     float *grad_rot_y,
     float *grad_rot_z,
+    float *grad_color_DC_SH_r,
+    float *grad_color_DC_SH_g,
+    float *grad_color_DC_SH_b,
     float *grad_logit_opacity,
     int count)
 {
@@ -218,6 +234,11 @@ __global__ void covBackwardKernel(
     grad_rot_y[i] = norm_inv * (dqy - dot*qy);
     grad_rot_z[i] = norm_inv * (dqz - dot*qz);
 
+    // --- color gradients: chain through linear SH ---
+    grad_color_DC_SH_r[i] = grad_color_lin_r[i] * C0;
+    grad_color_DC_SH_g[i] = grad_color_lin_g[i] * C0;
+    grad_color_DC_SH_b[i] = grad_color_lin_b[i] * C0;
+
     // --- sigmoid backward: dL/dlogit = dL/dopacity * s * (1 - s) ---
     float s = opacity[i];
     grad_logit_opacity[i] = grad_opacity[i] * s * (1.f - s);
@@ -250,19 +271,21 @@ void GaussActivLayer::forward()
     cudaMemcpy(output.pos_x,   input->pos_x,   bytes, cudaMemcpyDeviceToDevice);
     cudaMemcpy(output.pos_y,   input->pos_y,   bytes, cudaMemcpyDeviceToDevice);
     cudaMemcpy(output.pos_z,   input->pos_z,   bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.color_r, input->color_r, bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.color_g, input->color_g, bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.color_b, input->color_b, bytes, cudaMemcpyDeviceToDevice);
-    // opacity is NOT passed through — it is activated by the kernel below
+
+    // color and opacity needs to be activated in forward
+    // color is stored as DC SH coefficients, activated in kernel to linear RGB
+    // opacity is stored as logit, activated in kernel with sigmoid
 
     int threads = 256;
     int blocks  = (count + threads - 1) / threads;
     covForwardKernel<<<blocks, threads>>>(
         input->scale_x, input->scale_y, input->scale_z,
         input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
+        input->color_sh_r, input->color_sh_g, input->color_sh_b,
         input->opacity,   // logit-opacity in
         output.cov_xx, output.cov_xy, output.cov_xz,
         output.cov_yy, output.cov_yz, output.cov_zz,
+        output.color_r, output.color_g, output.color_b,
         output.opacity,   // activated opacity out
         count
     );
@@ -273,11 +296,6 @@ void GaussActivLayer::backward()
 {
     int count = input->count;
     size_t bytes = count * sizeof(float);
-
-    // pass-through gradients: color flows straight to Gaussian3DOptState
-    cudaMemcpy(gradInput.grad_color_r, gradOutput->grad_color_r, bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_color_g, gradOutput->grad_color_g, bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_color_b, gradOutput->grad_color_b, bytes, cudaMemcpyDeviceToDevice);
 
     // position gradients pass through directly
     cudaMemcpy(gradInput.grad_pos_x, gradOutput->grad_pos_x, bytes, cudaMemcpyDeviceToDevice);
@@ -291,13 +309,15 @@ void GaussActivLayer::backward()
         input->scale_x, input->scale_y, input->scale_z,
         input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
         output.opacity,   // saved activated opacity for sigmoid backward
-        gradOutput->grad_cov_xx, gradOutput->grad_cov_xy, gradOutput->grad_cov_xz,
-        gradOutput->grad_cov_yy, gradOutput->grad_cov_yz, gradOutput->grad_cov_zz,
-        gradOutput->grad_opacity,
+        gradOutput->grad_cov_xx,  gradOutput->grad_cov_xy,  gradOutput->grad_cov_xz,
+        gradOutput->grad_cov_yy,  gradOutput->grad_cov_yz,  gradOutput->grad_cov_zz,
+        gradOutput->grad_color_r, gradOutput->grad_color_g, gradOutput->grad_color_b,
+        gradOutput->grad_opacity, // activated opacity
         gradInput.grad_scale_x, gradInput.grad_scale_y, gradInput.grad_scale_z,
         gradInput.grad_rot_w,   gradInput.grad_rot_x,
         gradInput.grad_rot_y,   gradInput.grad_rot_z,
-        gradInput.grad_opacity,   // grad w.r.t. logit-opacity out
+        gradInput.grad_color_sh_r, gradInput.grad_color_sh_g, gradInput.grad_color_sh_b,
+        gradInput.grad_opacity, // logit-opacity
         count
     );
     cudaDeviceSynchronize();

@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cmath>
 
-#include "../utils/cuda_utils.cuh"
+#include "../utils/cuda_utils.h"
 
 /* ===== ===== Gaussian3D (CPU) ===== ===== */
 
@@ -33,7 +33,7 @@ struct Gaussian3DParams
     CudaBuffer<float> pos_x,   pos_y,   pos_z;
     CudaBuffer<float> scale_x, scale_y, scale_z;
     CudaBuffer<float> rot_w,   rot_x,   rot_y,   rot_z;
-    CudaBuffer<float> color_r, color_g, color_b;
+    CudaBuffer<float> color_sh_r, color_sh_g, color_sh_b;
     CudaBuffer<float> opacity;
 
     void allocate(int n)
@@ -41,7 +41,9 @@ struct Gaussian3DParams
         pos_x.allocate(n);   pos_y.allocate(n);   pos_z.allocate(n);
         scale_x.allocate(n); scale_y.allocate(n); scale_z.allocate(n);
         rot_w.allocate(n);   rot_x.allocate(n);   rot_y.allocate(n);   rot_z.allocate(n);
-        color_r.allocate(n); color_g.allocate(n); color_b.allocate(n);
+        color_sh_r.allocate(n);
+        color_sh_g.allocate(n);
+        color_sh_b.allocate(n);
         opacity.allocate(n);
         count = n;
     }
@@ -57,20 +59,20 @@ struct Gaussian3DParams
             cudaMemcpy(dst, tmp.data(), n * sizeof(float), cudaMemcpyHostToDevice);
         };
 
-        up(pos_x,   [](const Gaussian3D &g) { return g.x; });
-        up(pos_y,   [](const Gaussian3D &g) { return g.y; });
-        up(pos_z,   [](const Gaussian3D &g) { return g.z; });
-        up(scale_x, [](const Gaussian3D &g) { return g.scale_x; });
-        up(scale_y, [](const Gaussian3D &g) { return g.scale_y; });
-        up(scale_z, [](const Gaussian3D &g) { return g.scale_z; });
-        up(rot_w,   [](const Gaussian3D &g) { return g.rot_w; });
-        up(rot_x,   [](const Gaussian3D &g) { return g.rot_x; });
-        up(rot_y,   [](const Gaussian3D &g) { return g.rot_y; });
-        up(rot_z,   [](const Gaussian3D &g) { return g.rot_z; });
-        up(color_r, [](const Gaussian3D &g) { return g.r; });
-        up(color_g, [](const Gaussian3D &g) { return g.g; });
-        up(color_b, [](const Gaussian3D &g) { return g.b; });
-        up(opacity, [](const Gaussian3D &g) { return g.opacity; });
+        up(pos_x,      [](const Gaussian3D &g) { return g.x; });
+        up(pos_y,      [](const Gaussian3D &g) { return g.y; });
+        up(pos_z,      [](const Gaussian3D &g) { return g.z; });
+        up(scale_x,    [](const Gaussian3D &g) { return g.scale_x; });
+        up(scale_y,    [](const Gaussian3D &g) { return g.scale_y; });
+        up(scale_z,    [](const Gaussian3D &g) { return g.scale_z; });
+        up(rot_w,      [](const Gaussian3D &g) { return g.rot_w; });
+        up(rot_x,      [](const Gaussian3D &g) { return g.rot_x; });
+        up(rot_y,      [](const Gaussian3D &g) { return g.rot_y; });
+        up(rot_z,      [](const Gaussian3D &g) { return g.rot_z; });
+        up(color_sh_r, [](const Gaussian3D &g) { return g.r; });
+        up(color_sh_g, [](const Gaussian3D &g) { return g.g; });
+        up(color_sh_b, [](const Gaussian3D &g) { return g.b; });
+        up(opacity,    [](const Gaussian3D &g) { return g.opacity; });
     }
 };
 
@@ -82,7 +84,7 @@ struct Gaussian3DGrads
     CudaBuffer<float> grad_pos_x,   grad_pos_y,   grad_pos_z;
     CudaBuffer<float> grad_scale_x, grad_scale_y, grad_scale_z;
     CudaBuffer<float> grad_rot_w,   grad_rot_x,   grad_rot_y,   grad_rot_z;
-    CudaBuffer<float> grad_color_r, grad_color_g, grad_color_b;
+    CudaBuffer<float> grad_color_sh_r, grad_color_sh_g, grad_color_sh_b;
     CudaBuffer<float> grad_opacity;
 
     void allocate(int n)
@@ -91,7 +93,9 @@ struct Gaussian3DGrads
         grad_scale_x.allocate(n); grad_scale_y.allocate(n); grad_scale_z.allocate(n);
         grad_rot_w.allocate(n);   grad_rot_x.allocate(n);
         grad_rot_y.allocate(n);   grad_rot_z.allocate(n);
-        grad_color_r.allocate(n); grad_color_g.allocate(n); grad_color_b.allocate(n);
+        grad_color_sh_r.allocate(n);
+        grad_color_sh_g.allocate(n);
+        grad_color_sh_b.allocate(n);
         grad_opacity.allocate(n);
         count = n;
     }
@@ -101,7 +105,9 @@ struct Gaussian3DGrads
         grad_pos_x.zero();   grad_pos_y.zero();   grad_pos_z.zero();
         grad_scale_x.zero(); grad_scale_y.zero(); grad_scale_z.zero();
         grad_rot_w.zero();   grad_rot_x.zero();   grad_rot_y.zero();   grad_rot_z.zero();
-        grad_color_r.zero(); grad_color_g.zero(); grad_color_b.zero();
+        grad_color_sh_r.zero();
+        grad_color_sh_g.zero();
+        grad_color_sh_b.zero();
         grad_opacity.zero();
     }
 };

@@ -12,7 +12,7 @@ struct AdamConfig
     float lr_pos        = lr_master * 20.f;
     float lr_scale      = lr_master * 0.2f;
     float lr_rot        = lr_master * 0.1f;
-    float lr_color      = lr_master * 4.f;
+    float lr_color      = lr_master * 6.f;
     float lr_opacity    = lr_master * 0.8f;
 
     float beta1         = 0.9f;

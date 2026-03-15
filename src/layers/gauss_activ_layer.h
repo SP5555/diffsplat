@@ -3,7 +3,6 @@
 #include "layer.h"
 #include "../types/gaussian3d.h"
 #include "../types/splat3d.h"
-#include "../utils/cuda_utils.cuh"
 
 /**
  * @brief Computes 3D Gaussian covariance matrices from scale and rotation.
