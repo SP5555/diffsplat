@@ -67,6 +67,7 @@ struct AdamState
  * @brief Performs the Adam optimization step.
  * 
  * @param[in] gaussians         Current Gaussian parameters
+ * @param[in] grads             Gradients for all Gaussian parameters
  * @param[out] opt_state        Output gradients for all Gaussian parameters
  * @param[in] config            Adam optimization configuration
  * @param[in] step              Current optimization step number (starting from 1)

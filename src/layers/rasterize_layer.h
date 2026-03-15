@@ -77,7 +77,7 @@ private:
     /* ---- config ---- */
     int screen_width  = 0;
     int screen_height = 0;
-    int num_pixels     = 0;
+    int num_pixels    = 0;
     int num_tiles_x   = 0;
     int num_tiles_y   = 0;
     int max_pairs     = 0;
