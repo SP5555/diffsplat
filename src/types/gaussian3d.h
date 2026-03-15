@@ -34,7 +34,7 @@ struct Gaussian3DParams
     CudaBuffer<float> scale_x, scale_y, scale_z;
     CudaBuffer<float> rot_w,   rot_x,   rot_y,   rot_z;
     CudaBuffer<float> color_sh_r, color_sh_g, color_sh_b;
-    CudaBuffer<float> opacity;
+    CudaBuffer<float> logit_opacity;
 
     void allocate(int n)
     {
@@ -44,7 +44,7 @@ struct Gaussian3DParams
         color_sh_r.allocate(n);
         color_sh_g.allocate(n);
         color_sh_b.allocate(n);
-        opacity.allocate(n);
+        logit_opacity.allocate(n);
         count = n;
     }
 
@@ -72,7 +72,7 @@ struct Gaussian3DParams
         up(color_sh_r, [](const Gaussian3D &g) { return g.r; });
         up(color_sh_g, [](const Gaussian3D &g) { return g.g; });
         up(color_sh_b, [](const Gaussian3D &g) { return g.b; });
-        up(opacity,    [](const Gaussian3D &g) { return g.opacity; });
+        up(logit_opacity,    [](const Gaussian3D &g) { return g.opacity; });
     }
 };
 
@@ -85,7 +85,7 @@ struct Gaussian3DGrads
     CudaBuffer<float> grad_scale_x, grad_scale_y, grad_scale_z;
     CudaBuffer<float> grad_rot_w,   grad_rot_x,   grad_rot_y,   grad_rot_z;
     CudaBuffer<float> grad_color_sh_r, grad_color_sh_g, grad_color_sh_b;
-    CudaBuffer<float> grad_opacity;
+    CudaBuffer<float> grad_logit_opacity;
 
     void allocate(int n)
     {
@@ -96,7 +96,7 @@ struct Gaussian3DGrads
         grad_color_sh_r.allocate(n);
         grad_color_sh_g.allocate(n);
         grad_color_sh_b.allocate(n);
-        grad_opacity.allocate(n);
+        grad_logit_opacity.allocate(n);
         count = n;
     }
 
@@ -108,6 +108,6 @@ struct Gaussian3DGrads
         grad_color_sh_r.zero();
         grad_color_sh_g.zero();
         grad_color_sh_b.zero();
-        grad_opacity.zero();
+        grad_logit_opacity.zero();
     }
 };

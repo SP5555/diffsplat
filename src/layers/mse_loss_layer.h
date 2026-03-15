@@ -19,7 +19,7 @@ public:
     void zero_grad()    override;
 
     // wiring
-    void setInput(const float *pixels)  { input = pixels; }
+    void setInput(const float *pixels)  { d_in_pixels = pixels; }
     void setTarget(const float *target) { d_target_pixels = target; }
     float *getGradInput()               { return d_grad_pixels; }
 
@@ -27,7 +27,7 @@ public:
 
 private:
     /* ---- forward input (not owned) ---- */
-    const float *input           = nullptr;  // rendered pixels [H*W*3]
+    const float *d_in_pixels     = nullptr;  // rendered pixels [H*W*3]
     const float *d_target_pixels = nullptr;  // target image    [H*W*3]
     
     /* ---- forward output (owned) ---- */

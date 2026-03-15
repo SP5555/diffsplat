@@ -3,6 +3,8 @@
 
 #include "../utils/cuda_utils.h"
 
+#define BLOCK_SIZE 256
+
 /* ===== ===== Kernels ===== ===== */
 
 /**
@@ -22,18 +24,28 @@
  * One thread is launched per splat.
  */
 __global__ void ndcForwardKernel(
-    // inputs: world space
-    const float *__restrict__ pos_x_world,
-    const float *__restrict__ pos_y_world,
-    const float *__restrict__ cov_xx_3d,
-    const float *__restrict__ cov_xy_3d,
-    const float *__restrict__ cov_yy_3d,
-    // outputs: NDC space
-    float *pos_x_ndc,
-    float *pos_y_ndc,
-    float *cov_xx_2d,
-    float *cov_xy_2d,
-    float *cov_yy_2d,
+    // inputs (world space)
+    const float *__restrict__ i_w_x,
+    const float *__restrict__ i_w_y,
+    const float *__restrict__ i_w_z,
+    const float *__restrict__ i_w_cxx,
+    const float *__restrict__ i_w_cxy,
+    const float *__restrict__ i_w_cyy,
+    const float *__restrict__ i_R,
+    const float *__restrict__ i_G,
+    const float *__restrict__ i_B,
+    const float *__restrict__ i_A,
+    // outputs (NDC space)
+    float *o_ndc_x,
+    float *o_ndc_y,
+    float *o_ndc_z,
+    float *o_ndc_cxx,
+    float *o_ndc_cxy,
+    float *o_ndc_cyy,
+    float *o_R,
+    float *o_G,
+    float *o_B,
+    float *o_A,
     // projection scales
     float sx, float sy,
     int count)
@@ -41,12 +53,19 @@ __global__ void ndcForwardKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    pos_x_ndc[i] = pos_x_world[i] * sx;
-    pos_y_ndc[i] = pos_y_world[i] * sy;
+    o_ndc_x[i] = i_w_x[i] * sx;
+    o_ndc_y[i] = i_w_y[i] * sy;
+    o_ndc_z[i] = i_w_z[i]; // Z is not transformed by projection
 
-    cov_xx_2d[i] = cov_xx_3d[i] * sx * sx;
-    cov_xy_2d[i] = cov_xy_3d[i] * sx * sy;
-    cov_yy_2d[i] = cov_yy_3d[i] * sy * sy;
+    o_ndc_cxx[i] = i_w_cxx[i] * sx * sx;
+    o_ndc_cxy[i] = i_w_cxy[i] * sx * sy;
+    o_ndc_cyy[i] = i_w_cyy[i] * sy * sy;
+
+    // pass-throughs
+    o_R[i] = i_R[i];
+    o_G[i] = i_G[i];
+    o_B[i] = i_B[i];
+    o_A[i] = i_A[i];
 }
 
 /**
@@ -65,18 +84,30 @@ __global__ void ndcForwardKernel(
  * One thread is launched per splat.
  */
 __global__ void ndcBackwardKernel(
-    // grad_output
-    const float *__restrict__ grad_out_pos_x,
-    const float *__restrict__ grad_out_pos_y,
-    const float *__restrict__ grad_out_cov_xx,
-    const float *__restrict__ grad_out_cov_xy,
-    const float *__restrict__ grad_out_cov_yy,
-    // grad_input
-    float *grad_in_pos_x,
-    float *grad_in_pos_y,
-    float *grad_in_cov_xx,
-    float *grad_in_cov_xy,
-    float *grad_in_cov_yy,
+    // gradient output
+    const float *__restrict__ grad_o_w_x,
+    const float *__restrict__ grad_o_w_y,
+    const float *__restrict__ grad_o_w_cxx,
+    const float *__restrict__ grad_o_w_cxy,
+    const float *__restrict__ grad_o_w_cyy,
+    const float *__restrict__ grad_o_R,
+    const float *__restrict__ grad_o_G,
+    const float *__restrict__ grad_o_B,
+    const float *__restrict__ grad_o_A,
+    // gradient input
+    float *grad_i_ndc_x,
+    float *grad_i_ndc_y,
+    float *grad_i_ndc_z,
+    float *grad_i_ndc_cxx,
+    float *grad_i_ndc_cxy,
+    float *grad_i_ndc_cxz,
+    float *grad_i_ndc_cyy,
+    float *grad_i_ndc_cyz,
+    float *grad_i_ndc_czz,
+    float *grad_i_R,
+    float *grad_i_G,
+    float *grad_i_B,
+    float *grad_i_A,
     // projection scales
     float sx, float sy,
     int count)
@@ -84,12 +115,22 @@ __global__ void ndcBackwardKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    grad_in_pos_x[i] = grad_out_pos_x[i] * sx;
-    grad_in_pos_y[i] = grad_out_pos_y[i] * sy;
+    grad_i_ndc_x[i] = grad_o_w_x[i] * sx;
+    grad_i_ndc_y[i] = grad_o_w_y[i] * sy;
+    grad_i_ndc_z[i] = 0;
 
-    grad_in_cov_xx[i] = grad_out_cov_xx[i] * sx * sx;
-    grad_in_cov_xy[i] = grad_out_cov_xy[i] * sx * sy;
-    grad_in_cov_yy[i] = grad_out_cov_yy[i] * sy * sy;
+    grad_i_ndc_cxx[i] = grad_o_w_cxx[i] * sx * sx;
+    grad_i_ndc_cxy[i] = grad_o_w_cxy[i] * sx * sy;
+    grad_i_ndc_cxz[i] = 0;
+    grad_i_ndc_cyy[i] = grad_o_w_cyy[i] * sy * sy;
+    grad_i_ndc_cyz[i] = 0;
+    grad_i_ndc_czz[i] = 0;
+
+    // pass-throughs
+    grad_i_R[i] = grad_o_R[i];
+    grad_i_G[i] = grad_o_G[i];
+    grad_i_B[i] = grad_o_B[i];
+    grad_i_A[i] = grad_o_A[i];
 }
 
 /* ===== ===== Lifecycle ===== ===== */
@@ -98,14 +139,14 @@ void NDCProjectLayer::allocate(int width, int height, int count)
 {
     screen_width  = width;
     screen_height = height;
-    allocatedCount = count;
-    output.allocate(count);
-    gradInput.allocate(count);
+    allocated_count = count;
+    out.allocate(count);
+    grad_in.allocate(count);
 }
 
 void NDCProjectLayer::zero_grad()
 {
-    gradInput.zero_grad();
+    grad_in.zero_grad();
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -114,22 +155,16 @@ void NDCProjectLayer::forward()
 {
     float sx = 2.f / (float)screen_width;
     float sy = 2.f / (float)screen_height;
-    int count = input->count;
+    int count = in->count;
 
-    // pass-throughs
-    cudaMemcpy(output.pos_z,   input->pos_z,   count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.color_r, input->color_r, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.color_g, input->color_g, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.color_b, input->color_b, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.opacity, input->opacity, count * sizeof(float), cudaMemcpyDeviceToDevice);
-
-    int threads = 256;
-    int blocks  = (count + threads - 1) / threads;
-    ndcForwardKernel<<<blocks, threads>>>(
-        input->pos_x,   input->pos_y,
-        input->cov_xx,  input->cov_xy,  input->cov_yy,
-        output.pos_x,   output.pos_y,
-        output.cov_xx,  output.cov_xy,  output.cov_yy,
+    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    ndcForwardKernel<<<blocks, BLOCK_SIZE>>>(
+        in->pos_x,   in->pos_y,   in->pos_z,
+        in->cov_xx,  in->cov_xy,  in->cov_yy,
+        in->color_r, in->color_g, in->color_b, in->opacity,
+        out.pos_x,   out.pos_y,   out.pos_z,
+        out.cov_xx,  out.cov_xy,  out.cov_yy,
+        out.color_r, out.color_g, out.color_b, out.opacity,
         sx, sy, count
     );
     CUDA_SYNC_CHECK();
@@ -139,30 +174,19 @@ void NDCProjectLayer::backward()
 {
     float sx = 2.f / (float)screen_width;
     float sy = 2.f / (float)screen_height;
-    int count = input->count;
+    int count = in->count;
 
-    // pass-throughs
-    cudaMemcpy(gradInput.grad_color_r, gradOutput->grad_color_r, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_color_g, gradOutput->grad_color_g, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_color_b, gradOutput->grad_color_b, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_opacity, gradOutput->grad_opacity, count * sizeof(float), cudaMemcpyDeviceToDevice);
-    // pos_z gradient is zero since Z is not transformed by projection
-    cudaMemset(gradInput.grad_pos_z, 0, count * sizeof(float));
-    // cov_xz, cov_yz, cov_zz gradients are zero since Z components are dropped by projection
-    cudaMemset(gradInput.grad_cov_xz, 0, count * sizeof(float));
-    cudaMemset(gradInput.grad_cov_yz, 0, count * sizeof(float));
-    cudaMemset(gradInput.grad_cov_zz, 0, count * sizeof(float));
-
-    int threads = 256;
-    int blocks  = (count + threads - 1) / threads;
-    ndcBackwardKernel<<<blocks, threads>>>(
-        gradOutput->grad_pos_x,  gradOutput->grad_pos_y,
-        gradOutput->grad_cov_xx, gradOutput->grad_cov_xy, gradOutput->grad_cov_yy,
-
-        gradInput.grad_pos_x,
-        gradInput.grad_pos_y,
-        gradInput.grad_cov_xx, gradInput.grad_cov_xy, gradInput.grad_cov_yy,
-
+    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    ndcBackwardKernel<<<blocks, BLOCK_SIZE>>>(
+        grad_out->grad_pos_x,   grad_out->grad_pos_y,
+        grad_out->grad_cov_xx,  grad_out->grad_cov_xy,  grad_out->grad_cov_yy,
+        grad_out->grad_color_r, grad_out->grad_color_g, grad_out->grad_color_b,
+        grad_out->grad_opacity,
+        grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
+        grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_xz,
+        grad_in.grad_cov_yy,  grad_in.grad_cov_yz,  grad_in.grad_cov_zz,
+        grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,
+        grad_in.grad_opacity,
         sx, sy, count
     );
     CUDA_SYNC_CHECK();

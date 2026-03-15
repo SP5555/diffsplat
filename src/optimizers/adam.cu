@@ -5,6 +5,8 @@
 #include "adam.cuh"
 #include "../utils/cuda_utils.h"
 
+#define BLOCK_SIZE 256
+
 /**
  * @brief Adam optimizer kernel for updating Gaussian parameters on the GPU.
  * 
@@ -67,9 +69,8 @@ static void stepOne(
     float bc2,
     int n)
 {
-    int threads = 256;
-    int blocks = (n + threads - 1) / threads;
-    adamKernel<<<blocks, threads>>>(
+    int blocks = (n + BLOCK_SIZE- 1) / BLOCK_SIZE;
+    adamKernel<<<blocks, BLOCK_SIZE>>>(
         param,
         grad,
         moment,
@@ -126,6 +127,6 @@ void launchAdam(
     go(g.color_sh_r, gr.grad_color_sh_r, o.m_color_r, o.v_color_r, c.lr_color);
     go(g.color_sh_g, gr.grad_color_sh_g, o.m_color_g, o.v_color_g, c.lr_color);
     go(g.color_sh_b, gr.grad_color_sh_b, o.m_color_b, o.v_color_b, c.lr_color);
-    go(g.opacity, gr.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
+    go(g.logit_opacity, gr.grad_logit_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
     CUDA_SYNC_CHECK();
 }

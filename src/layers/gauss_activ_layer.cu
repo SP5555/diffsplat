@@ -4,6 +4,7 @@
 
 #include "../utils/cuda_utils.h"
 
+#define BLOCK_SIZE 256
 static constexpr float C0 = 0.28209f;  // DC SH coefficient
 
 /* ===== ===== Kernels ===== ===== */
@@ -25,37 +26,49 @@ static constexpr float C0 = 0.28209f;  // DC SH coefficient
  * One thread is launched per splat.
  */
 __global__ void covForwardKernel(
-    // inputs: log-scale, raw quaternion, logit-opacity
-    const float *__restrict__ scale_x,
-    const float *__restrict__ scale_y,
-    const float *__restrict__ scale_z,
-    const float *__restrict__ rot_w,
-    const float *__restrict__ rot_x,
-    const float *__restrict__ rot_y,
-    const float *__restrict__ rot_z,
-    const float *__restrict__ color_DC_SH_r,
-    const float *__restrict__ color_DC_SH_g,
-    const float *__restrict__ color_DC_SH_b,
-    const float *__restrict__ logit_opacity,
-    // outputs: 3D covariance upper triangle + activated opacity
-    float *cov_xx,      float *cov_xy,      float *cov_xz,
-    float *cov_yy,      float *cov_yz,      float *cov_zz,
-    float *color_lin_r, float *color_lin_g, float *color_lin_b,
-    float *opacity,
+    // inputs: pos, log-scale, raw quaternion,
+    //         SH coefficient RGB, logit-opacity
+    const float *__restrict__ i_x,
+    const float *__restrict__ i_y,
+    const float *__restrict__ i_z,
+    const float *__restrict__ i_sx,
+    const float *__restrict__ i_sy,
+    const float *__restrict__ i_sz,
+    const float *__restrict__ i_rw,
+    const float *__restrict__ i_rx,
+    const float *__restrict__ i_ry,
+    const float *__restrict__ i_rz,
+    const float *__restrict__ i_DC_SH_R,
+    const float *__restrict__ i_DC_SH_G,
+    const float *__restrict__ i_DC_SH_B,
+    const float *__restrict__ i_logit_A,
+    // outputs: 3D covariance + RGBA
+    float *o_x,   float *o_y,   float *o_z,
+    float *o_cxx, float *o_cxy, float *o_cxz,
+    float *o_cyy, float *o_cyz, float *o_czz,
+    float *o_lin_R,
+    float *o_lin_G,
+    float *o_lin_B,
+    float *o_A,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
+    // pass-through position
+    o_x[i] = i_x[i];
+    o_y[i] = i_y[i];
+    o_z[i] = i_z[i];
+
     // normalize quaternion
-    float qw = rot_w[i], qx = rot_x[i], qy = rot_y[i], qz = rot_z[i];
+    float qw = i_rw[i], qx = i_rx[i], qy = i_ry[i], qz = i_rz[i];
     float norm = rsqrtf(qw*qw + qx*qx + qy*qy + qz*qz);
     qw *= norm; qx *= norm; qy *= norm; qz *= norm;
 
     // actual scale
-    float sx = expf(scale_x[i]);
-    float sy = expf(scale_y[i]);
-    float sz = expf(scale_z[i]);
+    float sx = expf(i_sx[i]);
+    float sy = expf(i_sy[i]);
+    float sz = expf(i_sz[i]);
 
     // rotation matrix columns (R[:,0], R[:,1], R[:,2])
     float r00 = 1.f - 2.f*(qy*qy + qz*qz);
@@ -76,20 +89,20 @@ __global__ void covForwardKernel(
     float m20 = r20 * sx,  m21 = r21 * sy,  m22 = r22 * sz;
 
     // Cov = M * M^T
-    cov_xx[i] = m00*m00 + m01*m01 + m02*m02;
-    cov_xy[i] = m00*m10 + m01*m11 + m02*m12;
-    cov_xz[i] = m00*m20 + m01*m21 + m02*m22;
-    cov_yy[i] = m10*m10 + m11*m11 + m12*m12;
-    cov_yz[i] = m10*m20 + m11*m21 + m12*m22;
-    cov_zz[i] = m20*m20 + m21*m21 + m22*m22;
+    o_cxx[i] = m00*m00 + m01*m01 + m02*m02;
+    o_cxy[i] = m00*m10 + m01*m11 + m02*m12;
+    o_cxz[i] = m00*m20 + m01*m21 + m02*m22;
+    o_cyy[i] = m10*m10 + m11*m11 + m12*m12;
+    o_cyz[i] = m10*m20 + m11*m21 + m12*m22;
+    o_czz[i] = m20*m20 + m21*m21 + m22*m22;
 
     // DC SH coefficient -> linear RGB
-    color_lin_r[i] = fminf(fmaxf(color_DC_SH_r[i] * C0 + 0.5f, 0.f), 1.f);
-    color_lin_g[i] = fminf(fmaxf(color_DC_SH_g[i] * C0 + 0.5f, 0.f), 1.f);
-    color_lin_b[i] = fminf(fmaxf(color_DC_SH_b[i] * C0 + 0.5f, 0.f), 1.f);
+    o_lin_R[i] = fminf(fmaxf(i_DC_SH_R[i] * C0 + 0.5f, 0.f), 1.f);
+    o_lin_G[i] = fminf(fmaxf(i_DC_SH_G[i] * C0 + 0.5f, 0.f), 1.f);
+    o_lin_B[i] = fminf(fmaxf(i_DC_SH_B[i] * C0 + 0.5f, 0.f), 1.f);
 
     // sigmoid activation on opacity
-    opacity[i] = 1.f / (1.f + expf(-logit_opacity[i]));
+    o_A[i] = 1.f / (1.f + expf(-i_logit_A[i]));
 }
 
 /**
@@ -110,7 +123,7 @@ __global__ void covForwardKernel(
  * One thread is launched per splat.
  */
 __global__ void covBackwardKernel(
-    // inputs: log-scale and raw quaternion (same as forward)
+    // inputs: log-scale and raw quaternion
     const float *__restrict__ scale_x,
     const float *__restrict__ scale_y,
     const float *__restrict__ scale_z,
@@ -119,33 +132,44 @@ __global__ void covBackwardKernel(
     const float *__restrict__ rot_y,
     const float *__restrict__ rot_z,
     const float *__restrict__ opacity,
-    // grad_output: dL/dΣ upper triangle and dL/dopacity
-    const float *__restrict__ grad_cov_xx,
-    const float *__restrict__ grad_cov_xy,
-    const float *__restrict__ grad_cov_xz,
-    const float *__restrict__ grad_cov_yy,
-    const float *__restrict__ grad_cov_yz,
-    const float *__restrict__ grad_cov_zz,
-    const float *__restrict__ grad_color_lin_r,
-    const float *__restrict__ grad_color_lin_g,
-    const float *__restrict__ grad_color_lin_b,
-    const float *__restrict__ grad_opacity,
-    // grad_input: gradients w.r.t. log-scale, raw quaternion, logit-opacity
-    float *grad_scale_x,
-    float *grad_scale_y,
-    float *grad_scale_z,
-    float *grad_rot_w,
-    float *grad_rot_x,
-    float *grad_rot_y,
-    float *grad_rot_z,
-    float *grad_color_DC_SH_r,
-    float *grad_color_DC_SH_g,
-    float *grad_color_DC_SH_b,
-    float *grad_logit_opacity,
+    // gradient output
+    const float *__restrict__ grad_o_x,
+    const float *__restrict__ grad_o_y,
+    const float *__restrict__ grad_o_z,
+    const float *__restrict__ grad_o_cxx,
+    const float *__restrict__ grad_o_cxy,
+    const float *__restrict__ grad_o_cxz,
+    const float *__restrict__ grad_o_cyy,
+    const float *__restrict__ grad_o_cyz,
+    const float *__restrict__ grad_o_czz,
+    const float *__restrict__ grad_o_lin_r,
+    const float *__restrict__ grad_o_lin_g,
+    const float *__restrict__ grad_o_lin_b,
+    const float *__restrict__ grad_o_A,
+    // gradient input
+    float *grad_i_x,
+    float *grad_i_y,
+    float *grad_i_z,
+    float *grad_i_sx,
+    float *grad_i_sy,
+    float *grad_i_sz,
+    float *grad_i_rw,
+    float *grad_i_rx,
+    float *grad_i_ry,
+    float *grad_i_rz,
+    float *grad_i_DC_SH_r,
+    float *grad_i_DC_SH_g,
+    float *grad_i_DC_SH_b,
+    float *grad_i_logit_A,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
+
+    // pass-through position gradients
+    grad_i_x[i] = grad_o_x[i];
+    grad_i_y[i] = grad_o_y[i];
+    grad_i_z[i] = grad_o_z[i];
 
     // --- recompute forward values ---
     float qw_raw = rot_w[i], qx_raw = rot_x[i], qy_raw = rot_y[i], qz_raw = rot_z[i];
@@ -176,12 +200,12 @@ __global__ void covBackwardKernel(
     float m20 = r20*sx, m21 = r21*sy, m22 = r22*sz;
 
     // --- dL/dCov ---
-    float dxx = grad_cov_xx[i];
-    float dxy = grad_cov_xy[i];
-    float dxz = grad_cov_xz[i];
-    float dyy = grad_cov_yy[i];
-    float dyz = grad_cov_yz[i];
-    float dzz = grad_cov_zz[i];
+    float dxx = grad_o_cxx[i];
+    float dxy = grad_o_cxy[i];
+    float dxz = grad_o_cxz[i];
+    float dyy = grad_o_cyy[i];
+    float dyz = grad_o_cyz[i];
+    float dzz = grad_o_czz[i];
 
     // --- dL/dM = 2 * dL/dCov_sym * M ---
     float dm00 = 2.f*(dxx*m00 + dxy*m10 + dxz*m20);
@@ -195,9 +219,9 @@ __global__ void covBackwardKernel(
     float dm22 = 2.f*(dxz*m02 + dyz*m12 + dzz*m22);
 
     // --- dL/ds_log ---
-    grad_scale_x[i] = (dm00*r00 + dm10*r10 + dm20*r20) * sx;
-    grad_scale_y[i] = (dm01*r01 + dm11*r11 + dm21*r21) * sy;
-    grad_scale_z[i] = (dm02*r02 + dm12*r12 + dm22*r22) * sz;
+    grad_i_sx[i] = (dm00*r00 + dm10*r10 + dm20*r20) * sx;
+    grad_i_sy[i] = (dm01*r01 + dm11*r11 + dm21*r21) * sy;
+    grad_i_sz[i] = (dm02*r02 + dm12*r12 + dm22*r22) * sz;
 
     // --- dL/dR = dL/dM * S ---
     float dr00 = dm00*sx, dr10 = dm10*sx, dr20 = dm20*sx;
@@ -229,64 +253,58 @@ __global__ void covBackwardKernel(
 
     // --- project through normalization Jacobian ---
     float dot = dqw*qw + dqx*qx + dqy*qy + dqz*qz;
-    grad_rot_w[i] = norm_inv * (dqw - dot*qw);
-    grad_rot_x[i] = norm_inv * (dqx - dot*qx);
-    grad_rot_y[i] = norm_inv * (dqy - dot*qy);
-    grad_rot_z[i] = norm_inv * (dqz - dot*qz);
+    grad_i_rw[i] = norm_inv * (dqw - dot*qw);
+    grad_i_rx[i] = norm_inv * (dqx - dot*qx);
+    grad_i_ry[i] = norm_inv * (dqy - dot*qy);
+    grad_i_rz[i] = norm_inv * (dqz - dot*qz);
 
     // --- color gradients: chain through linear SH ---
-    grad_color_DC_SH_r[i] = grad_color_lin_r[i] * C0;
-    grad_color_DC_SH_g[i] = grad_color_lin_g[i] * C0;
-    grad_color_DC_SH_b[i] = grad_color_lin_b[i] * C0;
+    grad_i_DC_SH_r[i] = grad_o_lin_r[i] * C0;
+    grad_i_DC_SH_g[i] = grad_o_lin_g[i] * C0;
+    grad_i_DC_SH_b[i] = grad_o_lin_b[i] * C0;
 
     // --- sigmoid backward: dL/dlogit = dL/dopacity * s * (1 - s) ---
     float s = opacity[i];
-    grad_logit_opacity[i] = grad_opacity[i] * s * (1.f - s);
+    grad_i_logit_A[i] = grad_o_A[i] * s * (1.f - s);
 }
 
 /* ===== ===== Lifecycle ===== ===== */
 
 void GaussActivLayer::allocate(int count)
 {
-    allocatedCount = count;
-    output.allocate(count);
-    gradInput.allocate(count);
+    allocated_count = count;
+    out.allocate(count);
+    grad_in.allocate(count);
 }
 
 void GaussActivLayer::zero_grad()
 {
-    gradInput.zero_grad();
+    grad_in.zero_grad();
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
 
 void GaussActivLayer::forward()
 {
-    int count = input->count;
-    output.count = count;
+    int count = in->count;
+    out.count = count;
 
-    size_t bytes = count * sizeof(float);
-
-    // pass-throughs
-    cudaMemcpy(output.pos_x,   input->pos_x,   bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.pos_y,   input->pos_y,   bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(output.pos_z,   input->pos_z,   bytes, cudaMemcpyDeviceToDevice);
-
-    // color and opacity needs to be activated in forward
-    // color is stored as DC SH coefficients, activated in kernel to linear RGB
-    // opacity is stored as logit, activated in kernel with sigmoid
-
-    int threads = 256;
-    int blocks  = (count + threads - 1) / threads;
-    covForwardKernel<<<blocks, threads>>>(
-        input->scale_x, input->scale_y, input->scale_z,
-        input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
-        input->color_sh_r, input->color_sh_g, input->color_sh_b,
-        input->opacity,   // logit-opacity in
-        output.cov_xx, output.cov_xy, output.cov_xz,
-        output.cov_yy, output.cov_yz, output.cov_zz,
-        output.color_r, output.color_g, output.color_b,
-        output.opacity,   // activated opacity out
+    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    covForwardKernel<<<blocks, BLOCK_SIZE>>>(
+        in->pos_x,   in->pos_y,   in->pos_z,
+        in->scale_x, in->scale_y, in->scale_z,
+        in->rot_w,   in->rot_x,   in->rot_y,   in->rot_z,
+        in->color_sh_r,
+        in->color_sh_g,
+        in->color_sh_b,
+        in->logit_opacity,   // logit-opacity in
+        out.pos_x,  out.pos_y,  out.pos_z,
+        out.cov_xx, out.cov_xy, out.cov_xz,
+        out.cov_yy, out.cov_yz, out.cov_zz,
+        out.color_r,
+        out.color_g,
+        out.color_b,
+        out.opacity,   // activated opacity out
         count
     );
     CUDA_SYNC_CHECK();
@@ -294,30 +312,28 @@ void GaussActivLayer::forward()
 
 void GaussActivLayer::backward()
 {
-    int count = input->count;
-    size_t bytes = count * sizeof(float);
+    int count = in->count;
 
-    // position gradients pass through directly
-    cudaMemcpy(gradInput.grad_pos_x, gradOutput->grad_pos_x, bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_pos_y, gradOutput->grad_pos_y, bytes, cudaMemcpyDeviceToDevice);
-    cudaMemcpy(gradInput.grad_pos_z, gradOutput->grad_pos_z, bytes, cudaMemcpyDeviceToDevice);
-    // opacity grad is NOT passed through — it flows back through sigmoid in the kernel below
-
-    int threads = 256;
-    int blocks  = (count + threads - 1) / threads;
-    covBackwardKernel<<<blocks, threads>>>(
-        input->scale_x, input->scale_y, input->scale_z,
-        input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
-        output.opacity,   // saved activated opacity for sigmoid backward
-        gradOutput->grad_cov_xx,  gradOutput->grad_cov_xy,  gradOutput->grad_cov_xz,
-        gradOutput->grad_cov_yy,  gradOutput->grad_cov_yz,  gradOutput->grad_cov_zz,
-        gradOutput->grad_color_r, gradOutput->grad_color_g, gradOutput->grad_color_b,
-        gradOutput->grad_opacity, // activated opacity
-        gradInput.grad_scale_x, gradInput.grad_scale_y, gradInput.grad_scale_z,
-        gradInput.grad_rot_w,   gradInput.grad_rot_x,
-        gradInput.grad_rot_y,   gradInput.grad_rot_z,
-        gradInput.grad_color_sh_r, gradInput.grad_color_sh_g, gradInput.grad_color_sh_b,
-        gradInput.grad_opacity, // logit-opacity
+    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    covBackwardKernel<<<blocks, BLOCK_SIZE>>>(
+        in->scale_x, in->scale_y, in->scale_z,
+        in->rot_w,   in->rot_x,   in->rot_y,   in->rot_z,
+        out.opacity,   // saved activated opacity for sigmoid backward
+        grad_out->grad_pos_x,  grad_out->grad_pos_y,  grad_out->grad_pos_z,
+        grad_out->grad_cov_xx, grad_out->grad_cov_xy, grad_out->grad_cov_xz,
+        grad_out->grad_cov_yy, grad_out->grad_cov_yz, grad_out->grad_cov_zz,
+        grad_out->grad_color_r,
+        grad_out->grad_color_g,
+        grad_out->grad_color_b,
+        grad_out->grad_opacity, // activated opacity
+        grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
+        grad_in.grad_scale_x, grad_in.grad_scale_y, grad_in.grad_scale_z,
+        grad_in.grad_rot_w,   grad_in.grad_rot_x,
+        grad_in.grad_rot_y,   grad_in.grad_rot_z,
+        grad_in.grad_color_sh_r,
+        grad_in.grad_color_sh_g,
+        grad_in.grad_color_sh_b,
+        grad_in.grad_logit_opacity, // logit-opacity
         count
     );
     CUDA_SYNC_CHECK();

@@ -4,6 +4,10 @@
 
 #include "../utils/cuda_utils.h"
 
+#define BLOCK_SIZE 256
+
+__constant__ float d_pv[16]; // device copy of PV matrix (column-major, GLM layout)
+
 /* ===== ===== Kernels ===== ===== */
 
 /**
@@ -15,7 +19,7 @@
  *   clip    = PV * [x y z 1]^T
  *   ndc.xyz = clip.xyz / clip.w
  *
- * Covariance (2x3 Jacobian of NDC w.r.t. world pos, quotient rule on clip/c_w):
+ * Covariance (2x3 Jacobian of NDC w.r.t. world pos):
  *   JR0[k] = (pv[k*4+0] * c_w - pv[3*4+0] * c_x) / c_w^2   (d(ndc_x)/d[x,y,z])
  *   JR1[k] = (pv[k*4+1] * c_w - pv[3*4+1] * c_y) / c_w^2   (d(ndc_y)/d[x,y,z])
  *   Cov_2D = J * Cov_3D * J^T
@@ -25,96 +29,114 @@
  * One thread is launched per splat.
  */
 __global__ void perspProjectForwardKernel(
-    // splat3d inputs (world space)
-    const float *__restrict__ pos_x,
-    const float *__restrict__ pos_y,
-    const float *__restrict__ pos_z,
-    const float *__restrict__ cov_xx,
-    const float *__restrict__ cov_xy,
-    const float *__restrict__ cov_xz,
-    const float *__restrict__ cov_yy,
-    const float *__restrict__ cov_yz,
-    const float *__restrict__ cov_zz,
-    const float *__restrict__ color_r,
-    const float *__restrict__ color_g,
-    const float *__restrict__ color_b,
-    const float *__restrict__ opacity,
-    // camera
-    const float *__restrict__ pv, // [16] column-major PV = P * V
-    // splat2d outputs (NDC space)
-    float *out_pos_x,
-    float *out_pos_y,
-    float *out_pos_z,
-    float *out_cov_xx,
-    float *out_cov_xy,
-    float *out_cov_yy,
-    float *out_color_r,
-    float *out_color_g,
-    float *out_color_b,
-    float *out_opacity,
+    // inputs (world space)
+    const float *__restrict__ i_w_x,
+    const float *__restrict__ i_w_y,
+    const float *__restrict__ i_w_z,
+    const float *__restrict__ i_w_cxx,
+    const float *__restrict__ i_w_cxy,
+    const float *__restrict__ i_w_cxz,
+    const float *__restrict__ i_w_cyy,
+    const float *__restrict__ i_w_cyz,
+    const float *__restrict__ i_w_czz,
+    const float *__restrict__ i_R,
+    const float *__restrict__ i_G,
+    const float *__restrict__ i_B,
+    const float *__restrict__ i_A,
+    // outputs (NDC space)
+    float *o_ndc_x,
+    float *o_ndc_y,
+    float *o_ndc_z,
+    float *o_ndc_cxx,
+    float *o_ndc_cxy,
+    float *o_ndc_cyy,
+    float *o_R,
+    float *o_G,
+    float *o_B,
+    float *o_A,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    float x = pos_x[i], y = pos_y[i], z = pos_z[i];
+    float x = i_w_x[i], y = i_w_y[i], z = i_w_z[i];
 
-    // clip = PV * [x y z 1]^T  (column-major: pv[col*4 + row])
-    float c_x = pv[0]*x + pv[4]*y + pv[8]*z  + pv[12];
-    float c_y = pv[1]*x + pv[5]*y + pv[9]*z  + pv[13];
-    float c_z = pv[2]*x + pv[6]*y + pv[10]*z + pv[14];
-    float c_w = pv[3]*x + pv[7]*y + pv[11]*z + pv[15];
+    /*
+        PV is column major
+        PV = [ pv[0]  pv[4]  pv[8]  pv[12] ]
+             [ pv[1]  pv[5]  pv[9]  pv[13] ]
+             [ pv[2]  pv[6]  pv[10] pv[14] ]
+             [ pv[3]  pv[7]  pv[11] pv[15] ]
+
+        clip_pos = PV * [x y z 1]^T
+                 = [ c_x  c_y  c_z  c_w ]^T
+    */
+    float c_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
+    float c_y = d_pv[1]*x + d_pv[5]*y + d_pv[9]*z  + d_pv[13];
+    float c_z = d_pv[2]*x + d_pv[6]*y + d_pv[10]*z + d_pv[14];
+    float c_w = d_pv[3]*x + d_pv[7]*y + d_pv[11]*z + d_pv[15];
 
     // cull splats behind camera
     if (c_w <= 0.f)
     {
-        out_pos_z[i] = 3.402823466e+38f; // rasterizer will skip this
+        o_ndc_z[i] = 3.402823466e+38f; // rasterizer will skip this
         return;
     }
-
     float inv_w  = 1.f / c_w;
     float inv_w2 = inv_w * inv_w;
 
-    // NDC position
-    out_pos_x[i] = c_x * inv_w;
-    out_pos_y[i] = c_y * inv_w;
-    out_pos_z[i] = c_z * inv_w;
+    /*
+        NDC position (perspective divide)
 
-    // Jacobian rows: d(ndc_x)/d[x,y,z] and d(ndc_y)/d[x,y,z]
-    // pv column-major: row 0 entries are pv[0], pv[4], pv[8], pv[12]
-    //                  row 1 entries are pv[1], pv[5], pv[9], pv[13]
-    float jr0_x = (pv[0] * c_w - pv[ 3] * c_x) * inv_w2;
-    float jr0_y = (pv[4] * c_w - pv[ 7] * c_x) * inv_w2;
-    float jr0_z = (pv[8] * c_w - pv[11] * c_x) * inv_w2;
+        ndc_pos = [ c_x/c_w  c_y/c_w  c_z/c_w ]^T
+    */
+    o_ndc_x[i] = c_x * inv_w;
+    o_ndc_y[i] = c_y * inv_w;
+    o_ndc_z[i] = c_z * inv_w;
 
-    float jr1_x = (pv[1] * c_w - pv[ 3] * c_y) * inv_w2;
-    float jr1_y = (pv[5] * c_w - pv[ 7] * c_y) * inv_w2;
-    float jr1_z = (pv[9] * c_w - pv[11] * c_y) * inv_w2;
+    /*
+        Jacobian of perspective projection (d(ndc)/d(world)) is 2x3:
+
+        J = [ d(ndc_x)/dx  d(ndc_x)/dy  d(ndc_x)/dz ]
+            [ d(ndc_y)/dx  d(ndc_y)/dy  d(ndc_y)/dz ]
+          = [ d(c_x/c_w)/dx  d(c_x/c_w)/dy  d(c_x/c_w)/dz ]
+            [ d(c_y/c_w)/dx  d(c_y/c_w)/dy  d(c_y/c_w)/dz ]
+          = [ (pv[0]*c_w-cx*pv[3])/c_w^2  (pv[4]*c_w-cx*pv[7])/c_w^2  (pv[8]*c_w-cx*pv[11])/c_w^2 ]
+            [ (pv[1]*c_w-cy*pv[3])/c_w^2  (pv[5]*c_w-cy*pv[7])/c_w^2  (pv[9]*c_w-cy*pv[11])/c_w^2 ]
+            
+    */
+    float j00 = (d_pv[0] * c_w - c_x * d_pv[ 3]) * inv_w2;
+    float j01 = (d_pv[4] * c_w - c_x * d_pv[ 7]) * inv_w2;
+    float j02 = (d_pv[8] * c_w - c_x * d_pv[11]) * inv_w2;
+
+    float j10 = (d_pv[1] * c_w - c_y * d_pv[ 3]) * inv_w2;
+    float j11 = (d_pv[5] * c_w - c_y * d_pv[ 7]) * inv_w2;
+    float j12 = (d_pv[9] * c_w - c_y * d_pv[11]) * inv_w2;
 
     // 3D covariance (symmetric)
-    float sxx = cov_xx[i], sxy = cov_xy[i], sxz = cov_xz[i];
-    float                  syy = cov_yy[i], syz = cov_yz[i];
-    float                                   szz = cov_zz[i];
+    float sxx = i_w_cxx[i], sxy = i_w_cxy[i], sxz = i_w_cxz[i];
+    float                   syy = i_w_cyy[i], syz = i_w_cyz[i];
+    float                                     szz = i_w_czz[i];
 
-    // Cov_3D * JR0 and Cov_3D * JR1
-    float s_jr0_x = sxx*jr0_x + sxy*jr0_y + sxz*jr0_z;
-    float s_jr0_y = sxy*jr0_x + syy*jr0_y + syz*jr0_z;
-    float s_jr0_z = sxz*jr0_x + syz*jr0_y + szz*jr0_z;
+    // J * Cov3D
+    float js00 = j00*sxx + j01*sxy + j02*sxz;
+    float js01 = j00*sxy + j01*syy + j02*syz;
+    float js02 = j00*sxz + j01*syz + j02*szz;
 
-    float s_jr1_x = sxx*jr1_x + sxy*jr1_y + sxz*jr1_z;
-    float s_jr1_y = sxy*jr1_x + syy*jr1_y + syz*jr1_z;
-    float s_jr1_z = sxz*jr1_x + syz*jr1_y + szz*jr1_z;
+    float js10 = j10*sxx + j11*sxy + j12*sxz;
+    float js11 = j10*sxy + j11*syy + j12*syz;
+    float js12 = j10*sxz + j11*syz + j12*szz;
 
-    // Cov_2D = J * Cov_3D * J^T
-    out_cov_xx[i] = jr0_x*s_jr0_x + jr0_y*s_jr0_y + jr0_z*s_jr0_z;
-    out_cov_xy[i] = jr0_x*s_jr1_x + jr0_y*s_jr1_y + jr0_z*s_jr1_z;
-    out_cov_yy[i] = jr1_x*s_jr1_x + jr1_y*s_jr1_y + jr1_z*s_jr1_z;
+    // Cov2D = J * Cov3D * J^T
+    o_ndc_cxx[i] = j00*js00 + j01*js01 + j02*js02;
+    o_ndc_cxy[i] = j00*js10 + j01*js11 + j02*js12;
+    o_ndc_cyy[i] = j10*js10 + j11*js11 + j12*js12;
 
     // pass-throughs
-    out_color_r[i] = color_r[i];
-    out_color_g[i] = color_g[i];
-    out_color_b[i] = color_b[i];
-    out_opacity[i] = opacity[i];
+    o_R[i] = i_R[i];
+    o_G[i] = i_G[i];
+    o_B[i] = i_B[i];
+    o_A[i] = i_A[i];
 }
 
 /**
@@ -129,162 +151,156 @@ __global__ void perspProjectForwardKernel(
  */
 __global__ void perspProjectBackwardKernel(
     // splat3d inputs (recomputed, not saved)
-    const float *__restrict__ pos_x,
-    const float *__restrict__ pos_y,
-    const float *__restrict__ pos_z,
-    const float *__restrict__ cov_xx,
-    const float *__restrict__ cov_xy,
-    const float *__restrict__ cov_xz,
-    const float *__restrict__ cov_yy,
-    const float *__restrict__ cov_yz,
-    const float *__restrict__ cov_zz,
-    // camera
-    const float *__restrict__ pv,
-    // grad output (from rasterizer, in NDC space)
-    const float *__restrict__ grad_pos_x,
-    const float *__restrict__ grad_pos_y,
-    const float *__restrict__ grad_cov_xx,
-    const float *__restrict__ grad_cov_xy,
-    const float *__restrict__ grad_cov_yy,
-    const float *__restrict__ grad_color_r,
-    const float *__restrict__ grad_color_g,
-    const float *__restrict__ grad_color_b,
-    const float *__restrict__ grad_opacity,
-    // grad input (to GaussActivLayer, in world space)
-    float *grad_in_pos_x,
-    float *grad_in_pos_y,
-    float *grad_in_pos_z,
-    float *grad_in_cov_xx,
-    float *grad_in_cov_xy,
-    float *grad_in_cov_xz,
-    float *grad_in_cov_yy,
-    float *grad_in_cov_yz,
-    float *grad_in_cov_zz,
-    float *grad_in_color_r,
-    float *grad_in_color_g,
-    float *grad_in_color_b,
-    float *grad_in_opacity,
+    const float *__restrict__ w_x,
+    const float *__restrict__ w_y,
+    const float *__restrict__ w_z,
+    const float *__restrict__ w_cxx,
+    const float *__restrict__ w_cxy,
+    const float *__restrict__ w_cxz,
+    const float *__restrict__ w_cyy,
+    const float *__restrict__ w_cyz,
+    const float *__restrict__ w_czz,
+    // gradient output
+    const float *__restrict__ grad_o_ndc_x,
+    const float *__restrict__ grad_o_ndc_y,
+    const float *__restrict__ grad_o_ndc_cxx,
+    const float *__restrict__ grad_o_ndc_cxy,
+    const float *__restrict__ grad_o_ndc_cyy,
+    const float *__restrict__ grad_o_R,
+    const float *__restrict__ grad_o_G,
+    const float *__restrict__ grad_o_B,
+    const float *__restrict__ grad_o_A,
+    // gradient input
+    float *grad_i_w_x,
+    float *grad_i_w_y,
+    float *grad_i_w_z,
+    float *grad_i_w_cxx,
+    float *grad_i_w_cxy,
+    float *grad_i_w_cxz,
+    float *grad_i_w_cyy,
+    float *grad_i_w_cyz,
+    float *grad_i_w_czz,
+    float *grad_i_R,
+    float *grad_i_G,
+    float *grad_i_B,
+    float *grad_i_A,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    float x = pos_x[i], y = pos_y[i], z = pos_z[i];
+    float x = w_x[i], y = w_y[i], z = w_z[i];
 
     // recompute clip coords
-    float c_x = pv[0]*x + pv[4]*y + pv[8]*z  + pv[12];
-    float c_y = pv[1]*x + pv[5]*y + pv[9]*z  + pv[13];
-    float c_w = pv[3]*x + pv[7]*y + pv[11]*z + pv[15];
+    float c_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
+    float c_y = d_pv[1]*x + d_pv[5]*y + d_pv[9]*z  + d_pv[13];
+    float c_w = d_pv[3]*x + d_pv[7]*y + d_pv[11]*z + d_pv[15];
 
     // skip culled splats
     if (c_w <= 0.f)
     {
-        grad_in_pos_x[i] = 0.f; grad_in_pos_y[i] = 0.f; grad_in_pos_z[i] = 0.f;
-        grad_in_cov_xx[i] = 0.f; grad_in_cov_xy[i] = 0.f; grad_in_cov_xz[i] = 0.f;
-        grad_in_cov_yy[i] = 0.f; grad_in_cov_yz[i] = 0.f; grad_in_cov_zz[i] = 0.f;
-        grad_in_color_r[i] = 0.f; grad_in_color_g[i] = 0.f; grad_in_color_b[i] = 0.f;
-        grad_in_opacity[i] = 0.f;
+        grad_i_w_x[i] = 0.f;   grad_i_w_y[i] = 0.f;   grad_i_w_z[i] = 0.f;
+        grad_i_w_cxx[i] = 0.f; grad_i_w_cxy[i] = 0.f; grad_i_w_cxz[i] = 0.f;
+        grad_i_w_cyy[i] = 0.f; grad_i_w_cyz[i] = 0.f; grad_i_w_czz[i] = 0.f;
+        grad_i_R[i] = 0.f;     grad_i_G[i] = 0.f;     grad_i_B[i] = 0.f;
+        grad_i_A[i] = 0.f;
         return;
     }
 
     float inv_w  = 1.f / c_w;
     float inv_w2 = inv_w * inv_w;
 
-    // recompute Jacobian rows
-    float jr0_x = (pv[0] * c_w - pv[ 3] * c_x) * inv_w2;
-    float jr0_y = (pv[4] * c_w - pv[ 7] * c_x) * inv_w2;
-    float jr0_z = (pv[8] * c_w - pv[11] * c_x) * inv_w2;
+    // recompute Jacobian
+    float j00 = (d_pv[0] * c_w - c_x * d_pv[ 3]) * inv_w2;
+    float j01 = (d_pv[4] * c_w - c_x * d_pv[ 7]) * inv_w2;
+    float j02 = (d_pv[8] * c_w - c_x * d_pv[11]) * inv_w2;
 
-    float jr1_x = (pv[1] * c_w - pv[ 3] * c_y) * inv_w2;
-    float jr1_y = (pv[5] * c_w - pv[ 7] * c_y) * inv_w2;
-    float jr1_z = (pv[9] * c_w - pv[11] * c_y) * inv_w2;
+    float j10 = (d_pv[1] * c_w - c_y * d_pv[ 3]) * inv_w2;
+    float j11 = (d_pv[5] * c_w - c_y * d_pv[ 7]) * inv_w2;
+    float j12 = (d_pv[9] * c_w - c_y * d_pv[11]) * inv_w2;
 
+    float sxx = w_cxx[i], sxy = w_cxy[i], sxz = w_cxz[i];
+    float                 syy = w_cyy[i], syz = w_cyz[i];
+    float                                 szz = w_czz[i];
 
-    // ===== covariance backward =====
-    float d_cxx = grad_cov_xx[i];
-    float d_cxy = grad_cov_xy[i];
-    float d_cyy = grad_cov_yy[i];
+    // J * Cov3D
+    float js00 = j00*sxx + j01*sxy + j02*sxz;
+    float js01 = j00*sxy + j01*syy + j02*syz;
+    float js02 = j00*sxz + j01*syz + j02*szz;
 
-    float sxx = cov_xx[i], sxy = cov_xy[i], sxz = cov_xz[i];
-    float                  syy = cov_yy[i], syz = cov_yz[i];
-    float                                   szz = cov_zz[i];
+    float js10 = j10*sxx + j11*sxy + j12*sxz;
+    float js11 = j10*sxy + j11*syy + j12*syz;
+    float js12 = j10*sxz + j11*syz + j12*szz;
 
-    float s_jr0_x = sxx*jr0_x + sxy*jr0_y + sxz*jr0_z;
-    float s_jr0_y = sxy*jr0_x + syy*jr0_y + syz*jr0_z;
-    float s_jr0_z = sxz*jr0_x + syz*jr0_y + szz*jr0_z;
-
-    float s_jr1_x = sxx*jr1_x + sxy*jr1_y + sxz*jr1_z;
-    float s_jr1_y = sxy*jr1_x + syy*jr1_y + syz*jr1_z;
-    float s_jr1_z = sxz*jr1_x + syz*jr1_y + szz*jr1_z;
+    float sxx_2D = grad_o_ndc_cxx[i];
+    float sxy_2D = grad_o_ndc_cxy[i];
+    float syy_2D = grad_o_ndc_cyy[i];
 
     // dL/dCov_3D = 2*d_cxx*(JR0 outer s_jr0)
     //            + d_cxy*(JR0 outer s_jr1 + JR1 outer s_jr0)
     //            + 2*d_cyy*(JR1 outer s_jr1)
-    grad_in_cov_xx[i] = 2.f*d_cxx*jr0_x*s_jr0_x + d_cxy*(jr0_x*s_jr1_x + jr1_x*s_jr0_x) + 2.f*d_cyy*jr1_x*s_jr1_x;
-    grad_in_cov_xy[i] = 2.f*d_cxx*jr0_x*s_jr0_y + d_cxy*(jr0_x*s_jr1_y + jr1_x*s_jr0_y) + 2.f*d_cyy*jr1_x*s_jr1_y;
-    grad_in_cov_xz[i] = 2.f*d_cxx*jr0_x*s_jr0_z + d_cxy*(jr0_x*s_jr1_z + jr1_x*s_jr0_z) + 2.f*d_cyy*jr1_x*s_jr1_z;
-    grad_in_cov_yy[i] = 2.f*d_cxx*jr0_y*s_jr0_y + d_cxy*(jr0_y*s_jr1_y + jr1_y*s_jr0_y) + 2.f*d_cyy*jr1_y*s_jr1_y;
-    grad_in_cov_yz[i] = 2.f*d_cxx*jr0_y*s_jr0_z + d_cxy*(jr0_y*s_jr1_z + jr1_y*s_jr0_z) + 2.f*d_cyy*jr1_y*s_jr1_z;
-    grad_in_cov_zz[i] = 2.f*d_cxx*jr0_z*s_jr0_z + d_cxy*(jr0_z*s_jr1_z + jr1_z*s_jr0_z) + 2.f*d_cyy*jr1_z*s_jr1_z;
+    grad_i_w_cxx[i] = 2.f*sxx_2D*j00*js00 + sxy_2D*(j00*js10 + j10*js00) + 2.f*syy_2D*j10*js10;
+    grad_i_w_cxy[i] = 2.f*sxx_2D*j00*js01 + sxy_2D*(j00*js11 + j10*js01) + 2.f*syy_2D*j10*js11;
+    grad_i_w_cxz[i] = 2.f*sxx_2D*j00*js02 + sxy_2D*(j00*js12 + j10*js02) + 2.f*syy_2D*j10*js12;
+    grad_i_w_cyy[i] = 2.f*sxx_2D*j01*js01 + sxy_2D*(j01*js11 + j11*js01) + 2.f*syy_2D*j11*js11;
+    grad_i_w_cyz[i] = 2.f*sxx_2D*j01*js02 + sxy_2D*(j01*js12 + j11*js02) + 2.f*syy_2D*j11*js12;
+    grad_i_w_czz[i] = 2.f*sxx_2D*j02*js02 + sxy_2D*(j02*js12 + j12*js02) + 2.f*syy_2D*j12*js12;
 
     // ===== position backward =====
     // ndc = clip / c_w, so d(ndc)/d(world) = J (already computed above)
     // dL/d(world) = J^T * dL/d(ndc)
-    float d_ndc_x = grad_pos_x[i];
-    float d_ndc_y = grad_pos_y[i];
+    float ndc_x = grad_o_ndc_x[i];
+    float ndc_y = grad_o_ndc_y[i];
 
-    grad_in_pos_x[i] = d_ndc_x * jr0_x + d_ndc_y * jr1_x;
-    grad_in_pos_y[i] = d_ndc_x * jr0_y + d_ndc_y * jr1_y;
-    grad_in_pos_z[i] = d_ndc_x * jr0_z + d_ndc_y * jr1_z;
+    grad_i_w_x[i] = ndc_x * j00 + ndc_y * j10;
+    grad_i_w_y[i] = ndc_x * j01 + ndc_y * j11;
+    grad_i_w_z[i] = ndc_x * j02 + ndc_y * j12;
 
     // pass-through gradients
-    grad_in_color_r[i] = grad_color_r[i];
-    grad_in_color_g[i] = grad_color_g[i];
-    grad_in_color_b[i] = grad_color_b[i];
-    grad_in_opacity[i] = grad_opacity[i];
+    grad_i_R[i] = grad_o_R[i];
+    grad_i_G[i] = grad_o_G[i];
+    grad_i_B[i] = grad_o_B[i];
+    grad_i_A[i] = grad_o_A[i];
 }
 
 /* ===== ===== Lifecycle ===== ===== */
 
 void PerspProjectLayer::allocate(int count)
 {
-    allocatedCount = count;
-    output.allocate(count);
-    gradInput.allocate(count);
-    cudaMalloc(&d_pv, 16 * sizeof(float));
+    allocated_count = count;
+    out.allocate(count);
+    grad_in.allocate(count);
 }
 
 void PerspProjectLayer::zero_grad()
 {
-    gradInput.zero_grad();
+    grad_in.zero_grad();
 }
 
 void PerspProjectLayer::setCamera(const glm::mat4 &view, const glm::mat4 &proj)
 {
     glm::mat4 pv = proj * view;
     memcpy(h_pv, glm::value_ptr(pv), 16 * sizeof(float));
-    cudaMemcpy(d_pv, h_pv, 16 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(d_pv, h_pv, 16 * sizeof(float));
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
 
 void PerspProjectLayer::forward()
 {
-    int count   = input->count;
-    int threads = 256;
-    int blocks  = (count + threads - 1) / threads;
+    int count   = in->count;
+    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    perspProjectForwardKernel<<<blocks, threads>>>(
-        input->pos_x,   input->pos_y,   input->pos_z,
-        input->cov_xx,  input->cov_xy,  input->cov_xz,
-        input->cov_yy,  input->cov_yz,  input->cov_zz,
-        input->color_r, input->color_g, input->color_b,
-        input->opacity,
-        d_pv,
-        output.pos_x,   output.pos_y,   output.pos_z,
-        output.cov_xx,  output.cov_xy,  output.cov_yy,
-        output.color_r, output.color_g, output.color_b,
-        output.opacity,
+    perspProjectForwardKernel<<<blocks, BLOCK_SIZE>>>(
+        in->pos_x,   in->pos_y,   in->pos_z,
+        in->cov_xx,  in->cov_xy,  in->cov_xz,
+        in->cov_yy,  in->cov_yz,  in->cov_zz,
+        in->color_r, in->color_g, in->color_b,
+        in->opacity,
+        out.pos_x,   out.pos_y,   out.pos_z,
+        out.cov_xx,  out.cov_xy,  out.cov_yy,
+        out.color_r, out.color_g, out.color_b,
+        out.opacity,
         count
     );
     CUDA_SYNC_CHECK();
@@ -292,24 +308,22 @@ void PerspProjectLayer::forward()
 
 void PerspProjectLayer::backward()
 {
-    int count   = input->count;
-    int threads = 256;
-    int blocks  = (count + threads - 1) / threads;
+    int count   = in->count;
+    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    perspProjectBackwardKernel<<<blocks, threads>>>(
-        input->pos_x,   input->pos_y,   input->pos_z,
-        input->cov_xx,  input->cov_xy,  input->cov_xz,
-        input->cov_yy,  input->cov_yz,  input->cov_zz,
-        d_pv,
-        gradOutput->grad_pos_x,   gradOutput->grad_pos_y,
-        gradOutput->grad_cov_xx,  gradOutput->grad_cov_xy,  gradOutput->grad_cov_yy,
-        gradOutput->grad_color_r, gradOutput->grad_color_g, gradOutput->grad_color_b,
-        gradOutput->grad_opacity,
-        gradInput.grad_pos_x,   gradInput.grad_pos_y,   gradInput.grad_pos_z,
-        gradInput.grad_cov_xx,  gradInput.grad_cov_xy,  gradInput.grad_cov_xz,
-        gradInput.grad_cov_yy,  gradInput.grad_cov_yz,  gradInput.grad_cov_zz,
-        gradInput.grad_color_r, gradInput.grad_color_g, gradInput.grad_color_b,
-        gradInput.grad_opacity,
+    perspProjectBackwardKernel<<<blocks, BLOCK_SIZE>>>(
+        in->pos_x,  in->pos_y,  in->pos_z,
+        in->cov_xx, in->cov_xy, in->cov_xz,
+        in->cov_yy, in->cov_yz, in->cov_zz,
+        grad_out->grad_pos_x,   grad_out->grad_pos_y,
+        grad_out->grad_cov_xx,  grad_out->grad_cov_xy,  grad_out->grad_cov_yy,
+        grad_out->grad_color_r, grad_out->grad_color_g, grad_out->grad_color_b,
+        grad_out->grad_opacity,
+        grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
+        grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_xz,
+        grad_in.grad_cov_yy,  grad_in.grad_cov_yz,  grad_in.grad_cov_zz,
+        grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,
+        grad_in.grad_opacity,
         count
     );
     CUDA_SYNC_CHECK();

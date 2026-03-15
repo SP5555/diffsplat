@@ -16,8 +16,8 @@
  * `T_final` and contributing splat count n_contrib are saved for the
  * backward pass.
  * 
- * Backward pass: Since the sort is not differentiable, gradients do
- * not flow through the sorting step. Instead, each pixel re-computes
+ * Backward pass: Since the sort is not differentiable, gradients can't
+ * flow through the sorting step traditionally. Instead, each pixel re-computes
  * its forward compositing in reverse using the `T_final` division trick
  * (`T_before` is recovered by dividing `T_after` by `(1-alpha)`), avoiding
  * the need to store per-splat intermediate transmittance values.
@@ -39,26 +39,26 @@ public:
     void resize(int new_width, int new_height);
 
     // wiring
-    void setInput(const Splat2DParams *params) { input = params; }
-    float        *getOutput()                  { return d_pixels; }
-    void setGradOutput(const float *grad)      { gradOutput = grad; }
-    Splat2DGrads &getGradInput()               { return gradInput; }
+    void setInput(const Splat2DParams *params) { in = params; }
+    float        *getOutput()                  { return d_out_pixels; }
+    void setGradOutput(const float *grad)      { grad_pixels = grad; }
+    Splat2DGrads &getGradInput()               { return grad_in; }
 
     // debug utils
     uint32_t getVisibleCount();
 
 private:
     /* ---- forward input (not owned) ---- */
-    const Splat2DParams *input = nullptr;
+    const Splat2DParams *in = nullptr;
 
     /* ---- forward output (owned) ---- */
-    CudaBuffer<float> d_pixels; // rendered RGB image [H*W*3]
+    CudaBuffer<float> d_out_pixels; // rendered RGB image [H*W*3]
 
     /* ---- backward input (not owned) ---- */
-    const float *gradOutput = nullptr; // dL/d_pixels [H*W*3]
+    const float *grad_pixels = nullptr; // dL/d_pixels [H*W*3]
 
     /* ---- backward output (owned) ---- */
-    Splat2DGrads gradInput; // dL/d_splat2d
+    Splat2DGrads grad_in; // dL/d_splat2d
 
     /* ---- internals (owned) ---- */
     CudaBuffer<float> d_T_final;   // final transmittance per pixel [H*W]

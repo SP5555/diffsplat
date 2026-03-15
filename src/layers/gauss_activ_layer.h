@@ -29,24 +29,24 @@ public:
     void zero_grad()    override;
 
     // wiring
-    void setInput(const Gaussian3DParams *params) { input = params; }
-    Splat3DParams &getOutput()                    { return output; }
-    void setGradOutput(const Splat3DGrads *grads) { gradOutput = grads; }
-    Gaussian3DGrads &getGradInput()               { return gradInput; }
+    void setInput(const Gaussian3DParams *params) { in = params; }
+    Splat3DParams &getOutput()                    { return out; }
+    void setGradOutput(const Splat3DGrads *grads) { grad_out = grads; }
+    Gaussian3DGrads &getGradInput()               { return grad_in; }
 
 private:
     /* ---- forward input (not owned) ---- */
-    const Gaussian3DParams *input = nullptr;
+    const Gaussian3DParams *in = nullptr;
 
     /* ---- forward output (owned) ---- */
-    Splat3DParams output;
+    Splat3DParams out;
 
     /* ---- backward input (not owned) ---- */
-    const Splat3DGrads *gradOutput = nullptr;
+    const Splat3DGrads *grad_out = nullptr;
 
     /* ---- backward output (owned) ---- */
-    Gaussian3DGrads gradInput;
+    Gaussian3DGrads grad_in;
 
     /* ---- config ---- */
-    int allocatedCount = 0;
+    int allocated_count = 0;
 };

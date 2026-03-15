@@ -35,28 +35,27 @@ public:
     void setCamera(const glm::mat4 &view, const glm::mat4 &proj);
 
     // wiring
-    void setInput(const Splat3DParams *params)    { input = params; }
-    Splat2DParams &getOutput()                    { return output; }
-    void setGradOutput(const Splat2DGrads *grads) { gradOutput = grads; }
-    Splat3DGrads &getGradInput()                  { return gradInput; }
+    void setInput(const Splat3DParams *params)    { in = params; }
+    Splat2DParams &getOutput()                    { return out; }
+    void setGradOutput(const Splat2DGrads *grads) { grad_out = grads; }
+    Splat3DGrads &getGradInput()                  { return grad_in; }
 
 private:
     /* ---- forward input (not owned) ---- */
-    const Splat3DParams *input = nullptr;
+    const Splat3DParams *in = nullptr;
 
     /* ---- forward output (owned) ---- */
-    Splat2DParams output;
+    Splat2DParams out;
 
     /* ---- backward input (not owned) ---- */
-    const Splat2DGrads *gradOutput = nullptr;
+    const Splat2DGrads *grad_out = nullptr;
 
     /* ---- backward output (owned) ---- */
-    Splat3DGrads gradInput;
+    Splat3DGrads grad_in;
 
     /* ---- camera (set every frame, uploaded to device) ---- */
-    float h_pv[16];        // PV = P * V, row-major on device
-    float *d_pv = nullptr; // device copy
+    float h_pv[16]; // PV = P * V, row-major on device
 
     /* ---- config ---- */
-    int allocatedCount = 0;
+    int allocated_count = 0;
 };
