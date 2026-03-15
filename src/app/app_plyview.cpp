@@ -7,21 +7,21 @@
 const int START_WIDTH = 1280;
 const int START_HEIGHT = 720;
 
-AppPlyView::AppPlyView(const std::string &plyPath, float sceneScale, CameraMode cameraMode)
+AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMode camera_mode)
     : AppBase(START_WIDTH, START_HEIGHT, "Splat viewer", true)
-    , plyPath(plyPath)
-    , sceneScale(sceneScale)
+    , ply_path(ply_path)
+    , scene_scale(scene_scale)
 {
     float aspect = (float)START_WIDTH / START_HEIGHT;
-    if (cameraMode == CameraMode::Arcball)
+    if (camera_mode == CameraMode::Arcball)
         camera = std::make_unique<ArcballCamera>(aspect);
-    else if (cameraMode == CameraMode::Fly)
+    else if (camera_mode == CameraMode::Fly)
         camera = std::make_unique<FlyCamera>(aspect);
 
     std::cout << "[AppPlyView] Running:"
-              << " PLY="    << plyPath
-              << " Scale="  << sceneScale
-              << " Camera=" << (cameraMode == CameraMode::Arcball ? "Arcball" : "Fly")
+              << " PLY="    << ply_path
+              << " Scale="  << scene_scale
+              << " Camera=" << (camera_mode == CameraMode::Arcball ? "Arcball" : "Fly")
               << "\n";
 }
 
@@ -30,7 +30,7 @@ AppPlyView::AppPlyView(const std::string &plyPath, float sceneScale, CameraMode 
 void AppPlyView::onStart()
 {
     renderer.init(width, height);
-    renderer.loadPLY(plyPath, sceneScale);
+    renderer.loadPLY(ply_path, scene_scale);
 
     renderer.initLayers();
 }

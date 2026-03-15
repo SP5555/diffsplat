@@ -79,20 +79,20 @@ private:
     std::optional<GLBuffer>        pbo;
 
     /* ---- CUDA/GL interop ---- */
-    cudaGraphicsResource *d_pbo_resource     = nullptr;
-    bool                  cudaGLInteropSupported = false;
+    cudaGraphicsResource *d_pbo_resource            = nullptr;
+    bool                  cuda_GL_interop_supported = false;
     std::vector<float>    h_pixels;
 
     /* ---- render state ---- */
-    const float *lastPixels = nullptr;
+    const float *last_pixels = nullptr;
 
     /* ---- screenshot state ---- */
-    bool f12WasPressed = false;
+    bool f12_was_pressed = false;
 
     /* ---- loop state ---- */
-    double lastFrameTime    = 0.0;
-    double timeSinceUpdate  = 0.0;
-    int    frameSinceUpdate = 0;
-    float  avgFPS           = 0.f;
+    double last_frametime     = 0.0;
+    double time_since_update  = 0.0;
+    int    frame_since_update = 0;
+    float  avg_FPS            = 0.f;
     std::string title;
 };

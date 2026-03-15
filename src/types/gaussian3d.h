@@ -59,20 +59,20 @@ struct Gaussian3DParams
             cudaMemcpy(dst, tmp.data(), n * sizeof(float), cudaMemcpyHostToDevice);
         };
 
-        up(pos_x,      [](const Gaussian3D &g) { return g.x; });
-        up(pos_y,      [](const Gaussian3D &g) { return g.y; });
-        up(pos_z,      [](const Gaussian3D &g) { return g.z; });
-        up(scale_x,    [](const Gaussian3D &g) { return g.scale_x; });
-        up(scale_y,    [](const Gaussian3D &g) { return g.scale_y; });
-        up(scale_z,    [](const Gaussian3D &g) { return g.scale_z; });
-        up(rot_w,      [](const Gaussian3D &g) { return g.rot_w; });
-        up(rot_x,      [](const Gaussian3D &g) { return g.rot_x; });
-        up(rot_y,      [](const Gaussian3D &g) { return g.rot_y; });
-        up(rot_z,      [](const Gaussian3D &g) { return g.rot_z; });
-        up(color_sh_r, [](const Gaussian3D &g) { return g.r; });
-        up(color_sh_g, [](const Gaussian3D &g) { return g.g; });
-        up(color_sh_b, [](const Gaussian3D &g) { return g.b; });
-        up(logit_opacity,    [](const Gaussian3D &g) { return g.opacity; });
+        up(pos_x,         [](const Gaussian3D &g) { return g.x; });
+        up(pos_y,         [](const Gaussian3D &g) { return g.y; });
+        up(pos_z,         [](const Gaussian3D &g) { return g.z; });
+        up(scale_x,       [](const Gaussian3D &g) { return g.scale_x; });
+        up(scale_y,       [](const Gaussian3D &g) { return g.scale_y; });
+        up(scale_z,       [](const Gaussian3D &g) { return g.scale_z; });
+        up(rot_w,         [](const Gaussian3D &g) { return g.rot_w; });
+        up(rot_x,         [](const Gaussian3D &g) { return g.rot_x; });
+        up(rot_y,         [](const Gaussian3D &g) { return g.rot_y; });
+        up(rot_z,         [](const Gaussian3D &g) { return g.rot_z; });
+        up(color_sh_r,    [](const Gaussian3D &g) { return g.r; });
+        up(color_sh_g,    [](const Gaussian3D &g) { return g.g; });
+        up(color_sh_b,    [](const Gaussian3D &g) { return g.b; });
+        up(logit_opacity, [](const Gaussian3D &g) { return g.opacity; });
     }
 };
 

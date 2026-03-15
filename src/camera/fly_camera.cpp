@@ -7,8 +7,8 @@
 
 FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
-    , nearP(nearPlane)
-    , farP(farPlane)
+    , near_plane(nearPlane)
+    , far_plane(farPlane)
     , fov(glm::radians(fovDegrees))
 {
     std::cout << "[FlyCamera] Controls:\n"
@@ -30,59 +30,59 @@ FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farP
 bool FlyCamera::update(const Input &input, float dt)
 {
     // clamp large deltas from click jumps
-    float mouseDelta_x =  glm::clamp(input.mouseDelta.x, -50.f, 50.f);
-    float mouseDelta_y = -glm::clamp(input.mouseDelta.y, -50.f, 50.f);
+    float mouse_delta_x =  glm::clamp(input.mouse_delta.x, -50.f, 50.f);
+    float mouse_delta_y = -glm::clamp(input.mouse_delta.y, -50.f, 50.f);
 
-    float speedMult = 1.f;
+    float speed_mult = 1.f;
     if (input.isShiftDown())
-        speedMult *= speedMultShift;
+        speed_mult *= speed_mult_shift;
     if (input.isCtrlDown())
-        speedMult *= speedMultCtrl;
+        speed_mult *= speed_mult_ctrl;
     
-    float moveDelta = moveSpeed * speedMult * dt;
-    float rollDelta = rollSpeed * speedMult * dt;
-    float lookDelta = lookSpeed * speedMult * dt;
+    float move_delta = speed_move * speed_mult * dt;
+    float roll_delta = speed_roll * speed_mult * dt;
+    float look_delta = speed_look * speed_mult * dt;
 
-    bool isDirty = false;
+    bool is_dirty = false;
 
     // WASD forward/strafe on the local plane
-    if (input.isKeyDown(GLFW_KEY_W)) { position += planeForward * moveDelta; isDirty = true; }
-    if (input.isKeyDown(GLFW_KEY_S)) { position -= planeForward * moveDelta; isDirty = true; }
-    if (input.isKeyDown(GLFW_KEY_A)) { position -= planeRight   * moveDelta; isDirty = true; }
-    if (input.isKeyDown(GLFW_KEY_D)) { position += planeRight   * moveDelta; isDirty = true; }
+    if (input.isKeyDown(GLFW_KEY_W)) { position += plane_forward * move_delta; is_dirty = true; }
+    if (input.isKeyDown(GLFW_KEY_S)) { position -= plane_forward * move_delta; is_dirty = true; }
+    if (input.isKeyDown(GLFW_KEY_A)) { position -= plane_right   * move_delta; is_dirty = true; }
+    if (input.isKeyDown(GLFW_KEY_D)) { position += plane_right   * move_delta; is_dirty = true; }
 
     // RF up/down
-    if (input.isKeyDown(GLFW_KEY_R)) { position -= planeUp      * moveDelta; isDirty = true; }
-    if (input.isKeyDown(GLFW_KEY_F)) { position += planeUp      * moveDelta; isDirty = true; }
+    if (input.isKeyDown(GLFW_KEY_R)) { position -= plane_up      * move_delta; is_dirty = true; }
+    if (input.isKeyDown(GLFW_KEY_F)) { position += plane_up      * move_delta; is_dirty = true; }
 
     // QE roll
     if (input.isKeyDown(GLFW_KEY_Q)) {
-        orientation = orientation * glm::angleAxis( rollDelta, glm::vec3(0.f, 0.f, -1.f));
-        isDirty = true;
+        orientation = orientation * glm::angleAxis( roll_delta, glm::vec3(0.f, 0.f, -1.f));
+        is_dirty = true;
     }
     if (input.isKeyDown(GLFW_KEY_E)) {
-        orientation = orientation * glm::angleAxis(-rollDelta, glm::vec3(0.f, 0.f, -1.f));
-        isDirty = true;
+        orientation = orientation * glm::angleAxis(-roll_delta, glm::vec3(0.f, 0.f, -1.f));
+        is_dirty = true;
     }
 
     // mouse look (yaw/pitch)
-    if (input.mouseLeftPressed)
+    if (input.mouse_left_held)
     {
-        if (mouseDelta_x != 0.f) {
+        if (mouse_delta_x != 0.f) {
             orientation = orientation * glm::angleAxis(
-                -mouseDelta_x * lookDelta,
+                -mouse_delta_x * look_delta,
                 glm::vec3(0.f, 1.f, 0.f) // local up
             );
-            isDirty = true;
+            is_dirty = true;
         }
-        if (mouseDelta_y != 0.f) {
-            pitch += -mouseDelta_y * lookDelta;
+        if (mouse_delta_y != 0.f) {
+            pitch += -mouse_delta_y * look_delta;
             pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
-            isDirty = true;
+            is_dirty = true;
         }
     }
 
-    if (!isDirty) return false;
+    if (!is_dirty) return false;
     updateViewSpaceVectors();
     updateMatrices();
     return true;
@@ -93,7 +93,7 @@ bool FlyCamera::update(const Input &input, float dt)
 void FlyCamera::setAspect(float newAspect)
 {
     aspect  = newAspect;
-    pMatrix = glm::perspective(fov, aspect, nearP, farP);
+    p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
 }
 
 /* ===== ===== Helpers ===== ===== */
@@ -102,19 +102,19 @@ void FlyCamera::updateViewSpaceVectors()
 {
     orientation = glm::normalize(orientation);
 
-    planeForward = orientation * glm::vec3( 0.f,  0.f, -1.f);
-    planeRight   = orientation * glm::vec3( 1.f,  0.f,  0.f);
-    planeUp      = orientation * glm::vec3( 0.f,  1.f,  0.f);
+    plane_forward = orientation * glm::vec3( 0.f,  0.f, -1.f);
+    plane_right   = orientation * glm::vec3( 1.f,  0.f,  0.f);
+    plane_up      = orientation * glm::vec3( 0.f,  1.f,  0.f);
 }
 
 void FlyCamera::updateMatrices()
 {
     glm::vec3 viewDir = glm::normalize(
-        planeForward * glm::cos(pitch) + planeUp * glm::sin(pitch)
+        plane_forward * glm::cos(pitch) + plane_up * glm::sin(pitch)
     );
 
-    glm::vec3 viewUp = glm::normalize(glm::cross(planeRight, viewDir));
+    glm::vec3 viewUp = glm::normalize(glm::cross(plane_right, viewDir));
 
-    vMatrix = glm::lookAt(position, position + viewDir, viewUp);
-    pMatrix = glm::perspective(fov, aspect, nearP, farP);
+    v_matrix = glm::lookAt(position, position + viewDir, viewUp);
+    p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
 }

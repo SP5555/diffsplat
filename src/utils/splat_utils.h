@@ -48,7 +48,7 @@ namespace SplatUtils
         return splats;
     }
     
-    void normalizeScene(std::vector<Gaussian3D> &splats, float sceneScale = 1.f)
+    void normalizeScene(std::vector<Gaussian3D> &splats, float scene_scale = 1.f)
     {
         // compute centroid
         float cx = 0.f, cy = 0.f, cz = 0.f;
@@ -62,7 +62,7 @@ namespace SplatUtils
         cx *= inv; cy *= inv; cz *= inv;
 
         // translate to centroid, find max extent
-        float maxExt = 0.f;
+        float max_ext = 0.f;
         for (auto &g : splats)
         {
             g.x -= cx; g.y -= cy; g.z -= cz;
@@ -74,25 +74,25 @@ namespace SplatUtils
             g.rot_w  = -g.rot_w;
             g.rot_z  = -g.rot_z;
 
-            maxExt = std::max(maxExt, std::abs(g.x));
-            maxExt = std::max(maxExt, std::abs(g.y));
-            maxExt = std::max(maxExt, std::abs(g.z));
+            max_ext = std::max(max_ext, std::abs(g.x));
+            max_ext = std::max(max_ext, std::abs(g.y));
+            max_ext = std::max(max_ext, std::abs(g.z));
         }
 
         // scale to [-1, 1]
-        if (maxExt > 0.f)
+        if (max_ext > 0.f)
         {
-            float linearScale = sceneScale / maxExt;
-            float logScale = logf(linearScale);
+            float linear_scale = scene_scale / max_ext;
+            float log_scale = logf(linear_scale);
             for (auto &g : splats)
             {
-                g.x *= linearScale;
-                g.y *= linearScale;
-                g.z *= linearScale;
+                g.x *= linear_scale;
+                g.y *= linear_scale;
+                g.z *= linear_scale;
 
-                g.scale_x += logScale;
-                g.scale_y += logScale;
-                g.scale_z += logScale;
+                g.scale_x += log_scale;
+                g.scale_y += log_scale;
+                g.scale_z += log_scale;
             }
         }
     }

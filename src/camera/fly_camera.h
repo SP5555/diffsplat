@@ -37,15 +37,15 @@ public:
     void setAspect(float aspect);
 
     const glm::vec3 &getPosition()         const { return position; }
-    const glm::mat4 &getViewMatrix()       const { return vMatrix; }
-    const glm::mat4 &getProjectionMatrix() const { return pMatrix; }
+    const glm::mat4 &getViewMatrix()       const { return v_matrix; }
+    const glm::mat4 &getProjectionMatrix() const { return p_matrix; }
 
     // ---- config ----
-    float moveSpeed      = 5.f;
-    float lookSpeed      = 0.2f;
-    float rollSpeed      = 0.2f;
-    float speedMultShift = 4.f;
-    float speedMultCtrl  = 0.2f;
+    float speed_move       = 5.f;
+    float speed_look       = 0.2f;
+    float speed_roll       = 0.2f;
+    float speed_mult_shift = 4.f;
+    float speed_mult_ctrl  = 0.2f;
 
 private:
     void updateViewSpaceVectors();
@@ -58,19 +58,19 @@ private:
     glm::vec3 position = {0.f, 0.f, 3.f};
     float pitch = 0.f;
 
-    glm::vec3 planeForward  = {0.f, 0.f, -1.f};
-    glm::vec3 planeRight    = {1.f, 0.f,  0.f};
-    glm::vec3 planeUp       = {0.f, 1.f,  0.f};
+    glm::vec3 plane_forward  = {0.f, 0.f, -1.f};
+    glm::vec3 plane_right    = {1.f, 0.f,  0.f};
+    glm::vec3 plane_up       = {0.f, 1.f,  0.f};
 
     // ---- projection params ----
-    float fov   = glm::radians(60.f);
+    float fov = glm::radians(60.f);
     float aspect;
-    float nearP;
-    float farP;
+    float near_plane;
+    float far_plane;
 
     // ---- cached matrices ----
-    glm::mat4 vMatrix = glm::mat4(1.f);
-    glm::mat4 pMatrix = glm::mat4(1.f);
+    glm::mat4 v_matrix = glm::mat4(1.f);
+    glm::mat4 p_matrix = glm::mat4(1.f);
 
     static constexpr float MIN_PITCH = -glm::half_pi<float>() + 0.01f;
     static constexpr float MAX_PITCH =  glm::half_pi<float>() - 0.01f;

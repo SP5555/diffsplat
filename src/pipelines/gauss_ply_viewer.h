@@ -40,13 +40,13 @@ private:
     int height = 0;
 
     /* ---- data ---- */
-    Gaussian3DParams gaussianParams;
+    Gaussian3DParams gaussian_params;
 
     /* ---- pipeline ---- */
     Pipeline pipeline;
 
     /* ---- layers ---- */
-    GaussActivLayer   activLayer;
-    PerspProjectLayer perspLayer;
-    RasterizeLayer    rasLayer;
+    GaussActivLayer   atv_layer;
+    PerspProjectLayer psp_layer;
+    RasterizeLayer    ras_layer;
 };

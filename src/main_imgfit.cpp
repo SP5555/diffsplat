@@ -8,8 +8,8 @@ int main(int argc, char *argv[])
 {
     int width = -1;
     int height = -1;
-    std::string imagePath;
-    int splatCount = 60000;
+    std::string image_path;
+    int splat_count = 60000;
 
     static struct option long_options[] = {
         {"width",  required_argument, 0, 'w'},
@@ -24,8 +24,8 @@ int main(int argc, char *argv[])
         switch(opt) {
             case 'w': width = std::atoi(optarg); break;
             case 'h': height = std::atoi(optarg); break;
-            case 'i': imagePath = optarg; break;
-            case 's': splatCount = std::atoi(optarg); break;
+            case 'i': image_path = optarg; break;
+            case 's': splat_count = std::atoi(optarg); break;
             default:
                 std::cerr << "Usage: " << argv[0]
                           << " --width <width>"
@@ -49,19 +49,19 @@ int main(int argc, char *argv[])
         printf("No resolution specified, defaulting to %dx%d\n", width, height);
     }
 
-    if (imagePath.empty()) {
-        imagePath = "data/img/torii_moon.jpg";
-        printf("No image path specified, defaulting to %s\n", imagePath.c_str());
+    if (image_path.empty()) {
+        image_path = "data/img/torii_moon.jpg";
+        printf("No image path specified, defaulting to %s\n", image_path.c_str());
     }
 
-    if (splatCount <= 0) {
+    if (splat_count <= 0) {
         std::cerr << "Error: splat count must be positive.\n";
         return 1;
     }
 
     // APP STARTS HERE
     try {
-        AppImgFit app(width, height, imagePath, splatCount);
+        AppImgFit app(width, height, image_path, splat_count);
         app.start();
     }
     catch (const std::exception &e)

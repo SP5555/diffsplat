@@ -5,8 +5,8 @@
 
 ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
-    , nearP(nearPlane)
-    , farP(farPlane)
+    , near_plane(nearPlane)
+    , far_plane(farPlane)
     , fov(glm::radians(fovDegrees))
 {
     std::cout << "[ArcballCamera] Controls:\n" 
@@ -25,8 +25,8 @@ ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, fl
 bool ArcballCamera::update(const Input &input, float dt)
 {
     // clamp large deltas from click jumps
-    float mouseDelta_x =  glm::clamp(input.mouseDelta.x, -50.f, 50.f);
-    float mouseDelta_y = -glm::clamp(input.mouseDelta.y, -50.f, 50.f);
+    float mouseDelta_x =  glm::clamp(input.mouse_delta.x, -50.f, 50.f);
+    float mouseDelta_y = -glm::clamp(input.mouse_delta.y, -50.f, 50.f);
 
     glm::vec3 offset   = position - target;
     glm::vec3 viewDir  = glm::normalize(-offset);
@@ -35,15 +35,15 @@ bool ArcballCamera::update(const Input &input, float dt)
     bool isDirty = false;
 
     // ===== orbit =====
-    if (!input.isShiftDown() && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
+    if (!input.isShiftDown() && input.mouse_left_held && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
     {
         glm::vec3 dir = glm::normalize(offset);
 
         float pitch = glm::asin(glm::clamp(dir.y, -1.f, 1.f));
         float yaw   = glm::atan(dir.x, dir.z);
 
-        pitch += mouseDelta_y * rotateSpeed * dt;
-        yaw   -= mouseDelta_x * rotateSpeed * dt;
+        pitch += mouseDelta_y * speed_rotate * dt;
+        yaw   -= mouseDelta_x * speed_rotate * dt;
 
         pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
         yaw   = glm::mod(yaw, glm::two_pi<float>());
@@ -59,11 +59,11 @@ bool ArcballCamera::update(const Input &input, float dt)
     }
 
     // ===== pan =====
-    if (input.isShiftDown() && input.mouseLeftPressed && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
+    if (input.isShiftDown() && input.mouse_left_held && (mouseDelta_x != 0.f || mouseDelta_y != 0.f))
     {
         glm::vec3 translation =
-            right * (-mouseDelta_x * distance * panSpeed) +
-            up    * ( mouseDelta_y * distance * panSpeed);
+            right * (-mouseDelta_x * distance * speed_pan) +
+            up    * ( mouseDelta_y * distance * speed_pan);
 
         position += translation;
         target   += translation;
@@ -71,16 +71,16 @@ bool ArcballCamera::update(const Input &input, float dt)
     }
 
     // ===== zoom =====
-    if (input.scrollDelta != 0.f)
+    if (input.scroll_delta != 0.f)
     {
-        glm::vec3 translation = viewDir * (input.scrollDelta * distance * zoomSpeed);
+        glm::vec3 translation = viewDir * (input.scroll_delta * distance * speed_zoom);
         position += translation;
 
         float newDist = glm::distance(position, target);
-        if (newDist < zoomMinDist)
-            position = target + (-viewDir) * zoomMinDist;
-        if (newDist > zoomMaxDist)
-            position = target + (-viewDir) * zoomMaxDist;
+        if (newDist < zoom_min_dist)
+            position = target + (-viewDir) * zoom_min_dist;
+        if (newDist > zoom_max_dist)
+            position = target + (-viewDir) * zoom_max_dist;
 
         isDirty = true;
     }
@@ -96,7 +96,7 @@ bool ArcballCamera::update(const Input &input, float dt)
 void ArcballCamera::setAspect(float newAspect)
 {
     aspect  = newAspect;
-    pMatrix = glm::perspective(fov, aspect, nearP, farP);
+    p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
 }
 
 /* ===== ===== Helpers ===== ===== */
@@ -110,6 +110,6 @@ void ArcballCamera::updateViewSpaceVectors()
 
 void ArcballCamera::updateMatrices()
 {
-    vMatrix = glm::lookAt(position, target, up);
-    pMatrix = glm::perspective(fov, aspect, nearP, farP);
+    v_matrix = glm::lookAt(position, target, up);
+    p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
 }

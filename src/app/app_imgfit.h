@@ -11,7 +11,7 @@
 class AppImgFit : public AppBase
 {
 public:
-    AppImgFit(int width, int height, const std::string &imagePath, int splatCount = 60000);
+    AppImgFit(int width, int height, const std::string &image_path, int splat_count = 60000);
 
 protected:
     void onStart()  override;
@@ -19,9 +19,9 @@ protected:
 
 private:
     int getIterCount() const { return fitter.getIterCount(); }
-    float getLoss() const { return fitter.getLoss(); }
+    float getLoss()    const { return fitter.getLoss(); }
 
-    std::string     imagePath;
-    int             splatCount;
+    std::string     image_path;
+    int             splat_count;
     GaussImgFitter  fitter;
 };

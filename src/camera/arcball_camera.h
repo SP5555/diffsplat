@@ -30,15 +30,15 @@ public:
     void setAspect(float aspect);
 
     const glm::vec3 &getPosition()         const { return position; }
-    const glm::mat4 &getViewMatrix()       const { return vMatrix; }
-    const glm::mat4 &getProjectionMatrix() const { return pMatrix; }
+    const glm::mat4 &getViewMatrix()       const { return v_matrix; }
+    const glm::mat4 &getProjectionMatrix() const { return p_matrix; }
 
     // ---- config ----
-    float rotateSpeed = 0.2f;
-    float panSpeed    = 0.005f;
-    float zoomSpeed   = 0.1f;
-    float zoomMinDist = 0.5f;
-    float zoomMaxDist = 50.f;
+    float speed_rotate  = 0.2f;
+    float speed_pan     = 0.005f;
+    float speed_zoom    = 0.1f;
+    float zoom_min_dist = 0.5f;
+    float zoom_max_dist = 50.f;
 
 private:
     void updateViewSpaceVectors();
@@ -53,14 +53,14 @@ private:
     glm::vec3 up       = {0.f, 1.f,  0.f};
 
     // ---- projection params ----
-    float fov   = glm::radians(60.f);
+    float fov = glm::radians(60.f);
     float aspect;
-    float nearP;
-    float farP;
+    float near_plane;
+    float far_plane;
 
     // ---- cached matrices ----
-    glm::mat4 vMatrix = glm::mat4(1.f);
-    glm::mat4 pMatrix = glm::mat4(1.f);
+    glm::mat4 v_matrix = glm::mat4(1.f);
+    glm::mat4 p_matrix = glm::mat4(1.f);
 
     static constexpr float MIN_PITCH = -glm::half_pi<float>() + 0.01f;
     static constexpr float MAX_PITCH =  glm::half_pi<float>() - 0.01f;

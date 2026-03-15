@@ -13,8 +13,8 @@ auto toLower = [](std::string s) {
 int main(int argc, char *argv[])
 {
     float scale = 1.f;
-    std::string plyPath;
-    CameraMode cameraMode = CameraMode::Arcball;
+    std::string ply_path;
+    CameraMode camera_mode = CameraMode::Arcball;
 
     static struct option long_options[] = {
         {"scene", required_argument, 0, 'S'},
@@ -26,12 +26,12 @@ int main(int argc, char *argv[])
     int opt, idx;
     while ((opt = getopt_long(argc, argv, "S:s:c:", long_options, &idx)) != -1) {
         switch (opt) {
-            case 'S': plyPath = optarg; break;
+            case 'S': ply_path = optarg; break;
             case 's': scale = atof(optarg); break;
             case 'c': {
                 std::string cam = toLower(optarg);
-                if      (cam == "fly") cameraMode = CameraMode::Fly;
-                else if (cam == "arcball") cameraMode = CameraMode::Arcball;
+                if      (cam == "fly") camera_mode = CameraMode::Fly;
+                else if (cam == "arcball") camera_mode = CameraMode::Arcball;
                 else {
                     std::cerr << "Invalid camera mode: " << optarg << "\n";
                     std::cerr << "Valid options: fly, arcball\n";
@@ -47,9 +47,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (plyPath.empty()) {
-        plyPath = "data/ply/fly.ply";
-        printf("No PLY path specified, defaulting to %s\n", plyPath.c_str());
+    if (ply_path.empty()) {
+        ply_path = "data/ply/fly.ply";
+        printf("No PLY path specified, defaulting to %s\n", ply_path.c_str());
     }
 
     if (scale <= 0.f) {
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     }
 
     try {
-        AppPlyView app(plyPath, scale, cameraMode);
+        AppPlyView app(ply_path, scale, camera_mode);
         app.start();
     }
     catch (const std::exception &e) {

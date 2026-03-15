@@ -37,46 +37,46 @@ void GaussImgFitter::randomInitGaussians(int count, int seed)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
 
     auto splats = SplatUtils::randomInit(count, width, height, seed);
-    gaussianParams.upload(splats);
+    gaussian_params.upload(splats);
 }
 
 float *GaussImgFitter::getOutput()
 {
-    return rasLayer.getOutput();
+    return ras_layer.getOutput();
 }
 
 /* ===== ===== Init ===== ===== */
 
 void GaussImgFitter::initLayers()
 {
-    int count = gaussianParams.count;
+    int count = gaussian_params.count;
 
     // allocate
-    atvLayer.allocate(count);
-    ndcLayer.allocate(width, height, count);
-    rasLayer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
-    mseLayer.allocate(width, height);
+    atv_layer.allocate(count);
+    ndc_layer.allocate(width, height, count);
+    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
+    mse_layer.allocate(width, height);
 
     // wire forward
-    atvLayer.setInput(&gaussianParams);
-    ndcLayer.setInput(&atvLayer.getOutput());
-    rasLayer.setInput(&ndcLayer.getOutput());
-    mseLayer.setInput(rasLayer.getOutput());
-    mseLayer.setTarget(d_target_pixels);
+    atv_layer.setInput(&gaussian_params);
+    ndc_layer.setInput(&atv_layer.getOutput());
+    ras_layer.setInput(&ndc_layer.getOutput());
+    mse_layer.setInput(ras_layer.getOutput());
+    mse_layer.setTarget(d_target_pixels);
 
     // wire backward
-    rasLayer.setGradOutput(mseLayer.getGradInput());
-    ndcLayer.setGradOutput(&rasLayer.getGradInput());
-    atvLayer.setGradOutput(&ndcLayer.getGradInput());
+    ras_layer.setGradOutput(mse_layer.getGradInput());
+    ndc_layer.setGradOutput(&ras_layer.getGradInput());
+    atv_layer.setGradOutput(&ndc_layer.getGradInput());
 
     // optimizer state
     optimizer.init(count);
 
     // register in pipeline
-    pipeline.add(&atvLayer);
-    pipeline.add(&ndcLayer);
-    pipeline.add(&rasLayer);
-    pipeline.add(&mseLayer);
+    pipeline.add(&atv_layer);
+    pipeline.add(&ndc_layer);
+    pipeline.add(&ras_layer);
+    pipeline.add(&mse_layer);
 }
 
 /* ===== ===== Render ===== ===== */
@@ -88,5 +88,5 @@ void GaussImgFitter::render()
     pipeline.backward();
 
     // optimizer step
-    optimizer.step(gaussianParams, atvLayer.getGradInput());
+    optimizer.step(gaussian_params, atv_layer.getGradInput());
 }

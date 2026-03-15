@@ -23,9 +23,9 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
 
     // ===== parse header =====
     std::string line;
-    int vertexCount = 0;
-    std::vector<std::string> propertyOrder;
-    bool headerDone = false;
+    int vertex_count = 0;
+    std::vector<std::string> property_order;
+    bool header_done = false;
 
     while (std::getline(file, line))
     {
@@ -37,31 +37,31 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
         {
             std::istringstream ss(line);
             std::string tmp;
-            ss >> tmp >> tmp >> vertexCount;
+            ss >> tmp >> tmp >> vertex_count;
         }
         else if (line.find("property float") != std::string::npos)
         {
             std::istringstream ss(line);
             std::string tmp, name;
             ss >> tmp >> tmp >> name;
-            propertyOrder.push_back(name);
+            property_order.push_back(name);
         }
         else if (line == "end_header")
         {
-            headerDone = true;
+            header_done = true;
             break;
         }
     }
 
-    if (!headerDone)
+    if (!header_done)
         throw std::runtime_error("[PLYLoader] Malformed PLY: end_header not found");
-    if (vertexCount <= 0)
+    if (vertex_count <= 0)
         throw std::runtime_error("[PLYLoader] Malformed PLY: no vertices found");
 
     // ===== build property index map =====
     std::unordered_map<std::string, int> idx;
-    for (int i = 0; i < (int)propertyOrder.size(); i++)
-        idx[propertyOrder[i]] = i;
+    for (int i = 0; i < (int)property_order.size(); i++)
+        idx[property_order[i]] = i;
 
     auto require = [&](const std::string &name) {
         if (idx.find(name) == idx.end())
@@ -85,13 +85,13 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
     const int i_opacity = require("opacity");
 
     // ===== read binary data =====
-    const int stride = (int)propertyOrder.size() * sizeof(float);
-    std::vector<float> row(propertyOrder.size());
+    const int stride = (int)property_order.size() * sizeof(float);
+    std::vector<float> row(property_order.size());
 
     std::vector<Gaussian3D> splats;
-    splats.reserve(vertexCount);
+    splats.reserve(vertex_count);
 
-    for (int i = 0; i < vertexCount; i++)
+    for (int i = 0; i < vertex_count; i++)
     {
         file.read(reinterpret_cast<char *>(row.data()), stride);
         if (!file)
@@ -124,6 +124,6 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
         splats.push_back(g);
     }
 
-    std::cout << "[PLYLoader] Loaded " << vertexCount << " splats from " << path << "\n";
+    std::cout << "[PLYLoader] Loaded " << vertex_count << " splats from " << path << "\n";
     return splats;
 }

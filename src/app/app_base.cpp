@@ -99,8 +99,8 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
 
     initGL();
 
-    cudaGLInteropSupported = checkCudaGLInterop();
-    if (cudaGLInteropSupported)
+    cuda_GL_interop_supported = checkCudaGLInterop();
+    if (cuda_GL_interop_supported)
         initPBO();
     else
         h_pixels.resize(width * height * 3);
@@ -142,7 +142,7 @@ AppBase::~AppBase()
 void AppBase::start()
 {
     onStart();
-    lastFrameTime = glfwGetTime();
+    last_frametime = glfwGetTime();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -150,29 +150,29 @@ void AppBase::start()
 
         onRender();
 
-        double currentTime  = glfwGetTime();
-        double deltaTime    = currentTime - lastFrameTime;
-        dt                  = static_cast<float>(deltaTime);
-        lastFrameTime       = currentTime;
-        timeSinceUpdate    += deltaTime;
-        frameSinceUpdate++;
+        double current_time = glfwGetTime();
+        double delta_time   = current_time - last_frametime;
+        dt                  = static_cast<float>(delta_time);
+        last_frametime      = current_time;
+        time_since_update  += delta_time;
+        frame_since_update++;
 
-        if (timeSinceUpdate >= 0.1)
+        if (time_since_update >= 0.1)
         {
-            avgFPS = avgFPS * 0.4f + (frameSinceUpdate / (float)timeSinceUpdate) * 0.6f;
+            avg_FPS = avg_FPS * 0.4f + (frame_since_update / (float)time_since_update) * 0.6f;
             char buf[128];
-            snprintf(buf, sizeof(buf), "%s [FPS: %.1f]", title.c_str(), avgFPS);
+            snprintf(buf, sizeof(buf), "%s [FPS: %.1f]", title.c_str(), avg_FPS);
             glfwSetWindowTitle(window, buf);
-            timeSinceUpdate  = 0.0;
-            frameSinceUpdate = 0;
+            time_since_update  = 0.0;
+            frame_since_update = 0;
         }
 
         glfwSwapBuffers(window);
 
         bool f12Pressed = (glfwGetKey(window, GLFW_KEY_F12) == GLFW_PRESS);
-        if (f12Pressed && !f12WasPressed)
+        if (f12Pressed && !f12_was_pressed)
             saveScreenshot();
-        f12WasPressed = f12Pressed;
+        f12_was_pressed = f12Pressed;
 
         // exit on ESC
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -230,7 +230,7 @@ void AppBase::initPBO()
         std::cerr << "[AppBase] PBO registration failed, falling back to host copy: "
                   << cudaGetErrorString(err) << "\n";
         pbo.reset();
-        cudaGLInteropSupported = false;
+        cuda_GL_interop_supported = false;
         h_pixels.resize(width * height * 3);
     }
 }
@@ -275,7 +275,7 @@ void AppBase::onResize(int newWidth, int newHeight)
         pbo.reset();
     }
 
-    if (cudaGLInteropSupported)
+    if (cuda_GL_interop_supported)
         initPBO();
     else
         h_pixels.resize(newWidth * newHeight * 3);
@@ -292,9 +292,9 @@ void AppBase::onResize(int newWidth, int newHeight)
 
 void AppBase::displayFrame(const float *d_pixels)
 {
-    lastPixels = d_pixels;
+    last_pixels = d_pixels;
 
-    if (cudaGLInteropSupported)
+    if (cuda_GL_interop_supported)
     {
         cudaGraphicsMapResources(1, &d_pbo_resource);
         float  *d_pbo    = nullptr;
@@ -329,7 +329,7 @@ void AppBase::displayFrame(const float *d_pixels)
 /* ===== ===== Screenshot ===== ===== */
 void AppBase::saveScreenshot()
 {
-    if (!lastPixels) return;
+    if (!last_pixels) return;
     time_t t = time(nullptr);
     char buf[64];
     strftime(buf, sizeof(buf), "screenshot_%y%m%d_%H%M%S.png", localtime(&t));
@@ -338,6 +338,6 @@ void AppBase::saveScreenshot()
 
 void AppBase::saveScreenshot(const std::string &path)
 {
-    ImageSaver::saveAsPNG(lastPixels, width, height, path);
+    ImageSaver::saveAsPNG(last_pixels, width, height, path);
     std::cout << "[App] Screenshot saved: " << path << "\n";
 }

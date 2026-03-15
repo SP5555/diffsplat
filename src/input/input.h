@@ -7,14 +7,14 @@ class Input
 {
 public:
     // mouse
-    glm::vec2 mousePos   = {0.f, 0.f};
-    glm::vec2 mouseDelta = {0.f, 0.f};
-    bool  mouseLeftPressed  = false;
-    bool  mouseRightPressed = false;
-    float scrollDelta       = 0.f;
+    glm::vec2 mouse_pos   = {0.f, 0.f};
+    glm::vec2 mouse_delta = {0.f, 0.f};
+    bool  mouse_left_held  = false;
+    bool  mouse_right_held = false;
+    float scroll_delta       = 0.f;
 
     // key query
-    bool isKeyDown(int glfwKey) const { return keysDown.count(glfwKey) > 0; }
+    bool isKeyDown(int glfwKey) const { return keys_down.count(glfwKey) > 0; }
 
     bool isShiftDown() const { return isKeyDown(GLFW_KEY_LEFT_SHIFT) || 
                                       isKeyDown(GLFW_KEY_RIGHT_SHIFT); }
@@ -26,10 +26,10 @@ public:
     static void install(GLFWwindow *window, Input *input);
 
 private:
-    std::unordered_set<int> keysDown;
+    std::unordered_set<int> keys_down;
 
-    glm::vec2 lastMousePos = {0.f, 0.f};
-    bool firstMouse = true;
+    glm::vec2 last_mouse_pos = {0.f, 0.f};
+    bool first_mouse = true;
 
     static void cbMouseButton(GLFWwindow *window, int button, int action, int mods);
     static void cbMouseMove  (GLFWwindow *window, double xpos, double ypos);

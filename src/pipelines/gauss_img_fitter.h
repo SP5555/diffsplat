@@ -32,7 +32,7 @@ public:
 
     float *getOutput();
     int    getIterCount() const { return optimizer.getStepCount(); }
-    float  getLoss() const      { return mseLayer.getLoss(); }
+    float  getLoss() const      { return mse_layer.getLoss(); }
 private:
     int maxPairs() const { return powf(2.f, 20.f); }
 
@@ -44,16 +44,16 @@ private:
     static constexpr int NUM_TILES_Y = 32;
 
     /* ---- Gaussian state ---- */
-    Gaussian3DParams gaussianParams;
+    Gaussian3DParams gaussian_params;
 
     /* ---- pipeline ---- */
     Pipeline pipeline;
 
     /* ---- layers ---- */
-    GaussActivLayer atvLayer;
-    NDCProjectLayer ndcLayer;
-    RasterizeLayer  rasLayer;
-    MSELossLayer    mseLayer;
+    GaussActivLayer atv_layer;
+    NDCProjectLayer ndc_layer;
+    RasterizeLayer  ras_layer;
+    MSELossLayer    mse_layer;
 
     /* ---- optimizer ---- */
     Adam optimizer;

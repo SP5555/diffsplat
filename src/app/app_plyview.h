@@ -16,8 +16,8 @@ enum class CameraMode { Arcball, Fly };
 class AppPlyView : public AppBase
 {
 public:
-    AppPlyView(const std::string &plyPath, float sceneScale = 1.f,
-               CameraMode cameraMode = CameraMode::Fly);
+    AppPlyView(const std::string &ply_path, float scene_scale = 1.f,
+               CameraMode camera_mode = CameraMode::Fly);
 
 protected:
     void onStart()  override;
@@ -25,9 +25,9 @@ protected:
     void onWindowResize(int newWidth, int newHeight) override;
 
 private:
-    std::string     plyPath;
-    float           sceneScale;
-    GaussPlyViewer  renderer;
+    std::string    ply_path;
+    float          scene_scale;
+    GaussPlyViewer renderer;
 
     std::unique_ptr<Camera> camera;
 };
