@@ -10,9 +10,13 @@ if ! command -v nvcc &>/dev/null; then
     exit 1
 fi
 
-echo "Using nvcc: $(which nvcc)"
+NVCC_PATH=$(which nvcc)
+echo "Using nvcc: $NVCC_PATH"
 echo "nvcc version: $(nvcc --version | grep release)"
 
 mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CUDA_ARCHITECTURES=89 \
+    -DCMAKE_CUDA_COMPILER=$NVCC_PATH
 make -j$(nproc)

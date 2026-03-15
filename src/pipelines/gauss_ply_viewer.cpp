@@ -35,6 +35,11 @@ float *GaussPlyViewer::getOutput()
     return rasLayer.getOutput();
 }
 
+uint32_t GaussPlyViewer::getVisibleCount()
+{
+    return rasLayer.getVisibleCount();
+}
+
 /* ===== ===== Init ===== ===== */
 
 void GaussPlyViewer::initLayers()

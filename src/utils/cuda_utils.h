@@ -1,19 +1,38 @@
 #pragma once
 #include <cstdio>
+#include "ansi_colors.h"
 
-#define CUDA_CHECK(err)                                         \
-    do                                                          \
-    {                                                           \
-        cudaError_t e = (err);                                  \
-        if (e != cudaSuccess)                                   \
-        {                                                       \
-            fprintf(stderr, "[CUDA] Error at %s:%d: %s\n",      \
-                    __FILE__, __LINE__, cudaGetErrorString(e)); \
-            exit(EXIT_FAILURE);                                 \
-        }                                                       \
+#ifdef DEBUG
+#define CUDA_CHECK(err)                                                        \
+    do                                                                         \
+    {                                                                          \
+        cudaError_t e = (err);                                                 \
+        if (e != cudaSuccess)                                                  \
+        {                                                                      \
+            fprintf(stderr, ANSI_RED "[CUDA] Error at %s:%d: %s\n" ANSI_RESET, \
+                    __FILE__, __LINE__, cudaGetErrorString(e));                \
+            exit(EXIT_FAILURE);                                                \
+        }                                                                      \
     } while (0)
+#else
+#define CUDA_CHECK(err) (err)
+#endif
 
-template<typename T>
+#ifdef DEBUG
+#define CUDA_SYNC_CHECK()               \
+    do                                  \
+    {                                   \
+        cudaDeviceSynchronize();        \
+        CUDA_CHECK(cudaGetLastError()); \
+    } while (0)
+#else
+#define CUDA_SYNC_CHECK() \
+    do                    \
+    {                     \
+    } while (0)
+#endif
+
+template <typename T>
 struct CudaBuffer
 {
     T *ptr = nullptr;
@@ -72,6 +91,6 @@ struct CudaBuffer
         }
     }
 
-    operator T*()             { return ptr; }
-    operator const T*() const { return ptr; }
+    operator T *() { return ptr; }
+    operator const T *() const { return ptr; }
 };

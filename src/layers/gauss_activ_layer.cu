@@ -289,7 +289,7 @@ void GaussActivLayer::forward()
         output.opacity,   // activated opacity out
         count
     );
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
 
 void GaussActivLayer::backward()
@@ -320,5 +320,5 @@ void GaussActivLayer::backward()
         gradInput.grad_opacity, // logit-opacity
         count
     );
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }

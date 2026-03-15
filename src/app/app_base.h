@@ -40,12 +40,15 @@ protected:
     // override when subclass needs sizes of resized framebuffer
     virtual void onWindowResize(int width, int height) {};
 
-    // call at the end of onRender() with your CUDA device pixel buffer [H*W*3]
+    // call at the end of onRender() with CUDA device pixel buffer [H*W*3]
     void displayFrame(const float *d_pixels);
 
     // screenshot utility
-    void saveScreenshot();
+    void saveScreenshot(); // default path with timestamp
     void saveScreenshot(const std::string &path);
+
+    // window title update utility
+    void updateWindowTitle(const std::string &t) { title = t; }
 
     // window / input state
     GLFWwindow *window = nullptr;

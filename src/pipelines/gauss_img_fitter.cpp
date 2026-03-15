@@ -85,8 +85,6 @@ void GaussImgFitter::render()
 {
     pipeline.zero_grad();
     pipeline.forward();
-    if (optimizer.getStepCount() % 10 == 0)
-        printf("Iter %d: Loss = %.8f\n", optimizer.getStepCount(), mseLayer.getLoss());
     pipeline.backward();
 
     // optimizer step

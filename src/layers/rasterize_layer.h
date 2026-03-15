@@ -44,9 +44,8 @@ public:
     void setGradOutput(const float *grad)      { gradOutput = grad; }
     Splat2DGrads &getGradInput()               { return gradInput; }
 
-
-    // debug
-    const float *getGradOutput() const { return gradOutput; }
+    // debug utils
+    uint32_t getVisibleCount();
 
 private:
     /* ---- forward input (not owned) ---- */
@@ -70,6 +69,7 @@ private:
     CudaBuffer<uint64_t> d_keys_sorted;
     CudaBuffer<uint32_t> d_values_sorted;
     CudaBuffer<uint32_t> d_pair_count;
+    CudaBuffer<uint32_t> d_visible_count; // how many splats are on the screen
     CudaBuffer<int2>     d_tile_ranges;
     CudaBuffer<uint8_t>  d_sort_temp;
     size_t    sort_temp_bytes = 0;

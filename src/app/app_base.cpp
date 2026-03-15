@@ -2,6 +2,7 @@
 #include <stdexcept>
 
 #include "app_base.h"
+#include "../utils/ansi_colors.h"
 #include "../loaders/image_saver.h"
 
 /* ===== ===== GL Boilerplate ===== ===== */
@@ -90,11 +91,11 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
     }
 
     cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties_v2(&deviceProp, 0);
+    cudaGetDeviceProperties(&deviceProp, 0);
 
-    std::cout << "[App] OpenGL " << glGetString(GL_VERSION) << "\n"
-              << "[App] Renderer: " << glGetString(GL_RENDERER) << "\n"
-              << "[App] CUDA Device: " << deviceProp.name << "\n";
+    std::cout << "[App] " << ANSI_MAGENTA << "OpenGL " << glGetString(GL_VERSION) << ANSI_RESET << "\n"
+              << "[App] " << ANSI_MAGENTA << "GL Renderer: " << glGetString(GL_RENDERER) << ANSI_RESET << "\n"
+              << "[App] " << ANSI_MAGENTA << "CUDA Device: " << deviceProp.name << ANSI_RESET << "\n";
 
     initGL();
 
@@ -103,7 +104,11 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
         initPBO();
     else
         h_pixels.resize(width * height * 3);
-    
+    // something might have set an error here
+    // that causes the whole debug build to crash
+    // clear it
+    cudaGetLastError();
+
     glfwSetWindowUserPointer(window, this);
     if (resizable) {
         glfwSetFramebufferSizeCallback(window, [](GLFWwindow *win, int w, int h) {

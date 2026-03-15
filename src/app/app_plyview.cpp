@@ -40,6 +40,12 @@ void AppPlyView::onRender()
     camera->update(input, dt);
     renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix());
     displayFrame(renderer.getOutput());
+
+    char buf[128];
+    auto pos = camera->getPosition();
+    sprintf(buf, "Splat Viewer [Visible Splats: %d] [Camera Pos: (%.4f, %.4f, %.4f)]",
+        renderer.getVisibleCount(), pos.x, pos.y, pos.z);
+    updateWindowTitle(buf);
 }
 
 void AppPlyView::onWindowResize(int newWidth, int newHeight)

@@ -127,6 +127,5 @@ void launchAdam(
     go(g.color_sh_g, gr.grad_color_sh_g, o.m_color_g, o.v_color_g, c.lr_color);
     go(g.color_sh_b, gr.grad_color_sh_b, o.m_color_b, o.v_color_b, c.lr_color);
     go(g.opacity, gr.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
-
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }

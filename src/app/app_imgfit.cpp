@@ -30,4 +30,9 @@ void AppImgFit::onRender()
 {
     fitter.render();
     displayFrame(fitter.getOutput());
+
+    char buf[128];
+    sprintf(buf, "Image Fitter [Iter: %d] [Loss: %.8f]",
+            fitter.getIterCount(), fitter.getLoss());
+    updateWindowTitle(buf);
 }

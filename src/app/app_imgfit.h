@@ -18,6 +18,9 @@ protected:
     void onRender() override;
 
 private:
+    int getIterCount() const { return fitter.getIterCount(); }
+    float getLoss() const { return fitter.getLoss(); }
+
     std::string     imagePath;
     int             splatCount;
     GaussImgFitter  fitter;

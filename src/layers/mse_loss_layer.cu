@@ -83,7 +83,7 @@ void MSELossLayer::forward()
 
     cudaMemset(d_loss, 0, sizeof(float));
     mseLossKernel<<<blocks, threads>>>(input, d_target_pixels, d_loss, num_pixels);
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
 
 void MSELossLayer::backward()
@@ -91,7 +91,7 @@ void MSELossLayer::backward()
     int threads = 256;
     int blocks  = (num_pixels + threads - 1) / threads;
     mseGradKernel<<<blocks, threads>>>(input, d_target_pixels, d_grad_pixels, num_pixels);
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
 
 float MSELossLayer::getLoss() const

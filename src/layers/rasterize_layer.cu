@@ -46,6 +46,7 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
  * @param[out] d_values     Output buffer for emitted values (splat_id) [max_pairs]
  * @param[out] d_pair_count Atomic counter for emitted pairs
  *                          Holds the total number of pairs emitted by all threads
+ * @param[out] d_visible_count Atomic counter for visible splats (for stats)
  * @param[in] max_pairs     Capacity of the d_keys and d_values buffers
  * @param[in] num_tiles_x   Number of tiles in X direction on the screen
  * @param[in] num_tiles_y   Number of tiles in Y direction on the screen
@@ -65,6 +66,7 @@ __global__ void tileAssignKernel(
     uint64_t *d_keys,
     uint32_t *d_values,
     uint32_t *d_pair_count,
+    uint32_t *d_visible_count,
     int max_pairs,
     // screen config
     int num_tiles_x,
@@ -120,6 +122,8 @@ __global__ void tileAssignKernel(
     int ty0 = max(ndcToTileY(min_y), 0);
     int ty1 = min(ndcToTileY(max_y), num_tiles_y - 1);
 
+    if ((tx0 > tx1) || (ty0 > ty1)) return; // off-screen
+    atomicAdd(d_visible_count, 1u);
     // emit one pair per overlapping tile
     for (int ty = ty0; ty <= ty1; ty++)
     {
@@ -499,6 +503,14 @@ __global__ void backwardKernel(
     }
 }
 
+/* ===== ===== Utils ===== ===== */
+uint32_t RasterizeLayer::getVisibleCount()
+{
+    uint32_t c = 0;
+    cudaMemcpy(&c, d_visible_count, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    return c;
+}
+
 /* ===== ===== Lifecycle ===== ===== */
 
 void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_tiles_y,
@@ -521,6 +533,7 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
     d_keys_sorted.allocate  (max_pairs);
     d_values_sorted.allocate(max_pairs);
     d_pair_count.allocate   (1);
+    d_visible_count.allocate(1);
     d_tile_ranges.allocate  (numTiles);
 
     gradInput.allocate(count);
@@ -552,9 +565,10 @@ void RasterizeLayer::forward()
     int numTiles = num_tiles_x * num_tiles_y;
 
     // clear per-frame buffers
-    cudaMemset(d_pixels,     0, num_pixels * 3 * sizeof(float));
-    cudaMemset(d_pair_count, 0, sizeof(uint32_t));
-    cudaMemset(d_tile_ranges,0, numTiles  * sizeof(int2));
+    cudaMemset(d_pixels,        0, num_pixels * 3 * sizeof(float));
+    cudaMemset(d_pair_count,    0, sizeof(uint32_t));
+    cudaMemset(d_visible_count, 0, sizeof(uint32_t));
+    cudaMemset(d_tile_ranges,   0, numTiles  * sizeof(int2));
 
     // tile assign
     {
@@ -565,10 +579,11 @@ void RasterizeLayer::forward()
             input->cov_xx, input->cov_xy, input->cov_yy,
             input->count,
             d_keys, d_values, d_pair_count,
+            d_visible_count,
             max_pairs, num_tiles_x, num_tiles_y,
             screen_width, screen_height
         );
-        cudaDeviceSynchronize();
+        CUDA_SYNC_CHECK();
     }
 
     // readback pair count (needed for sort)
@@ -602,7 +617,6 @@ void RasterizeLayer::forward()
             d_keys.ptr,   d_keys_sorted.ptr,
             d_values.ptr, d_values_sorted.ptr,
             (int)pair_count);
-        cudaDeviceSynchronize();
     }
 
     // build tile ranges
@@ -611,7 +625,7 @@ void RasterizeLayer::forward()
         int blocks  = ((int)pair_count + threads - 1) / threads;
         buildTileRangesKernel<<<blocks, threads>>>(
             d_keys_sorted, d_tile_ranges, pair_count, numTiles);
-        cudaDeviceSynchronize();
+        CUDA_SYNC_CHECK();
     }
 
     // forward rasterize
@@ -631,7 +645,7 @@ void RasterizeLayer::forward()
             num_tiles_x, num_tiles_y,
             screen_width, screen_height
         );
-        cudaDeviceSynchronize();
+        CUDA_SYNC_CHECK();
     }
 }
 
@@ -657,6 +671,5 @@ void RasterizeLayer::backward()
         num_tiles_x, num_tiles_y,
         screen_width, screen_height
     );
-    cudaDeviceSynchronize();
-    
+    CUDA_SYNC_CHECK();
 }

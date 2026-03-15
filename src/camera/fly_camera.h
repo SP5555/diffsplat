@@ -28,7 +28,7 @@ class FlyCamera : public Camera
 {
 public:
     FlyCamera(float aspect, float fovDegrees = 40.f,
-            float nearPlane = 1.f, float farPlane = 100.f);
+            float nearPlane = 0.1f, float farPlane = 100.f);
     
     // call every frame, returns true if matrices changed
     bool update(const Input &input, float dt);
@@ -36,6 +36,7 @@ public:
     // call on window resize
     void setAspect(float aspect);
 
+    const glm::vec3 &getPosition()         const { return position; }
     const glm::mat4 &getViewMatrix()       const { return vMatrix; }
     const glm::mat4 &getProjectionMatrix() const { return pMatrix; }
 

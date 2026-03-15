@@ -32,7 +32,7 @@ public:
 
     float *getOutput();
     int    getIterCount() const { return optimizer.getStepCount(); }
-
+    float  getLoss() const      { return mseLayer.getLoss(); }
 private:
     int maxPairs() const { return powf(2.f, 20.f); }
 

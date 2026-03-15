@@ -73,8 +73,14 @@ function(diffsplat_target_setup TARGET)
     target_compile_options(${TARGET} PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:
             --use_fast_math
-            -lineinfo
             -diag-suppress=20012
+            $<$<CONFIG:Debug>:-lineinfo>
+        >
+    )
+    target_compile_options(${TARGET} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:
+            $<$<CONFIG:Release>:-O3>
+            $<$<CONFIG:Debug>:-O0 -g>
         >
     )
 endfunction()
@@ -102,6 +108,11 @@ add_executable(plyviewapp
     ${CUDA_SHARED_SOURCES}
 )
 diffsplat_target_setup(plyviewapp)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(imgfitapp PRIVATE DEBUG)
+    target_compile_definitions(plyviewapp PRIVATE DEBUG)
+endif()
 
 # ===== Status =====
 message(STATUS "CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")

@@ -287,7 +287,7 @@ void PerspProjectLayer::forward()
         output.opacity,
         count
     );
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
 
 void PerspProjectLayer::backward()
@@ -312,5 +312,5 @@ void PerspProjectLayer::backward()
         gradInput.grad_opacity,
         count
     );
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }

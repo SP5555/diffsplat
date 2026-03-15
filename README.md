@@ -22,7 +22,7 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 ---
 
 ## Dependencies
-- CUDA Toolkit 11.8+
+- CUDA Toolkit 11.0+ (tested on 13.0)
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
 - GLFW3 (`sudo apt install libglfw3-dev`)
 - GLM (`sudo apt install libglm-dev`)

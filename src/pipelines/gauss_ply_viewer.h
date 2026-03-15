@@ -26,6 +26,7 @@ public:
     void resize(int newWidth, int newHeight);
 
     float *getOutput();
+    uint32_t getVisibleCount();
 
 private:
     int maxPairs() const { return powf(2.f, 25.f); }

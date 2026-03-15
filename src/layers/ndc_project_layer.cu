@@ -132,7 +132,7 @@ void NDCProjectLayer::forward()
         output.cov_xx,  output.cov_xy,  output.cov_yy,
         sx, sy, count
     );
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
 
 void NDCProjectLayer::backward()
@@ -165,5 +165,5 @@ void NDCProjectLayer::backward()
 
         sx, sy, count
     );
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
