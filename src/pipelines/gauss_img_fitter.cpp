@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include "../loaders/image_loader.h"
+#include "../utils/splat_utils.h"
 #include "../utils/cuda_utils.cuh"
 #include "../optimizers/adam.cuh"
 
@@ -35,7 +36,8 @@ void GaussImgFitter::randomInitGaussians(int count, int seed)
     if (seed < 0)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
 
-    gaussianParams = Gaussian3DParams::randomInit(count, width, height, seed);
+    auto splats = SplatUtils::randomInit(count, width, height, seed);
+    gaussianParams.upload(splats);
 }
 
 float *GaussImgFitter::getOutput()
@@ -67,6 +69,9 @@ void GaussImgFitter::initLayers()
     ndcLayer.setGradOutput(&rasLayer.getGradInput());
     atvLayer.setGradOutput(&ndcLayer.getGradInput());
 
+    // optimizer state
+    optimizer.init(count);
+
     // register in pipeline
     pipeline.add(&atvLayer);
     pipeline.add(&ndcLayer);
@@ -80,10 +85,10 @@ void GaussImgFitter::render()
 {
     pipeline.zero_grad();
     pipeline.forward();
-    if (iterCount % 10 == 0)
-        printf("Iter %d: Loss = %.8f\n", iterCount, mseLayer.getLoss());
+    if (optimizer.getStepCount() % 10 == 0)
+        printf("Iter %d: Loss = %.8f\n", optimizer.getStepCount(), mseLayer.getLoss());
     pipeline.backward();
 
     // optimizer step
-    launchAdam(gaussianParams, atvLayer.getGradInput(), adamConfig, ++iterCount);
+    optimizer.step(gaussianParams, atvLayer.getGradInput());
 }

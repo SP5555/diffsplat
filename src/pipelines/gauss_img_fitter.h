@@ -31,7 +31,7 @@ public:
     void render();
 
     float *getOutput();
-    int    getIterCount() const { return iterCount; }
+    int    getIterCount() const { return optimizer.getStepCount(); }
 
 private:
     int maxPairs() const { return powf(2.f, 20.f); }
@@ -56,8 +56,7 @@ private:
     MSELossLayer    mseLayer;
 
     /* ---- optimizer ---- */
-    AdamConfig adamConfig;
-    int        iterCount = 0;
+    Adam optimizer;
 
     /* ---- target image ---- */
     CudaBuffer<float> d_target_pixels;

@@ -33,7 +33,7 @@ public:
     void setInput(const Gaussian3DParams *params) { input = params; }
     Splat3DParams &getOutput()                    { return output; }
     void setGradOutput(const Splat3DGrads *grads) { gradOutput = grads; }
-    Gaussian3DOptState &getGradInput()            { return gradInput; }
+    Gaussian3DGrads &getGradInput()               { return gradInput; }
 
 private:
     /* ---- forward input (not owned) ---- */
@@ -46,7 +46,7 @@ private:
     const Splat3DGrads *gradOutput = nullptr;
 
     /* ---- backward output (owned) ---- */
-    Gaussian3DOptState gradInput;
+    Gaussian3DGrads gradInput;
 
     /* ---- config ---- */
     int allocatedCount = 0;

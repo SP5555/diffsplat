@@ -86,7 +86,8 @@ static void stepOne(
 
 void launchAdam(
     Gaussian3DParams &gaussians,
-    Gaussian3DOptState &opt_state,
+    Gaussian3DGrads  &grads,
+    AdamState        &opt_state,
     const AdamConfig &config,
     int step)
 {
@@ -113,22 +114,23 @@ void launchAdam(
     
     // brevity
     auto& g = gaussians;
+    auto& gr = grads;
     auto& o = opt_state;
     auto& c = config;
-    go(g.pos_x,   o.grad_pos_x,   o.m_pos_x,   o.v_pos_x,   c.lr_pos);
-    go(g.pos_y,   o.grad_pos_y,   o.m_pos_y,   o.v_pos_y,   c.lr_pos);
-    go(g.pos_z,   o.grad_pos_z,   o.m_pos_z,   o.v_pos_z,   c.lr_pos);
-    go(g.scale_x, o.grad_scale_x, o.m_scale_x, o.v_scale_x, c.lr_scale);
-    go(g.scale_y, o.grad_scale_y, o.m_scale_y, o.v_scale_y, c.lr_scale);
-    go(g.scale_z, o.grad_scale_z, o.m_scale_z, o.v_scale_z, c.lr_scale);
-    go(g.rot_w,   o.grad_rot_w,   o.m_rot_w,   o.v_rot_w,   c.lr_rot);
-    go(g.rot_x,   o.grad_rot_x,   o.m_rot_x,   o.v_rot_x,   c.lr_rot);
-    go(g.rot_y,   o.grad_rot_y,   o.m_rot_y,   o.v_rot_y,   c.lr_rot);
-    go(g.rot_z,   o.grad_rot_z,   o.m_rot_z,   o.v_rot_z,   c.lr_rot);
-    go(g.color_r, o.grad_color_r, o.m_color_r, o.v_color_r, c.lr_color);
-    go(g.color_g, o.grad_color_g, o.m_color_g, o.v_color_g, c.lr_color);
-    go(g.color_b, o.grad_color_b, o.m_color_b, o.v_color_b, c.lr_color);
-    go(g.opacity, o.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
+    go(g.pos_x,   gr.grad_pos_x,   o.m_pos_x,   o.v_pos_x,   c.lr_pos);
+    go(g.pos_y,   gr.grad_pos_y,   o.m_pos_y,   o.v_pos_y,   c.lr_pos);
+    go(g.pos_z,   gr.grad_pos_z,   o.m_pos_z,   o.v_pos_z,   c.lr_pos);
+    go(g.scale_x, gr.grad_scale_x, o.m_scale_x, o.v_scale_x, c.lr_scale);
+    go(g.scale_y, gr.grad_scale_y, o.m_scale_y, o.v_scale_y, c.lr_scale);
+    go(g.scale_z, gr.grad_scale_z, o.m_scale_z, o.v_scale_z, c.lr_scale);
+    go(g.rot_w,   gr.grad_rot_w,   o.m_rot_w,   o.v_rot_w,   c.lr_rot);
+    go(g.rot_x,   gr.grad_rot_x,   o.m_rot_x,   o.v_rot_x,   c.lr_rot);
+    go(g.rot_y,   gr.grad_rot_y,   o.m_rot_y,   o.v_rot_y,   c.lr_rot);
+    go(g.rot_z,   gr.grad_rot_z,   o.m_rot_z,   o.v_rot_z,   c.lr_rot);
+    go(g.color_r, gr.grad_color_r, o.m_color_r, o.v_color_r, c.lr_color);
+    go(g.color_g, gr.grad_color_g, o.m_color_g, o.v_color_g, c.lr_color);
+    go(g.color_b, gr.grad_color_b, o.m_color_b, o.v_color_b, c.lr_color);
+    go(g.opacity, gr.grad_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
 
     cl(g.color_r, 0.f, 1.f);
     cl(g.color_g, 0.f, 1.f);

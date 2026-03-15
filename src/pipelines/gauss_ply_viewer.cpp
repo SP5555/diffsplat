@@ -6,6 +6,7 @@
 
 #include "../loaders/ply_loader.h"
 #include "../utils/cuda_utils.cuh"
+#include "../utils/splat_utils.h"
 
 /* ===== ===== Lifecycle ===== ===== */
 
@@ -25,65 +26,13 @@ void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)
     if (splats.empty())
         throw std::runtime_error("[GaussPlyViewer] PLY loaded 0 splats: " + path);
 
-    normalizeSplats(splats, sceneScale);
-
+    SplatUtils::normalizeScene(splats, sceneScale);
     gaussianParams.upload(splats);
 }
 
 float *GaussPlyViewer::getOutput()
 {
     return rasLayer.getOutput();
-}
-
-/* ===== ===== Normalization ===== ===== */
-
-void GaussPlyViewer::normalizeSplats(std::vector<Gaussian3D> &splats, const float sceneScale)
-{
-    // compute centroid
-    float cx = 0.f, cy = 0.f, cz = 0.f;
-    for (const auto &g : splats)
-    {
-        cx += g.x;
-        cy += g.y;
-        cz += g.z;
-    }
-    float inv = 1.f / (float)splats.size();
-    cx *= inv; cy *= inv; cz *= inv;
-
-    // translate to centroid, find max extent
-    float maxExt = 0.f;
-    for (auto &g : splats)
-    {
-        g.x -= cx; g.y -= cy; g.z -= cz;
-
-        // OpenCV -> OpenGL convention
-        // flip along any one axis to fix left-handedness
-        // here we flip Z. Flipping Y would make the world upside down.
-        g.z      = -g.z;
-        g.rot_w  = -g.rot_w;
-        g.rot_z  = -g.rot_z;
-
-        maxExt = std::max(maxExt, std::abs(g.x));
-        maxExt = std::max(maxExt, std::abs(g.y));
-        maxExt = std::max(maxExt, std::abs(g.z));
-    }
-
-    // scale to [-1, 1]
-    if (maxExt > 0.f)
-    {
-        float linearScale = sceneScale / maxExt;
-        float logScale = logf(linearScale);
-        for (auto &g : splats)
-        {
-            g.x *= linearScale;
-            g.y *= linearScale;
-            g.z *= linearScale;
-
-            g.scale_x += logScale;
-            g.scale_y += logScale;
-            g.scale_z += logScale;
-        }
-    }
 }
 
 /* ===== ===== Init ===== ===== */

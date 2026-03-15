@@ -29,7 +29,6 @@ public:
 
 private:
     int maxPairs() const { return powf(2.f, 25.f); }
-    void normalizeSplats(std::vector<Gaussian3D> &splats, const float sceneScale);
 
     /* ---- config ---- */
     static constexpr int NUM_TILES_X = 64;
