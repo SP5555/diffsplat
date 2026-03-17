@@ -5,12 +5,10 @@
 
 if [ $# -eq 0 ]; then
     echo "Usage: ./run.sh <app> [args...]"
-    echo "  ./run.sh imgfitapp --width 1280 --height 720 --image path/to/image.png --splats-count 80000"
-    echo "  ./run.sh plyviewapp --scene path/to/scene.ply --scale 1.0"
     exit 1
 fi
 
-APP="./build/$1"
+APP=$1
 shift  # remove app name, rest is passed through as args
 
 if [ ! -x "$APP" ]; then
