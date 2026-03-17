@@ -50,15 +50,32 @@ __global__ void mseLossKernel(
     float *loss,
     size_t num_pixels)
 {
+    __shared__ float sdata[BLOCK_SIZE];
+
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= num_pixels) return;
+    int tid = threadIdx.x;
 
-    float dR = pixels[i * 3 + 0] - target[i * 3 + 0];
-    float dG = pixels[i * 3 + 1] - target[i * 3 + 1];
-    float dB = pixels[i * 3 + 2] - target[i * 3 + 2];
-    float pixel_loss = (dR * dR + dG * dG + dB * dB) / (float)num_pixels;
+    // each thread accumulates its own partial sum
+    float sum = 0.f;
+    if (i < num_pixels) {
+        float dR = pixels[i * 3 + 0] - target[i * 3 + 0];
+        float dG = pixels[i * 3 + 1] - target[i * 3 + 1];
+        float dB = pixels[i * 3 + 2] - target[i * 3 + 2];
+        sum = (dR*dR + dG*dG + dB*dB) / (float)num_pixels;
+    }
+    sdata[tid] = sum;
+    __syncthreads();
 
-    atomicAdd(loss, pixel_loss);
+    // reduce within the block using shared memory
+    for (int stride = BLOCK_SIZE / 2; stride > 0; stride >>= 1) {
+        if (tid < stride)
+            sdata[tid] += sdata[tid + stride];
+        __syncthreads();
+    }
+
+    // only one atomicAdd per block instead of per thread
+    if (tid == 0)
+        atomicAdd(loss, sdata[0]);
 }
 
 /* ===== ===== Lifecycle ===== ===== */
