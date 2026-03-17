@@ -36,20 +36,24 @@ else()
 endif()
 
 # ImGui
-set(IMGUI_SOURCES
-    third_party/imgui/imgui.cpp
-    third_party/imgui/imgui_draw.cpp
-    third_party/imgui/imgui_tables.cpp
-    third_party/imgui/imgui_widgets.cpp
-    third_party/imgui/backends/imgui_impl_glfw.cpp
-    third_party/imgui/backends/imgui_impl_opengl3.cpp
-)
-add_library(imgui STATIC ${IMGUI_SOURCES})
-target_include_directories(imgui PUBLIC
-    ${CMAKE_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
-)
-target_link_libraries(imgui PRIVATE glfw OpenGL::GL)
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/imgui")
+    set(IMGUI_SOURCES
+        third_party/imgui/imgui.cpp
+        third_party/imgui/imgui_draw.cpp
+        third_party/imgui/imgui_tables.cpp
+        third_party/imgui/imgui_widgets.cpp
+        third_party/imgui/backends/imgui_impl_glfw.cpp
+        third_party/imgui/backends/imgui_impl_opengl3.cpp
+    )
+    add_library(imgui STATIC ${IMGUI_SOURCES})
+    target_include_directories(imgui PUBLIC
+        ${CMAKE_SOURCE_DIR}/third_party/imgui
+        ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
+    )
+    target_link_libraries(imgui PRIVATE glfw OpenGL::GL)
+else()
+    message(FATAL_ERROR "ImGui submodule not found. Run: git submodule update --init")
+endif()
 
 # ===== Shared sources =====
 set(CPP_SHARED_SOURCES
