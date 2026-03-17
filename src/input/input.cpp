@@ -12,18 +12,21 @@ void Input::flush()
 void Input::install(GLFWwindow *window, Input *input)
 {
     s_inputs[window] = input;
-    glfwSetMouseButtonCallback(window, cbMouseButton);
-    glfwSetCursorPosCallback  (window, cbMouseMove);
-    glfwSetScrollCallback     (window, cbMouseScroll);
-    glfwSetKeyCallback        (window, cbKey);
+    input->prev_mouse_button_cb = glfwSetMouseButtonCallback(window, cbMouseButton);
+    input->prev_mouse_move_cb   = glfwSetCursorPosCallback  (window, cbMouseMove);
+    input->prev_mouse_scroll_cb = glfwSetScrollCallback     (window, cbMouseScroll);
+    input->prev_key_cb          = glfwSetKeyCallback        (window, cbKey);
 }
 
 void Input::cbMouseButton(GLFWwindow *window, int button, int action, int mods)
 {
-    Input *input  = s_inputs[window];
+    Input *input   = s_inputs[window];
     bool   pressed = (action == GLFW_PRESS);
     if      (button == GLFW_MOUSE_BUTTON_LEFT)  input->mouse_left_held  = pressed;
     else if (button == GLFW_MOUSE_BUTTON_RIGHT) input->mouse_right_held = pressed;
+
+    if (input->prev_mouse_button_cb)
+        input->prev_mouse_button_cb(window, button, action, mods);
 }
 
 void Input::cbMouseMove(GLFWwindow *window, double xpos, double ypos)
@@ -40,11 +43,18 @@ void Input::cbMouseMove(GLFWwindow *window, double xpos, double ypos)
     input->mouse_delta   += newPos - input->last_mouse_pos;
     input->last_mouse_pos = newPos;
     input->mouse_pos      = newPos;
+
+    if (input->prev_mouse_move_cb)
+        input->prev_mouse_move_cb(window, xpos, ypos);
 }
 
 void Input::cbMouseScroll(GLFWwindow *window, double xoffset, double yoffset)
 {
-    s_inputs[window]->scroll_delta += (float)yoffset;
+    Input *input         = s_inputs[window];
+    input->scroll_delta += (float)yoffset;
+
+    if (input->prev_mouse_scroll_cb)
+        input->prev_mouse_scroll_cb(window, xoffset, yoffset);
 }
 
 void Input::cbKey(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -54,4 +64,7 @@ void Input::cbKey(GLFWwindow *window, int key, int scancode, int action, int mod
         input->keys_down.insert(key);
     else if (action == GLFW_RELEASE)
         input->keys_down.erase(key);
+
+    if (input->prev_key_cb)
+        input->prev_key_cb(window, key, scancode, action, mods);
 }

@@ -4,8 +4,9 @@
 
 #include "gauss_imgfitter.h"
 #include "../loaders/image_loader.h"
-#include "../utils/splat_utils.h"
 #include "../utils/cuda_utils.h"
+#include "../utils/logs.h"
+#include "../utils/splat_utils.h"
 #include "../optimizers/adam.cuh"
 
 /* ===== ===== Lifecycle ===== ===== */
@@ -15,16 +16,18 @@ void GaussImgFitter::init(int w, int h)
     width  = w;
     height = h;
 
-    std::cout << "[GaussImgFitter] Init " << w << "x" << h
-              << " Tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
-              << " MaxPairs=" << getMaxPairs() << "\n";
+    log_info("GaussImgFitter",
+        "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
+        " Tiles=" + std::to_string(NUM_TILES_X) + "x" + std::to_string(NUM_TILES_Y) +
+        " MaxPairs=" + std::to_string(getMaxPairs())
+    );
 }
 
 void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
 {
     auto image = ImageLoader::load(imagePath, w, h, padding);
     if (image.pixels.empty())
-        throw std::runtime_error("Failed to load target image: " + imagePath);
+        log_fatal("GaussImgFitter", "Failed to load target image: " + imagePath);
 
     d_target_pixels.allocate(w * h * 3);
     cudaMemcpy(d_target_pixels, image.pixels.data(),

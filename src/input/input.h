@@ -31,6 +31,13 @@ private:
     glm::vec2 last_mouse_pos = {0.f, 0.f};
     bool first_mouse = true;
 
+    // previous callbacks for chaining if there are multiple
+    // entities that consume input from the same window
+    GLFWmousebuttonfun prev_mouse_button_cb = nullptr;
+    GLFWcursorposfun   prev_mouse_move_cb   = nullptr;
+    GLFWscrollfun      prev_mouse_scroll_cb = nullptr;
+    GLFWkeyfun         prev_key_cb          = nullptr;
+
     static void cbMouseButton(GLFWwindow *window, int button, int action, int mods);
     static void cbMouseMove  (GLFWwindow *window, double xpos, double ypos);
     static void cbMouseScroll(GLFWwindow *window, double xoffset, double yoffset);

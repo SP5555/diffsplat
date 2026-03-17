@@ -2,6 +2,7 @@
 #include <iostream>
 #include "arcball_camera.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include "../utils/logs.h"
 
 ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
@@ -9,12 +10,13 @@ ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, fl
     , far_plane(farPlane)
     , fov(glm::radians(fovDegrees))
 {
-    std::cout << "[ArcballCamera] Controls:\n" 
-              << "\e[1;36m"
-              << "  Left Click + Drag         -> Orbit\n"
-              << "  Shift + Left Click + Drag -> Pan\n"
-              << "  Scroll                    -> Zoom\n"
-              << "\e[0m";
+    log_info("ArcballCamera",
+        "Controls:\n"
+        "  Left Click + Drag         -> Orbit\n"
+        "  Shift + Left Click + Drag -> Pan\n"
+        "  Scroll                    -> Zoom",
+        "\033[1;36m"
+    );
 
     updateViewSpaceVectors();
     updateMatrices();

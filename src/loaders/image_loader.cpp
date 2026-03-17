@@ -1,12 +1,13 @@
+#include <algorithm>
+#include <cstring>
+#include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <stb_image_resize2.h>
 
 #include "image_loader.h"
-#include <iostream>
-#include <algorithm>
-#include <cstring>
+#include "../utils/logs.h"
 
 LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_h, int padding)
 {
@@ -14,8 +15,8 @@ LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_
     unsigned char *data = stbi_load(path.c_str(), &src_w, &src_h, &channels, 3);
     if (!data)
     {
-        std::cerr << "[ImageLoader] Failed to load image: " << path << "\n";
-        std::cerr << "[ImageLoader] Reason: " << stbi_failure_reason() << "\n";
+        log_error("ImageLoader", "Failed to load image: " + path);
+        log_error("ImageLoader", "Reason: " + std::string(stbi_failure_reason()));
         return {};
     }
 
@@ -55,9 +56,12 @@ LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_
         }
     }
 
-    std::cout << "[ImageLoader] Loaded " << path << " (" << src_w << "x" << src_h
-              << ") -> canvas " << target_w << "x" << target_h
-              << ", fit " << fit_w << "x" << fit_h << "\n";
+    log_info("ImageLoader",
+        "Loaded " + path +
+        " (" + std::to_string(src_w) + "x" + std::to_string(src_h) + ")" +
+        " -> canvas " + std::to_string(target_w) + "x" + std::to_string(target_h) +
+        ", fit " + std::to_string(fit_w) + "x" + std::to_string(fit_h)
+    );
 
     return {pixels, target_w, target_h, src_w, src_h};
 }

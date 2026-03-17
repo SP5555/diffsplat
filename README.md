@@ -25,17 +25,22 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 - CUDA Toolkit 11.0+ (tested on 13.0)
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
 - GLFW3 (`sudo apt install libglfw3-dev`)
-- GLM (`sudo apt install libglm-dev`)
 - GLAD (included in `include/`)
 - stb_image (included in `include/`)
+- GLM, Dear ImGui (included as submodules in `third_party/`)
 
 ## Build
 ```sh
-git clone https://github.com/SP5555/diffsplat.git
+git clone --recurse-submodules https://github.com/SP5555/diffsplat.git
 cd diffsplat
 ```
 
-The easy way, use the build script.
+Or if already cloned without submodules:
+```sh
+git submodule update --init
+```
+
+Then, the easy way, use the build script:
 ```sh
 ./build.sh
 ```
@@ -47,7 +52,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-If you need to target a specific architecture only (e.g. for faster compile times):
+If you need to target a specific architecture only:
 ```sh
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
 make -j$(nproc)
@@ -105,14 +110,10 @@ Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders i
 
 ## Troubleshooting
 
-### GLM not found
-If CMake can't find `glm`, fix it with either:
+### Submodules not initialized
+If you see errors about missing GLM or ImGui headers:
 ```sh
-# Option 1: install system package (recommended)
-sudo apt install libglm-dev
-
-# Option 2: pull via submodule (no sudo needed)
-git submodule update --init --recursive
+git submodule update --init
 ```
 
 ### Hybrid GPU systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)

@@ -34,8 +34,8 @@ protected:
     AppBase(int width, int height, const std::string &title, bool resizable);
 
     // override in subclass
-    virtual void onStart()  = 0;   // called once before the loop
-    virtual void onFrame() = 0;   // called every frame
+    virtual void onStart() = 0; // called once before the loop
+    virtual void onFrame() = 0; // called every frame
 
     // override when subclass needs sizes of resized framebuffer
     virtual void onWindowResize(int width, int height) {};
@@ -46,10 +46,14 @@ protected:
 
     // screenshot utility
     void saveScreenshot(); // default path with timestamp
+    void saveScreenshot(const char *path);
     void saveScreenshot(const std::string &path);
 
     // window title update utility
-    void updateWindowTitle(const std::string &t) { title = t; }
+    void updateWindowTitle(const std::string &t);
+
+    // expose states for ImGui to display
+    float getFPS() const { return avg_FPS; }
 
     // window / input state
     GLFWwindow *window = nullptr;
@@ -59,7 +63,7 @@ protected:
     bool resizable = false;
 
     // loop state
-    float  dt = 0.f;
+    float dt = 0.f;
 
 private:
     void initGL();
@@ -70,7 +74,6 @@ private:
     void onResize(int newWidth, int newHeight);
 
     static void glfwErrorCallback(int error, const char *description);
-
 
     /* ---- GL objects ---- */
     std::optional<GLShaderProgram> shader_program;

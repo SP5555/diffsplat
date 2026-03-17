@@ -3,6 +3,18 @@
 #include "ansi_colors.h"
 
 #ifdef DEBUG
+
+#define CUDA_WARN(err)                                                            \
+    do                                                                            \
+    {                                                                             \
+        cudaError_t e = (err);                                                    \
+        if (e != cudaSuccess)                                                     \
+        {                                                                         \
+            fprintf(stderr, ANSI_YELLOW "[CUDA] Error at %s:%d: %s\n" ANSI_RESET, \
+                    __FILE__, __LINE__, cudaGetErrorString(e));                   \
+        }                                                                         \
+    } while (0)
+
 #define CUDA_CHECK(err)                                                        \
     do                                                                         \
     {                                                                          \
@@ -14,23 +26,26 @@
             exit(EXIT_FAILURE);                                                \
         }                                                                      \
     } while (0)
-#else
-#define CUDA_CHECK(err) (err)
-#endif
 
-#ifdef DEBUG
 #define CUDA_SYNC_CHECK()               \
     do                                  \
     {                                   \
         cudaDeviceSynchronize();        \
         CUDA_CHECK(cudaGetLastError()); \
     } while (0)
+
 #else
+
+#define CUDA_WARN(err) (err)
+
+#define CUDA_CHECK(err) (err)
+
 #define CUDA_SYNC_CHECK() \
     do                    \
     {                     \
     } while (0)
-#endif
+
+#endif // DEBUG
 
 template <typename T>
 struct CudaBuffer

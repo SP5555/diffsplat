@@ -4,6 +4,7 @@
 #include <glm/gtc/quaternion.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
+#include "../utils/logs.h"
 
 FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
@@ -11,15 +12,16 @@ FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farP
     , far_plane(farPlane)
     , fov(glm::radians(fovDegrees))
 {
-    std::cout << "[FlyCamera] Controls:\n"
-              << "\e[1;36m"
-              << "  W/A/S/D           -> Move/Strafe\n"
-              << "  R/F               -> Move up/down\n"
-              << "  Q/E               -> Roll left/right\n"
-              << "  Left Click + Drag -> Look around (yaw/pitch)\n"
-              << "  Shift             -> Fast move\n"
-              << "  Ctrl              -> Slow move\n"
-              << "\e[0m";
+    log_info("FlyCamera",
+        "Controls:\n"
+        "  W/A/S/D           -> Move/Strafe\n"
+        "  R/F               -> Move up/down\n"
+        "  Q/E               -> Roll left/right\n"
+        "  Left Click + Drag -> Look around (yaw/pitch)\n"
+        "  Shift             -> Fast move\n"
+        "  Ctrl              -> Slow move",
+        "\033[1;36m"
+    );
 
     updateViewSpaceVectors();
     updateMatrices();

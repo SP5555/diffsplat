@@ -1,12 +1,13 @@
-#include "ply_loader.h"
-
 #include <algorithm>
+#include <cstring>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
-#include <iostream>
-#include <cstring>
+
+#include "ply_loader.h"
+#include "../utils/logs.h"
 
 /* ===== ===== PLY Parser ===== ===== */
 
@@ -15,11 +16,11 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
     std::string ext = path.substr(path.find_last_of(".") + 1);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext != "ply")
-        throw std::runtime_error("[PLYLoader] Unsupported file extension: " + ext);
+        log_fatal("PLYLoader", "Unsupported file extension: " + ext);
 
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open())
-        throw std::runtime_error("[PLYLoader] Failed to open: " + path);
+        log_fatal("PLYLoader", "Failed to open: " + path);
 
     // ===== parse header =====
     std::string line;
@@ -54,9 +55,9 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
     }
 
     if (!header_done)
-        throw std::runtime_error("[PLYLoader] Malformed PLY: end_header not found");
+        log_fatal("PLYLoader", "Malformed PLY: end_header not found");
     if (vertex_count <= 0)
-        throw std::runtime_error("[PLYLoader] Malformed PLY: no vertices found");
+        log_fatal("PLYLoader", "Malformed PLY: no vertices found");
 
     // ===== build property index map =====
     std::unordered_map<std::string, int> idx;
@@ -65,7 +66,7 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
 
     auto require = [&](const std::string &name) {
         if (idx.find(name) == idx.end())
-            throw std::runtime_error("[PLYLoader] Missing property: " + name);
+            log_fatal("PLYLoader", "Missing property: " + name);
         return idx[name];
     };
 
@@ -95,7 +96,7 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
     {
         file.read(reinterpret_cast<char *>(row.data()), stride);
         if (!file)
-            throw std::runtime_error("[PLYLoader] Unexpected end of file at vertex " + std::to_string(i));
+            log_fatal("PLYLoader", "Unexpected end of file at vertex " + std::to_string(i));
 
         Gaussian3D g;
 
@@ -124,6 +125,6 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
         splats.push_back(g);
     }
 
-    std::cout << "[PLYLoader] Loaded " << vertex_count << " splats from " << path << "\n";
+    log_info("PLYLoader", "Loaded " + std::to_string(vertex_count) + " splats from " + path);
     return splats;
 }

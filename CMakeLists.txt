@@ -24,18 +24,32 @@ if(NOT glfw3_FOUND)
     message(FATAL_ERROR "GLFW not found")
 endif()
 
-find_package(glm QUIET)
-if(NOT glm_FOUND)
-    message(STATUS "GLM not found via find_package, trying third_party/glm")
-    if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/glm")
-        add_library(glm::glm INTERFACE IMPORTED)
-        set_target_properties(glm::glm PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/glm"
-        )
-    else()
-        message(FATAL_ERROR "GLM not found and no third_party/glm fallback exists")
-    endif()
+# ===== Third-party libraries =====
+# GLM
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/glm")
+    add_library(glm::glm INTERFACE IMPORTED)
+    set_target_properties(glm::glm PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/glm"
+    )
+else()
+    message(FATAL_ERROR "GLM submodule not found. Run: git submodule update --init")
 endif()
+
+# ImGui
+set(IMGUI_SOURCES
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_glfw.cpp
+    third_party/imgui/backends/imgui_impl_opengl3.cpp
+)
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC
+    ${CMAKE_SOURCE_DIR}/third_party/imgui
+    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
+)
+target_link_libraries(imgui PRIVATE glfw OpenGL::GL)
 
 # ===== Shared sources =====
 set(CPP_SHARED_SOURCES
@@ -66,6 +80,7 @@ function(diffsplat_target_setup TARGET)
         glfw
         glm::glm
         cuda
+        imgui
     )
     set_target_properties(${TARGET} PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON
@@ -82,6 +97,9 @@ function(diffsplat_target_setup TARGET)
             $<$<CONFIG:Release>:-O3>
             $<$<CONFIG:Debug>:-O0 -g>
         >
+    )
+    target_compile_definitions(${TARGET} PRIVATE
+        $<$<CONFIG:Debug>:DEBUG>
     )
 endfunction()
 
@@ -108,11 +126,6 @@ add_executable(plyviewapp
     ${CUDA_SHARED_SOURCES}
 )
 diffsplat_target_setup(plyviewapp)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(imgfitapp PRIVATE DEBUG)
-    target_compile_definitions(plyviewapp PRIVATE DEBUG)
-endif()
 
 # ===== Status =====
 message(STATUS "CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")

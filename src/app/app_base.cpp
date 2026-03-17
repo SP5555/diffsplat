@@ -1,7 +1,11 @@
 #include <iostream>
 #include <stdexcept>
-
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include "app_base.h"
+#include "../utils/logs.h"
+#include "../utils/cuda_utils.h"
 #include "../utils/ansi_colors.h"
 #include "../loaders/image_saver.h"
 
@@ -64,6 +68,8 @@ static GLuint compileShader(GLenum type, const char *src)
 AppBase::AppBase(int width, int height, const std::string &title, bool resizable)
     : width(width), height(height), title(title), resizable(resizable)
 {
+    PRINT_BUILD_INFO();
+
     glfwSetErrorCallback(glfwErrorCallback);
 
     if (!glfwInit())
@@ -80,6 +86,7 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
         glfwTerminate();
         throw std::runtime_error("Failed to create GLFW window");
     }
+    glfwSetWindowTitle(window, title.c_str());
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
@@ -90,12 +97,20 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
         throw std::runtime_error("Failed to initialize GLAD");
     }
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, 0);
 
-    std::cout << "[App] " << ANSI_MAGENTA << "OpenGL " << glGetString(GL_VERSION) << ANSI_RESET << "\n"
-              << "[App] " << ANSI_MAGENTA << "GL Renderer: " << glGetString(GL_RENDERER) << ANSI_RESET << "\n"
-              << "[App] " << ANSI_MAGENTA << "CUDA Device: " << deviceProp.name << ANSI_RESET << "\n";
+    log_info("App", std::string("OpenGL ")
+        + (const char*)glGetString(GL_VERSION), ANSI_MAGENTA);
+    log_info("App", std::string("GL Renderer: ")
+        + (const char*)glGetString(GL_RENDERER), ANSI_MAGENTA);
+    log_info("App", std::string("CUDA Device: ")
+        + deviceProp.name, ANSI_MAGENTA);
 
     initGL();
 
@@ -107,7 +122,7 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
     // something might have set an error here
     // that causes the whole debug build to crash
     // clear it
-    cudaGetLastError();
+    CUDA_WARN(cudaGetLastError());
 
     glfwSetWindowUserPointer(window, this);
     if (resizable) {
@@ -134,6 +149,10 @@ AppBase::~AppBase()
     
     }
 
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
     if (window)
         glfwDestroyWindow(window);
     glfwTerminate();
@@ -148,7 +167,18 @@ void AppBase::start()
     {
         glfwPollEvents();
 
+        ImGuiIO &io = ImGui::GetIO();
+        if (io.WantCaptureMouse || io.WantCaptureKeyboard)
+            input.flush();
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
         onFrame();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         double current_time = glfwGetTime();
         double delta_time   = current_time - last_frametime;
@@ -160,9 +190,6 @@ void AppBase::start()
         if (time_since_update >= 0.1)
         {
             avg_FPS = avg_FPS * 0.4f + (frame_since_update / (float)time_since_update) * 0.6f;
-            char buf[128];
-            snprintf(buf, sizeof(buf), "%s [FPS: %.1f]", title.c_str(), avg_FPS);
-            glfwSetWindowTitle(window, buf);
             time_since_update  = 0.0;
             frame_since_update = 0;
         }
@@ -336,8 +363,20 @@ void AppBase::saveScreenshot()
     saveScreenshot(buf);
 }
 
+void AppBase::saveScreenshot(const char *path)
+{
+    saveScreenshot(std::string(path));
+}
+
 void AppBase::saveScreenshot(const std::string &path)
 {
     ImageSaver::saveAsPNG(last_pixels, width, height, path);
-    std::cout << "[App] Screenshot saved: " << path << "\n";
+    log_info("App", "Screenshot saved: " + path);
+}
+
+/* ===== ===== Window Title ===== ===== */
+void AppBase::updateWindowTitle(const std::string &t)
+{
+    title = t;
+    glfwSetWindowTitle(window, title.c_str());
 }

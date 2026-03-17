@@ -6,6 +6,7 @@
 #include "gauss_plyviewer.h"
 #include "../loaders/ply_loader.h"
 #include "../utils/cuda_utils.h"
+#include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 
 /* ===== ===== Lifecycle ===== ===== */
@@ -15,9 +16,11 @@ void GaussPlyViewer::init(int w, int h)
     width       = w;
     height      = h;
 
-    std::cout << "[GaussPlyViewer] Init " << w << "x" << h
-              << " Tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
-              << " MaxPairs=" << getMaxPairs() << "\n";
+    log_info("GaussPlyViewer",
+        "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
+        " Tiles=" + std::to_string(NUM_TILES_X) + "x" + std::to_string(NUM_TILES_Y) +
+        " MaxPairs=" + std::to_string(getMaxPairs())
+    );
 }
 
 void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)

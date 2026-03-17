@@ -2,6 +2,10 @@
 build/
 out/
 
+## Dear ImGui artifacts
+imgui.ini
+imgui*.ini
+
 # CMake
 CMakeFiles/
 CMakeCache.txt

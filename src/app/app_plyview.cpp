@@ -1,8 +1,11 @@
 #include <iostream>
-
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include "app_plyview.h"
 #include "../camera/arcball_camera.h"
 #include "../camera/fly_camera.h"
+#include "../utils/logs.h"
 
 const int START_WIDTH = 1280;
 const int START_HEIGHT = 720;
@@ -18,11 +21,11 @@ AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMod
     else if (camera_mode == CameraMode::Fly)
         camera = std::make_unique<FlyCamera>(aspect);
 
-    std::cout << "[AppPlyView] Running:"
-              << " PLY="    << ply_path
-              << " Scale="  << scene_scale
-              << " Camera=" << (camera_mode == CameraMode::Arcball ? "Arcball" : "Fly")
-              << "\n";
+    log_info("AppPlyView",
+        "PLY=" + ply_path +
+        " Scale=" + std::to_string(scene_scale) +
+        " Camera=" + (camera_mode == CameraMode::Arcball ? "Arcball" : "Fly")
+    );
 }
 
 /* ===== ===== App overrides ===== ===== */
@@ -37,15 +40,24 @@ void AppPlyView::onStart()
 
 void AppPlyView::onFrame()
 {
-    camera->update(input, dt);
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureMouse && !io.WantCaptureKeyboard)
+        camera->update(input, dt);
+
     renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix());
     displayFrame(renderer.getOutput());
 
-    char buf[128];
+    // ImGui
+    ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(220, 100), ImGuiCond_Once);
+    ImGui::Begin("Splat Viewer");
+
+    ImGui::Text("FPS: %.2f", getFPS());
+    ImGui::Text("Visible Splats: %d", renderer.getVisibleCount());
     auto pos = camera->getPosition();
-    sprintf(buf, "Splat Viewer [Visible Splats: %d] [Camera Pos: (%.4f, %.4f, %.4f)]",
-        renderer.getVisibleCount(), pos.x, pos.y, pos.z);
-    updateWindowTitle(buf);
+    ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+
+    ImGui::End();
 }
 
 void AppPlyView::onWindowResize(int newWidth, int newHeight)

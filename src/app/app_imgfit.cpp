@@ -1,17 +1,21 @@
 #include <iostream>
-
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include "app_imgfit.h"
+#include "../utils/logs.h"
 
 AppImgFit::AppImgFit(int width, int height, const std::string &image_path, int splat_count)
     : AppBase(width, height, "Image Fitter", false)
     , image_path(image_path)
     , splat_count(splat_count)
 {
-    std::cout << "[AppImgFit] Running:"
-              << " Width="      << width
-              << " Height="     << height
-              << " Image="      << image_path
-              << " SplatCount=" << splat_count << "\n";
+    log_info("AppImgFit",
+        "Width=" + std::to_string(width) +
+        " Height=" + std::to_string(height) +
+        " Image=" + image_path +
+        " SplatCount=" + std::to_string(splat_count)
+    );
 }
 
 /* ===== ===== App overrides ===== ===== */
@@ -31,8 +35,14 @@ void AppImgFit::onFrame()
     fitter.step();
     displayFrame(fitter.getOutput());
 
-    char buf[128];
-    sprintf(buf, "Image Fitter [Iter: %d] [Loss: %.8f]",
-            fitter.getIterCount(), fitter.getLoss());
-    updateWindowTitle(buf);
+    // ImGui
+    ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(160, 100), ImGuiCond_Once);
+    ImGui::Begin("Image Fitter");
+
+    ImGui::Text("FPS: %.2f", getFPS());
+    ImGui::Text("Iteration: %d", getIterCount());
+    ImGui::Text("Loss: %.8f", getLoss());
+
+    ImGui::End();
 }
