@@ -102,7 +102,7 @@ __global__ void tileAssignKernel(
     // cull splats smaller than a pixel in pixel space
     if (3.f * sqrtf(lambda2 * 2.f) < pixel_ndc) return;
     // cull splats thinner than a pixel in pixel space
-    if (3.f * sqrtf(lambda1 * 2.f) < pixel_ndc) return;
+    // if (3.f * sqrtf(lambda1 * 2.f) < pixel_ndc) return;
     float max_radius = 3.f * sqrtf(max(lambda1, lambda2));
 
     // bounding box in NDC

@@ -29,7 +29,7 @@ public:
     uint32_t getVisibleCount();
 
 private:
-    int maxPairs() const { return powf(2.f, 25.f); }
+    int getMaxPairs() const { return (1 << 25); }
 
     /* ---- config ---- */
     static constexpr int NUM_TILES_X = 64;

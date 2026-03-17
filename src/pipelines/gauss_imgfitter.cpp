@@ -1,8 +1,8 @@
-#include "gauss_img_fitter.h"
 #include <cuda_runtime.h>
 #include <iostream>
 #include <chrono>
 
+#include "gauss_imgfitter.h"
 #include "../loaders/image_loader.h"
 #include "../utils/splat_utils.h"
 #include "../utils/cuda_utils.h"
@@ -16,8 +16,8 @@ void GaussImgFitter::init(int w, int h)
     height = h;
 
     std::cout << "[GaussImgFitter] Init " << w << "x" << h
-              << " tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
-              << " maxPairs=" << maxPairs() << "\n";
+              << " Tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
+              << " MaxPairs=" << getMaxPairs() << "\n";
 }
 
 void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
@@ -54,7 +54,7 @@ void GaussImgFitter::initLayers()
     // allocate
     atv_layer.allocate(count);
     ndc_layer.allocate(width, height, count);
-    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
+    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, getMaxPairs(), count);
     mse_layer.allocate(width, height);
 
     // wire forward
@@ -81,7 +81,7 @@ void GaussImgFitter::initLayers()
 
 /* ===== ===== Render ===== ===== */
 
-void GaussImgFitter::render()
+void GaussImgFitter::step()
 {
     pipeline.zero_grad();
     pipeline.forward();

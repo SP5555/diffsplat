@@ -148,7 +148,7 @@ void AppBase::start()
     {
         glfwPollEvents();
 
-        onRender();
+        onFrame();
 
         double current_time = glfwGetTime();
         double delta_time   = current_time - last_frametime;

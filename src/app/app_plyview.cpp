@@ -35,7 +35,7 @@ void AppPlyView::onStart()
     renderer.initLayers();
 }
 
-void AppPlyView::onRender()
+void AppPlyView::onFrame()
 {
     camera->update(input, dt);
     renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix());

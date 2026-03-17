@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include "app_base.h"
-#include "../pipelines/gauss_img_fitter.h"
+#include "../pipelines/gauss_imgfitter.h"
 
 /**
  * @brief App for differentiable Gaussian image fitting.
@@ -15,7 +15,7 @@ public:
 
 protected:
     void onStart()  override;
-    void onRender() override;
+    void onFrame() override;
 
 private:
     int getIterCount() const { return fitter.getIterCount(); }

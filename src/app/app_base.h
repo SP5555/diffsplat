@@ -16,10 +16,10 @@
  * Handles GLFW/GLAD init, window creation, CUDA device info, the main loop,
  * and display (fullscreen quad + PBO/host-copy paths).
  * 
- * Subclasses implement onStart(), onRender(),
+ * Subclasses implement onStart(), onFrame(),
  * and optionally onInput() and onWindowResize().
  * 
- * Subclasses should call displayFrame(pixels) at the end of onRender()
+ * Subclasses should call displayFrame(pixels) at the end of onFrame()
  * to push pixels to screen.
  */
 class AppBase
@@ -35,12 +35,13 @@ protected:
 
     // override in subclass
     virtual void onStart()  = 0;   // called once before the loop
-    virtual void onRender() = 0;   // called every frame
+    virtual void onFrame() = 0;   // called every frame
 
     // override when subclass needs sizes of resized framebuffer
     virtual void onWindowResize(int width, int height) {};
 
-    // call at the end of onRender() with CUDA device pixel buffer [H*W*3]
+    // call at the end of onFrame() with CUDA device pixel buffer [H*W*3]
+    // to display it on the screen.
     void displayFrame(const float *d_pixels);
 
     // screenshot utility

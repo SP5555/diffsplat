@@ -90,7 +90,7 @@ add_executable(imgfitapp
     src/main_imgfit.cpp
     src/app/app_imgfit.cpp
     src/loaders/image_loader.cpp
-    src/pipelines/gauss_img_fitter.cpp
+    src/pipelines/gauss_imgfitter.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
 )
@@ -103,7 +103,7 @@ add_executable(plyviewapp
     src/loaders/ply_loader.cpp
     src/camera/arcball_camera.cpp
     src/camera/fly_camera.cpp
-    src/pipelines/gauss_ply_viewer.cpp
+    src/pipelines/gauss_plyviewer.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
 )

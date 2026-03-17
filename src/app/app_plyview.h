@@ -2,7 +2,7 @@
 #include <string>
 #include <memory>
 #include "app_base.h"
-#include "../pipelines/gauss_ply_viewer.h"
+#include "../pipelines/gauss_plyviewer.h"
 #include "../camera/camera.h"
 
 enum class CameraMode { Arcball, Fly };
@@ -21,7 +21,7 @@ public:
 
 protected:
     void onStart()  override;
-    void onRender() override;
+    void onFrame() override;
     void onWindowResize(int newWidth, int newHeight) override;
 
 private:

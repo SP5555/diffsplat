@@ -1,9 +1,9 @@
-#include "gauss_ply_viewer.h"
 #include <cuda_runtime.h>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
 
+#include "gauss_plyviewer.h"
 #include "../loaders/ply_loader.h"
 #include "../utils/cuda_utils.h"
 #include "../utils/splat_utils.h"
@@ -16,8 +16,8 @@ void GaussPlyViewer::init(int w, int h)
     height      = h;
 
     std::cout << "[GaussPlyViewer] Init " << w << "x" << h
-              << " tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
-              << " maxPairs=" << maxPairs() << "\n";
+              << " Tiles=" << NUM_TILES_X << "x" << NUM_TILES_Y
+              << " MaxPairs=" << getMaxPairs() << "\n";
 }
 
 void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)
@@ -49,7 +49,7 @@ void GaussPlyViewer::initLayers()
     // allocate
     atv_layer.allocate(count);
     psp_layer.allocate(count);
-    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, maxPairs(), count);
+    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, getMaxPairs(), count);
 
     // wire forward
     atv_layer.setInput(&gaussian_params);

@@ -26,9 +26,9 @@ void AppImgFit::onStart()
     fitter.initLayers();
 }
 
-void AppImgFit::onRender()
+void AppImgFit::onFrame()
 {
-    fitter.render();
+    fitter.step();
     displayFrame(fitter.getOutput());
 
     char buf[128];

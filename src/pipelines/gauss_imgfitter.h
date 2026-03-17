@@ -28,13 +28,13 @@ public:
     void randomInitGaussians(int count, int seed = -1);
     void initLayers();
 
-    void render();
+    void step();
 
     float *getOutput();
     int    getIterCount() const { return optimizer.getStepCount(); }
     float  getLoss() const      { return mse_layer.getLoss(); }
 private:
-    int maxPairs() const { return powf(2.f, 20.f); }
+    int getMaxPairs() const { return (1 << 20); }
 
     /* ---- config ---- */
     int width  = 0;
