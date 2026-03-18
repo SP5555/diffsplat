@@ -390,7 +390,7 @@ __global__ void backwardKernel(
     float x_ndc = (2.f * pixel_x + 1.f) / screen_width  - 1.f;
     float y_ndc = (2.f * pixel_y + 1.f) / screen_height - 1.f;
 
-    // --- preparation pass: collect contributing splat indices in forward order ---
+    // --- forward sweep: collect contributing splat indices in forward order ---
     // you better not have 256+ splats stacked on a single pixel.
     const int MAX_CONTRIB = 256;
     uint32_t contrib_indices[MAX_CONTRIB];
