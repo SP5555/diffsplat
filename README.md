@@ -8,6 +8,7 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 ## TODO
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
+- [ ] `getopt.h` doesn't exist on Windows, FIX IT
 - [X] Fly Camera
 - [X] Build a device for 3D feedforward rendering
 - [X] World space to NDC layer with proper camera transforms
@@ -24,10 +25,8 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 ## Dependencies
 - CUDA Toolkit 11.0+ (tested on 13.0)
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
-- GLFW3 (`sudo apt install libglfw3-dev`)
-- GLAD (included in `include/`)
-- stb_image (included in `include/`)
-- GLM, Dear ImGui (included as submodules in `third_party/`)
+- GLAD, stb_image (included in `include/`)
+- GLFW3, GLM, Dear ImGui (included as submodules in `third_party/`)
 
 ## Build
 ```sh
@@ -40,7 +39,9 @@ Or if already cloned without submodules:
 git submodule update --init
 ```
 
-Then, the easy way, use the build script:
+### Linux
+
+Using the build script:
 ```sh
 ./build.sh
 ```
@@ -52,10 +53,30 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-If you need to target a specific architecture only:
+To target a specific architecture only:
 ```sh
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
 make -j$(nproc)
+```
+
+### Windows (CURRENTLY DOESN'T WORK)
+
+Using the build script:
+```bat
+.\build.bat
+```
+
+Or manually:
+```bat
+mkdir build && cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config Release --parallel
+```
+
+To target a specific architecture only:
+```bat
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_CUDA_ARCHITECTURES=89
+cmake --build . --config Release --parallel
 ```
 
 > Common architecture values: 75 = Turing (RTX 20xx), 86 = Ampere (RTX 30xx), 89 = Ada (RTX 40xx), 90 = Hopper, 120 = Blackwell (RTX 50xx)
@@ -79,6 +100,7 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 > `--width` and `--height` must be specified together or not at all.
 
 ```sh
+# Linux
 ./build/imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 ```
 
@@ -98,6 +120,7 @@ Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders i
 | `--camera` | `arcball` | Camera mode: `fly` or `arcball` |
 
 ```sh
+# Linux
 ./build/plyviewapp --scene path/to/scene.ply [--scale 1.0] [--camera fly|arcball]
 ```
 
