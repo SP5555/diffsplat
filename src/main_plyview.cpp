@@ -1,59 +1,48 @@
-#include "app/app_plyview.h"
 #include <algorithm>
-#include <cstdlib>
-#include <getopt.h>
 #include <iostream>
-#include <unistd.h>
-
-auto toLower = [](std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    return s;
-};
+#include "cxxopts.hpp"
+#include "app/app_plyview.h"
+#include "utils/logs.h"
 
 int main(int argc, char *argv[])
 {
-    float scale = 1.f;
-    std::string ply_path;
-    CameraMode camera_mode = CameraMode::Arcball;
+    cxxopts::Options options("plyview", "PLY Scene Viewer");
 
-    static struct option long_options[] = {
-        {"scene", required_argument, 0, 'S'},
-        {"scale", required_argument, 0, 's'},
-        {"camera", required_argument, 0, 'c'},
-        {0, 0, 0, 0}
-    };
+    options.add_options()
+        ("S,scene",  "Path to PLY scene file", cxxopts::value<std::string>()->default_value("data/ply/fly.ply"))
+        ("s,scale",  "Scene scale",             cxxopts::value<float>()->default_value("1.0"))
+        ("c,camera", "Camera mode (arcball, fly)", cxxopts::value<std::string>()->default_value("arcball"))
+        ("help",     "Print usage");
 
-    int opt, idx;
-    while ((opt = getopt_long(argc, argv, "S:s:c:", long_options, &idx)) != -1) {
-        switch (opt) {
-            case 'S': ply_path = optarg; break;
-            case 's': scale = atof(optarg); break;
-            case 'c': {
-                std::string cam = toLower(optarg);
-                if      (cam == "fly") camera_mode = CameraMode::Fly;
-                else if (cam == "arcball") camera_mode = CameraMode::Arcball;
-                else {
-                    std::cerr << "Invalid camera mode: " << optarg << "\n";
-                    std::cerr << "Valid options: fly, arcball\n";
-                    return 1;
-                }
-                break;
-            }
-            default:
-                std::cerr << "Usage: " << argv[0]
-                          << " --scene <path_to_ply_file>"
-                          << " --scale <value>\n";
-                return 1;
-        }
+    auto result = options.parse(argc, argv);
+
+    if (result.count("help")) {
+        std::cout << options.help() << std::endl;
+        return 0;
     }
 
-    if (ply_path.empty()) {
-        ply_path = "data/ply/fly.ply";
-        printf("No PLY path specified, defaulting to %s\n", ply_path.c_str());
+    std::string ply_path   = result["scene"].as<std::string>();
+    float scale            = result["scale"].as<float>();
+    std::string camera_str = result["camera"].as<std::string>();
+
+    /* ===== Argument Validation ===== */
+    if (!result.count("scene")) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "No scene specified, defaulting to %s", ply_path.c_str());
+        log_info("Main", buf);
     }
 
     if (scale <= 0.f) {
-        printf("Invalid scale value %f, must be a positive number\n", scale);
+        log_info("Main", "Error: scale must be a positive number.");
+        return 1;
+    }
+
+    std::transform(camera_str.begin(), camera_str.end(), camera_str.begin(), ::tolower);
+    CameraMode camera_mode;
+    if      (camera_str == "arcball") camera_mode = CameraMode::Arcball;
+    else if (camera_str == "fly")     camera_mode = CameraMode::Fly;
+    else {
+        log_info("Main", "Error: invalid camera mode. Valid options: arcball, fly.");
         return 1;
     }
 
@@ -62,7 +51,9 @@ int main(int argc, char *argv[])
         app.start();
     }
     catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << "\n";
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Failed to start application: %s", e.what());
+        log_info("Main", buf);
         return 1;
     }
 

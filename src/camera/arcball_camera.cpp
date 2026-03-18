@@ -3,6 +3,7 @@
 #include "arcball_camera.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include "../utils/logs.h"
+#include "../utils/ansi_colors.h"
 
 ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
@@ -15,7 +16,7 @@ ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, fl
         "  Left Click + Drag         -> Orbit\n"
         "  Shift + Left Click + Drag -> Pan\n"
         "  Scroll                    -> Zoom",
-        "\033[1;36m"
+        ANSI_CYAN ANSI_BOLD
     );
 
     updateViewSpaceVectors();

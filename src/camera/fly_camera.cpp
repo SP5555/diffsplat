@@ -5,6 +5,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 #include "../utils/logs.h"
+#include "../utils/ansi_colors.h"
 
 FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)
@@ -20,7 +21,7 @@ FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farP
         "  Left Click + Drag -> Look around (yaw/pitch)\n"
         "  Shift             -> Fast move\n"
         "  Ctrl              -> Slow move",
-        "\033[1;36m"
+        ANSI_CYAN ANSI_BOLD
     );
 
     updateViewSpaceVectors();

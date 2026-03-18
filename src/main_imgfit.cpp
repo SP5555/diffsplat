@@ -1,72 +1,63 @@
-#include <cstdlib>
-#include <getopt.h>
 #include <iostream>
-#include <unistd.h>
+#include "cxxopts.hpp"
 #include "app/app_imgfit.h"
+#include "utils/logs.h"
 
 int main(int argc, char *argv[])
 {
-    int width = -1;
-    int height = -1;
-    std::string image_path;
-    int splat_count = 60000;
+    cxxopts::Options options("imgfit", "Image Fitter");
 
-    static struct option long_options[] = {
-        {"width",  required_argument, 0, 'w'},
-        {"height", required_argument, 0, 'h'},
-        {"image",  required_argument, 0, 'i'},
-        {"splat-count", required_argument, 0, 's'},
-        {0, 0, 0, 0}
-    };
+    options.add_options()
+        ("w,width",       "Window width",              cxxopts::value<int>()->default_value("1280"))
+        ("h,height",      "Window height",             cxxopts::value<int>()->default_value("720"))
+        ("i,image",       "Path to target image",      cxxopts::value<std::string>()->default_value("data/img/torii_moon.jpg"))
+        ("s,splat-count", "Number of starting splats", cxxopts::value<int>()->default_value("60000"))
+        ("help",          "Print usage");
 
-    int opt, idx;
-    while ((opt = getopt_long(argc, argv, "w:h:i:s:", long_options, &idx)) != -1) {
-        switch(opt) {
-            case 'w': width = std::atoi(optarg); break;
-            case 'h': height = std::atoi(optarg); break;
-            case 'i': image_path = optarg; break;
-            case 's': splat_count = std::atoi(optarg); break;
-            default:
-                std::cerr << "Usage: " << argv[0]
-                          << " --width <width>"
-                          << " --height <height>"
-                          << " --image <path_to_image>"
-                          << " --splat-count <count>\n";
-                return 1;
-        }
+    auto result = options.parse(argc, argv);
+
+    if (result.count("help")) {
+        std::cout << options.help() << std::endl;
+        return 0;
     }
 
-    // Enforce tied arguments
-    if ((width != -1 && height == -1) || (width == -1 && height != -1)) {
-        std::cerr << "Error: width and height must be provided together.\n";
-        return 1;
+    int width              = result["width"].as<int>();
+    int height             = result["height"].as<int>();
+    std::string image_path = result["image"].as<std::string>();
+    int splat_count        = result["splat-count"].as<int>();
+
+    /* ===== Argument Validation ===== */
+    if ((result.count("width") && !result.count("height")) ||
+        (!result.count("width") && result.count("height"))) {
+        log_info("Main", "Error: --width and --height must be specified together.");
+        return 0;
     }
 
-    // Provide defaults if none were given
-    if (width == -1 && height == -1) {
-        width = 1280;
-        height = 720;
-        printf("No resolution specified, defaulting to %dx%d\n", width, height);
+    if (width <= 0 || height <= 0) {
+        log_info("Main", "Error: width and height must be positive integers.");
+        return 0;
     }
 
-    if (image_path.empty()) {
-        image_path = "data/img/torii_moon.jpg";
-        printf("No image path specified, defaulting to %s\n", image_path.c_str());
+    if (!result.count("width") && !result.count("height")) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "No width/height specified, defaulting to %dx%d", width, height);
+        log_info("Main", buf);
     }
 
     if (splat_count <= 0) {
-        std::cerr << "Error: splat count must be positive.\n";
-        return 1;
+        log_info("Main", "Error: splat count must be positive.");
+        return 0;
     }
 
-    // APP STARTS HERE
     try {
         AppImgFit app(width, height, image_path, splat_count);
         app.start();
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        char buf[128];
+        snprintf(buf, sizeof(buf), "Failed to start application: %s", e.what());
+        log_info("Main", buf);
         return 1;
     }
 

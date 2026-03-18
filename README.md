@@ -8,7 +8,8 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 ## TODO
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
-- [ ] `getopt.h` doesn't exist on Windows, FIX IT
+- [X] `getopt.h` doesn't exist on Windows, FIX IT
+- [X] Build this on Windows
 - [X] Fly Camera
 - [X] Build a device for 3D feedforward rendering
 - [X] World space to NDC layer with proper camera transforms
@@ -25,7 +26,7 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 ## Dependencies
 - CUDA Toolkit 11.0+ (tested on 13.0)
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
-- GLAD, stb_image (included in `include/`)
+- GLAD, stb_image, cxxopts (included in `include/`)
 - GLFW3, GLM, Dear ImGui (included as submodules in `third_party/`)
 
 ## Build
@@ -41,7 +42,7 @@ git submodule update --init
 
 ### Linux
 
-Using the build script:
+An easy way, using the build script:
 ```sh
 ./build.sh
 ```
@@ -59,9 +60,9 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
 make -j$(nproc)
 ```
 
-### Windows (CURRENTLY DOESN'T WORK)
+### Windows
 
-Using the build script:
+An easy way, using the build script:
 ```bat
 .\build.bat
 ```
@@ -102,6 +103,9 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 ```sh
 # Linux
 ./build/imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
+
+# Windows
+.\build\Release\imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 ```
 
 <p align="center">
@@ -122,6 +126,9 @@ Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders i
 ```sh
 # Linux
 ./build/plyviewapp --scene path/to/scene.ply [--scale 1.0] [--camera fly|arcball]
+
+# Windows
+.\build\Release\plyviewapp --scene path/to/scene.ply [--scale 1.0] [--camera fly|arcball]
 ```
 
 <p align="center">
@@ -139,13 +146,6 @@ If you see errors about missing GLM or ImGui headers:
 git submodule update --init
 ```
 
-### Hybrid GPU systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)
-By default the renderer falls back to a host-copy display path (GPU->CPU->GPU) since
-CUDA and OpenGL are on different devices. To force direct GPU display:
-```sh
-__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/<app>
-```
-
 ### Black Screen
 Most likely a CUDA architecture mismatch.
 If you're on an older or newer GPU, rebuild with the correct architecture manually:
@@ -153,11 +153,18 @@ If you're on an older or newer GPU, rebuild with the correct architecture manual
 rm -rf build            # nuke the broken build
 mkdir build && cd build # go back in
 
-cmake .. -DCMAKE_CUDA_ARCHITECTURES=75   # Turing (RTX 20xx)
-cmake .. -DCMAKE_CUDA_ARCHITECTURES=86   # Ampere (RTX 30xx)
-cmake .. -DCMAKE_CUDA_ARCHITECTURES=89   # Ada (RTX 40xx)
+cmake .. -DCMAKE_CUDA_ARCHITECTURES=75   # Turing    (RTX 20xx)
+cmake .. -DCMAKE_CUDA_ARCHITECTURES=86   # Ampere    (RTX 30xx)
+cmake .. -DCMAKE_CUDA_ARCHITECTURES=89   # Ada       (RTX 40xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=120  # Blackwell (RTX 50xx)
 
 make # and compile
 ```
 Not sure which architecture you need? Check https://developer.nvidia.com/cuda/gpus
+
+### Hybrid GPU systems (Linux, e.g. AMD iGPU + NVIDIA dGPU)
+By default the renderer falls back to a host-copy display path (GPU->CPU->GPU) since
+CUDA and OpenGL are on different devices. To force direct GPU display:
+```sh
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/<app>
+```
