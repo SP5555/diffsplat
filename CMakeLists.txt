@@ -18,13 +18,23 @@ endif()
 
 # ===== Dependencies =====
 find_package(OpenGL REQUIRED)
-
-find_package(glfw3 3.3 QUIET)
-if(NOT glfw3_FOUND)
-    message(FATAL_ERROR "GLFW not found")
-endif()
+find_package(CUDAToolkit REQUIRED)
 
 # ===== Third-party libraries =====
+# GLFW
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/glfw/CMakeLists.txt")
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    if (NOT WIN32)
+        set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
+    endif()
+    add_subdirectory(third_party/glfw)
+else()
+    message(FATAL_ERROR "GLFW submodule not found. Run: git submodule update --init")
+endif()
+
 # GLM
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/glm")
     add_library(glm::glm INTERFACE IMPORTED)
@@ -77,13 +87,12 @@ function(diffsplat_target_setup TARGET)
     target_include_directories(${TARGET} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     )
     target_link_libraries(${TARGET} PRIVATE
         OpenGL::GL
         glfw
         glm::glm
-        cuda
+        CUDA::cuda_driver
         imgui
     )
     set_target_properties(${TARGET} PROPERTIES
@@ -97,9 +106,16 @@ function(diffsplat_target_setup TARGET)
         >
     )
     target_compile_options(${TARGET} PRIVATE
-        $<$<COMPILE_LANGUAGE:CXX>:
+        # Optimization flags:
+        # Linux: -O3 for release, -O0 -g for debug
+        # Windows/MSVC: /O2 for release, /Od /Zi for debug
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:
             $<$<CONFIG:Release>:-O3>
             $<$<CONFIG:Debug>:-O0 -g>
+        >
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:
+            $<$<CONFIG:Release>:/O2>
+            $<$<CONFIG:Debug>:/Od /Zi>
         >
     )
     target_compile_definitions(${TARGET} PRIVATE
@@ -133,4 +149,8 @@ diffsplat_target_setup(plyviewapp)
 
 # ===== Status =====
 message(STATUS "CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+if (CMAKE_BUILD_TYPE)
+    message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+else()
+    message(STATUS "Build type: multi-config (${CMAKE_CONFIGURATION_TYPES})")
+endif()
