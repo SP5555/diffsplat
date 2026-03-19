@@ -409,7 +409,7 @@ __global__ void backwardKernel(
         float cxy = ndc_cxy[splat_id];
         float cyy = ndc_cyy[splat_id];
         float det = cxx * cyy - cxy * cxy;
-        if (det < 1e-16f) continue;
+        if (det <= 0.f) continue;
 
         float inv_det = 1.f / det;
         float inv_cxx =  cyy * inv_det;
@@ -478,7 +478,7 @@ __global__ void backwardKernel(
 
         // dL/ddist2
         float raw_alpha  = ndc_A[splat_id] * g;
-        float dL_ddist2  = dL_dalpha * (-0.5f) * raw_alpha;
+        float dL_ddist2 = (raw_alpha < 0.99f) ? dL_dalpha * (-0.5f) * alpha : 0.f;
 
         // dL/dpos
         float ddist2_dpos_x = -2.f * (dx * inv_cxx + dy * inv_cxy);

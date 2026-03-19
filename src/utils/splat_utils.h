@@ -23,14 +23,15 @@ namespace SplatUtils
             g.y = rnd() * half_h;
             g.z = rnd();
 
-            g.scale_x = log_sigma + rnd() * 0.5f;
-            g.scale_y = log_sigma + rnd() * 0.5f;
-            g.scale_z = log_sigma + rnd() * 0.5f;
+            float s = rnd() * 0.5;
+            g.scale_x = log_sigma + s;
+            g.scale_y = log_sigma + s;
+            g.scale_z = log_sigma + s;
 
-            g.rot_w = 1.f + rnd() * 0.1f;
-            g.rot_x =       rnd() * 0.1f;
-            g.rot_y =       rnd() * 0.1f;
-            g.rot_z =       rnd() * 0.1f;
+            g.rot_w = 1.f;
+            g.rot_x = 0.f;
+            g.rot_y = 0.f;
+            g.rot_z = 0.f;
             float norm = sqrtf(g.rot_w*g.rot_w + g.rot_x*g.rot_x +
                             g.rot_y*g.rot_y + g.rot_z*g.rot_z);
             g.rot_w /= norm; g.rot_x /= norm;

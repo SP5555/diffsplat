@@ -435,7 +435,7 @@ __global__ void backwardKernel(
                     float cyy = sh_cyy[j];
 
                     float det = cxx * cyy - cxy * cxy;
-                    if (det < 1e-16f) continue;
+                    if (det <= 0.f) continue;
 
                     float inv_det = 1.f / det;
                     float inv_cxx =  cyy * inv_det;
@@ -471,7 +471,7 @@ __global__ void backwardKernel(
                         atomicAdd(&sh_grad_A[j], dL_dalpha * g);
 
                     // dL/ddist2
-                    float dL_ddist2 = dL_dalpha * (-0.5f) * alpha;
+                    float dL_ddist2 = (raw_alpha < 0.99f) ? dL_dalpha * (-0.5f) * alpha : 0.f;
 
                     // dL/dpos
                     float ddist2_dx = -2.f * (dx * inv_cxx + dy * inv_cxy);

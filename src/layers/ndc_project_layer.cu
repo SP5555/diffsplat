@@ -5,6 +5,9 @@
 
 #define BLOCK_SIZE 256
 
+// regularization for covariance gradients 
+#define COV_L2_REG      1e-9f // so small? don't ask. fine-hand-tuned
+
 /* ===== ===== Kernels ===== ===== */
 
 /**
@@ -133,6 +136,45 @@ __global__ void ndcBackwardKernel(
     grad_i_A[i] = grad_o_A[i];
 }
 
+// ===== ===== Covariance Regularization Kernel ===== =====
+/**
+ * Applies L2 regularization to the covariance gradients to discourage
+ * large covariances especially for non-diagonal entries which can
+ * result in the splat stretched in one direction and thin in the other
+ */
+__global__ void covRegKernel(
+    const float *__restrict__ cxx,
+    const float *__restrict__ cxy,
+    const float *__restrict__ cxz,
+    const float *__restrict__ cyy,
+    const float *__restrict__ cyz,
+    const float *__restrict__ czz,
+    float *grad_cxx,
+    float *grad_cxy,
+    float *grad_cxz,
+    float *grad_cyy,
+    float *grad_cyz,
+    float *grad_czz,
+    int count)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= count) return;
+
+    float c_xx = cxx[i];
+    float c_xy = cxy[i];
+    float c_xz = cxz[i];
+    float c_yy = cyy[i];
+    float c_yz = cyz[i];
+    float c_zz = czz[i];
+
+    grad_cxx[i] += COV_L2_REG * c_xx;
+    grad_cxy[i] += COV_L2_REG * (2.f * c_xy);
+    grad_cxz[i] += COV_L2_REG * (2.f * c_xz);
+    grad_cyy[i] += COV_L2_REG * c_yy;
+    grad_cyz[i] += COV_L2_REG * (2.f * c_yz);
+    grad_czz[i] += COV_L2_REG * c_zz;
+}
+
 /* ===== ===== Lifecycle ===== ===== */
 
 void NDCProjectLayer::allocate(int width, int height, int count)
@@ -175,19 +217,32 @@ void NDCProjectLayer::backward()
     float sx = 2.f / (float)screen_width;
     float sy = 2.f / (float)screen_height;
     int count = in->count;
-
     int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    ndcBackwardKernel<<<blocks, BLOCK_SIZE>>>(
-        grad_out->grad_pos_x,   grad_out->grad_pos_y,
-        grad_out->grad_cov_xx,  grad_out->grad_cov_xy,  grad_out->grad_cov_yy,
-        grad_out->grad_color_r, grad_out->grad_color_g, grad_out->grad_color_b,
-        grad_out->grad_opacity,
-        grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
-        grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_xz,
-        grad_in.grad_cov_yy,  grad_in.grad_cov_yz,  grad_in.grad_cov_zz,
-        grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,
-        grad_in.grad_opacity,
-        sx, sy, count
-    );
-    CUDA_SYNC_CHECK();
+    {
+        ndcBackwardKernel<<<blocks, BLOCK_SIZE>>>(
+            grad_out->grad_pos_x,   grad_out->grad_pos_y,
+            grad_out->grad_cov_xx,  grad_out->grad_cov_xy,  grad_out->grad_cov_yy,
+            grad_out->grad_color_r, grad_out->grad_color_g, grad_out->grad_color_b,
+            grad_out->grad_opacity,
+            grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
+            grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_xz,
+            grad_in.grad_cov_yy,  grad_in.grad_cov_yz,  grad_in.grad_cov_zz,
+            grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,
+            grad_in.grad_opacity,
+            sx, sy, count
+        );
+        CUDA_SYNC_CHECK();
+    }
+
+    // covariance regularization
+    {
+        covRegKernel<<<blocks, BLOCK_SIZE>>>(
+            in->cov_xx, in->cov_xy, in->cov_xz,
+            in->cov_yy, in->cov_yz, in->cov_zz,
+            grad_in.grad_cov_xx, grad_in.grad_cov_xy, grad_in.grad_cov_xz,
+            grad_in.grad_cov_yy, grad_in.grad_cov_yz, grad_in.grad_cov_zz,
+            count
+        );
+        CUDA_SYNC_CHECK();
+    }
 }

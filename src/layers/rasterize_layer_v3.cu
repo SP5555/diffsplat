@@ -410,9 +410,13 @@ __global__ void backwardKernel(
             }
             __syncthreads();
 
-            if (valid_pixel && contributed_splats < n_contr && contributed_splats < MAX_CONTRIB)
+            if (valid_pixel)
             {
-                for (int i = 0; i < chunk_size; i++)
+                for (int i = 0;
+                    i < chunk_size &&
+                    contributed_splats < n_contr &&
+                    contributed_splats < MAX_CONTRIB;
+                    i++)
                 {
                     float dx  = x_ndc - sh_x[i];
                     float dy  = y_ndc - sh_y[i];
@@ -420,7 +424,7 @@ __global__ void backwardKernel(
                     float cxy = sh_cxy[i];
                     float cyy = sh_cyy[i];
                     float det = cxx * cyy - cxy * cxy;
-                    if (det < 1e-16f) continue;
+                    if (det <= 0.f) continue;
 
                     float inv_det = 1.f / det;
                     float inv_cxx =  cyy * inv_det;
@@ -534,7 +538,7 @@ __global__ void backwardKernel(
                     if (raw_alpha < 0.99f)
                         atomicAdd(&sh_grad_A[i], dL_dalpha * g);
 
-                    float dL_ddist2 = dL_dalpha * (-0.5f) * alpha;
+                    float dL_ddist2 = (raw_alpha < 0.99f) ? dL_dalpha * (-0.5f) * alpha : 0.f;
 
                     float ddist2_dx = -2.f * (dx * inv_cxx + dy * inv_cxy);
                     float ddist2_dy = -2.f * (dx * inv_cxy + dy * inv_cyy);
