@@ -9,31 +9,6 @@
 /* ===== ===== Kernels ===== ===== */
 
 /**
- * Computes per-pixel MSE gradient
- * 
- * dL/d_pixel_i = (2 / num_pixels) * (pixel_i - target_i)
- *
- * @param[in]  pixels       Rendered pixel colors [H*W*3]
- * @param[in]  target       Target pixel colors   [H*W*3]
- * @param[out] grad_pixels  dL/d_pixels           [H*W*3]
- * @param[in]  num_pixels   H * W
- */
-__global__ void mseGradKernel(
-    const float *__restrict__ pixels,
-    const float *__restrict__ target,
-    float *grad_pixels,
-    size_t num_pixels)
-{
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= num_pixels) return;
-
-    float scale = 2.f / (float)num_pixels;
-    grad_pixels[i * 3 + 0] = scale * (pixels[i * 3 + 0] - target[i * 3 + 0]);
-    grad_pixels[i * 3 + 1] = scale * (pixels[i * 3 + 1] - target[i * 3 + 1]);
-    grad_pixels[i * 3 + 2] = scale * (pixels[i * 3 + 2] - target[i * 3 + 2]);
-}
-
-/**
  * Computes per-pixel MSE and accumulates into a scalar.
  * Only called by forward() which is optional (logging only, not every frame).
  * 
@@ -57,11 +32,12 @@ __global__ void mseLossKernel(
 
     // each thread accumulates its own partial sum
     float sum = 0.f;
+    float scale = 2.f / (float)num_pixels;
     if (i < num_pixels) {
         float dR = pixels[i * 3 + 0] - target[i * 3 + 0];
         float dG = pixels[i * 3 + 1] - target[i * 3 + 1];
         float dB = pixels[i * 3 + 2] - target[i * 3 + 2];
-        sum = (dR*dR + dG*dG + dB*dB) / (float)num_pixels;
+        sum = (dR*dR + dG*dG + dB*dB) * scale;
     }
     sdata[tid] = sum;
     __syncthreads();
@@ -76,6 +52,31 @@ __global__ void mseLossKernel(
     // only one atomicAdd per block instead of per thread
     if (tid == 0)
         atomicAdd(loss, sdata[0]);
+}
+
+/**
+ * Computes per-pixel MSE gradient
+ * 
+ * dL/d_pixel_i = (2 / num_pixels) * (pixel_i - target_i)
+ *
+ * @param[in]  pixels       Rendered pixel colors [H*W*3]
+ * @param[in]  target       Target pixel colors   [H*W*3]
+ * @param[out] grad_pixels  dL/d_pixels           [H*W*3]
+ * @param[in]  num_pixels   H * W
+ */
+__global__ void mseGradKernel(
+    const float *__restrict__ pixels,
+    const float *__restrict__ target,
+    float *grad_pixels,
+    size_t num_pixels)
+{
+    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= num_pixels) return;
+
+    float scale = 2.f / (float)num_pixels;
+    grad_pixels[i * 3 + 0] = scale * (pixels[i * 3 + 0] - target[i * 3 + 0]);
+    grad_pixels[i * 3 + 1] = scale * (pixels[i * 3 + 1] - target[i * 3 + 1]);
+    grad_pixels[i * 3 + 2] = scale * (pixels[i * 3 + 2] - target[i * 3 + 2]);
 }
 
 /* ===== ===== Lifecycle ===== ===== */
