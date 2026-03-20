@@ -141,6 +141,9 @@ __global__ void ndcBackwardKernel(
  * Applies L2 regularization to the covariance gradients to discourage
  * large covariances especially for non-diagonal entries which can
  * result in the splat stretched in one direction and thin in the other
+ * 
+ * now, it only regularizes off-diagonal entries since
+ * they can cause more extreme stretching
  */
 __global__ void covRegKernel(
     const float *__restrict__ cxx,
@@ -160,19 +163,19 @@ __global__ void covRegKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    float c_xx = cxx[i];
+    // float c_xx = cxx[i];
     float c_xy = cxy[i];
     float c_xz = cxz[i];
-    float c_yy = cyy[i];
+    // float c_yy = cyy[i];
     float c_yz = cyz[i];
-    float c_zz = czz[i];
+    // float c_zz = czz[i];
 
-    grad_cxx[i] += COV_L2_REG * c_xx;
+    // grad_cxx[i] += COV_L2_REG * c_xx;
     grad_cxy[i] += COV_L2_REG * (2.f * c_xy);
     grad_cxz[i] += COV_L2_REG * (2.f * c_xz);
-    grad_cyy[i] += COV_L2_REG * c_yy;
+    // grad_cyy[i] += COV_L2_REG * c_yy;
     grad_cyz[i] += COV_L2_REG * (2.f * c_yz);
-    grad_czz[i] += COV_L2_REG * c_zz;
+    // grad_czz[i] += COV_L2_REG * c_zz;
 }
 
 /* ===== ===== Lifecycle ===== ===== */
