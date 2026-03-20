@@ -95,6 +95,13 @@ __global__ void covForwardKernel(
     o_cyy[i] = m10*m10 + m11*m11 + m12*m12;
     o_cyz[i] = m10*m20 + m11*m21 + m12*m22;
     o_czz[i] = m20*m20 + m21*m21 + m22*m22;
+    // for fun!
+    // o_cxx[i] = 1.f;
+    // o_cxy[i] = 0.f;
+    // o_cxz[i] = 0.f;
+    // o_cyy[i] = 1.f;
+    // o_cyz[i] = 0.f;
+    // o_czz[i] = 1.f;
 
     // DC SH coefficient -> linear RGB
     o_lin_R[i] = fminf(fmaxf(i_DC_SH_R[i] * C0 + 0.5f, 0.f), 1.f);
