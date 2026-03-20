@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include "app_base.h"
 #include "../pipelines/gauss_imgfitter.h"
 
@@ -24,4 +25,8 @@ private:
     std::string     image_path;
     int             splat_count;
     GaussImgFitter  fitter;
+
+    // ImGui
+    std::vector<float> loss_history;
+    std::vector<float> iter_history;
 };

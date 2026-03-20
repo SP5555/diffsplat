@@ -65,6 +65,22 @@ else()
     message(FATAL_ERROR "ImGui submodule not found. Run: git submodule update --init")
 endif()
 
+# ImPlot
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/implot")
+    set(IMPLOT_SOURCES
+        third_party/implot/implot.cpp
+        third_party/implot/implot_items.cpp
+    )
+    add_library(implot STATIC ${IMPLOT_SOURCES})
+    target_include_directories(implot PUBLIC
+        ${CMAKE_SOURCE_DIR}/third_party/implot
+        ${CMAKE_SOURCE_DIR}/third_party/imgui
+    )
+    target_link_libraries(implot PUBLIC imgui)
+else()
+    message(FATAL_ERROR "ImPlot submodule not found. Run: git submodule update --init")
+endif()
+
 # ===== Shared sources =====
 set(CPP_SHARED_SOURCES
     src/glad.c
@@ -94,6 +110,7 @@ function(diffsplat_target_setup TARGET)
         glm::glm
         CUDA::cuda_driver
         imgui
+        implot
     )
     set_target_properties(${TARGET} PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON

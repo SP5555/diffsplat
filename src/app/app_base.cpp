@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "implot.h"
 #include "app_base.h"
 #include "../utils/logs.h"
 #include "../utils/cuda_utils.h"
@@ -101,6 +102,7 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+    ImPlot::CreateContext();
 
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, 0);
@@ -149,6 +151,7 @@ AppBase::~AppBase()
     
     }
 
+    ImPlot::DestroyContext();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

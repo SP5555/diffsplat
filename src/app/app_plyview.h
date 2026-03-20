@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <memory>
+#include <vector>
 #include "app_base.h"
 #include "../pipelines/gauss_plyviewer.h"
 #include "../camera/camera.h"
@@ -30,4 +31,8 @@ private:
     GaussPlyViewer renderer;
 
     std::unique_ptr<Camera> camera;
+
+    // ImGui
+    std::vector<float> fps_history;
+    std::vector<float> x_axis;
 };
