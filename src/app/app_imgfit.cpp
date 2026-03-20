@@ -59,7 +59,7 @@ void AppImgFit::onFrame()
     ImGui::SetNextWindowSize(ImVec2(240, 260), ImGuiCond_Once);
     ImGui::Begin("Image Fitter");
 
-    ImGui::Text("FPS: %.2f", getFPS());
+    ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
     ImGui::Text("Iteration: %d", getIterCount());
     ImGui::Text("Loss: %.8f", current_loss);
 

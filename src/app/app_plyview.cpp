@@ -73,7 +73,7 @@ void AppPlyView::onFrame()
     ImGui::Text("Visible Splats: %d", renderer.getVisibleCount());
     auto pos = camera->getPosition();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
-    ImGui::Text("FPS: %.1f", getFPS());
+    ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
 
     int history_size = static_cast<int>(fps_history.size());
     if (history_size > 0 && ImPlot::BeginPlot("##FPSRolling", ImVec2(-1, ImGui::GetTextLineHeight() * 8))) {

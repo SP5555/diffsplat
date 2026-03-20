@@ -54,6 +54,7 @@ protected:
 
     // expose states for ImGui to display
     float getFPS() const { return avg_FPS; }
+    float getFrametime() const { return 1000.f / avg_FPS; } // in ms
 
     // window / input state
     GLFWwindow *window = nullptr;
