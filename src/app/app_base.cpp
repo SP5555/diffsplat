@@ -117,10 +117,12 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
     initGL();
 
     cuda_GL_interop_supported = checkCudaGLInterop();
-    if (cuda_GL_interop_supported)
+    if (cuda_GL_interop_supported) {
+        log_info("App", "CUDA-OpenGL interop supported, using PBO for display", ANSI_GREEN);
         initPBO();
-    else
+    } else {
         h_pixels.resize(width * height * 3);
+    }
     // something might have set an error here
     // that causes the whole debug build to crash
     // clear it

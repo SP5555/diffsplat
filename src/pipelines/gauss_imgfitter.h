@@ -33,6 +33,8 @@ public:
     float *getOutput();
     int    getIterCount() const { return optimizer.getStepCount(); }
     float  getLoss() const      { return mse_layer.getLoss(); }
+
+    bool is_optimization_running = true;
 private:
     int getMaxPairs() const { return (1 << 20); }
 

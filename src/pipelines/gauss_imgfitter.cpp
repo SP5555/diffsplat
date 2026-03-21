@@ -88,8 +88,9 @@ void GaussImgFitter::step()
 {
     pipeline.zero_grad();
     pipeline.forward();
-    pipeline.backward();
 
-    // optimizer step
+    if (!is_optimization_running) return;
+
+    pipeline.backward();
     optimizer.step(gaussian_params, atv_layer.getGradInput());
 }

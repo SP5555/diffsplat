@@ -45,7 +45,9 @@ void AppImgFit::onFrame()
 
     static int frame_count = 0;
     frame_count++;
-    if (frame_count % UPDATE_FPS_EVERY_N_FRAMES == 0) {
+    if (frame_count % UPDATE_FPS_EVERY_N_FRAMES == 0
+        && fitter.is_optimization_running)
+    {
         loss_history.push_back(current_loss);
         iter_history.push_back(static_cast<float>(getIterCount()));
         if (loss_history.size() > GRAPH_HISTORY_SIZE) {
@@ -56,12 +58,33 @@ void AppImgFit::onFrame()
 
     // ImGui
     ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
-    ImGui::SetNextWindowSize(ImVec2(240, 260), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(240, 280), ImGuiCond_Once);
     ImGui::Begin("Image Fitter");
 
     ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
     ImGui::Text("Iteration: %d", getIterCount());
     ImGui::Text("Loss: %.8f", current_loss);
+
+    ImGui::Separator();
+
+    // Pause / Continue toggle
+    {
+        // Determine color based on state
+        ImVec4 running_color = fitter.is_optimization_running ? ImVec4(0.2f, 0.2f, 0.2f, 1.0f)
+                                                            : ImVec4(0.4f, 0.4f, 0.4f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, running_color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(running_color.x+0.1f, running_color.y+0.1f, running_color.z+0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(running_color.x-0.1f, running_color.y-0.1f, running_color.z-0.1f, 1.0f));
+
+        // Make the button a fixed width so label changes don’t resize it
+        float button_width = 60.0f;
+        if (ImGui::Button("Run", ImVec2(button_width, 0))) {
+            fitter.is_optimization_running = !fitter.is_optimization_running;
+        }
+        ImGui::PopStyleColor(3);
+        ImGui::SameLine();
+        ImGui::TextUnformatted(fitter.is_optimization_running ? "Running" : "Paused");
+    }
 
     int history_size = static_cast<int>(loss_history.size());
     if (history_size > 0 && ImPlot::BeginPlot("##LossRolling", ImVec2(-1, ImGui::GetTextLineHeight() * 12))) {

@@ -32,7 +32,7 @@ __global__ void mseLossKernel(
 
     // each thread accumulates its own partial sum
     float sum = 0.f;
-    float scale = 2.f / (float)num_pixels;
+    float scale = 1.f / (float)num_pixels;
     if (i < num_pixels) {
         float dR = pixels[i * 3 + 0] - target[i * 3 + 0];
         float dG = pixels[i * 3 + 1] - target[i * 3 + 1];
