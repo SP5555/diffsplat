@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <optional>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
@@ -68,8 +67,11 @@ protected:
 
 private:
     void initGL();
-    void initPBO();
     bool checkCudaGLInterop();
+    void resizePBO(int width, int height);
+    void linkShaderProgram(GLShaderProgram &program, const char *vs_src, const char *fs_src);
+    void setupFullscreenQuad(GLVertexArray &vao, GLBuffer &vbo);
+    void createTextureAndPBO(int width, int height);
 
     // used to update PBO/texture on window resize
     void onResize(int newWidth, int newHeight);
@@ -77,11 +79,11 @@ private:
     static void glfwErrorCallback(int error, const char *description);
 
     /* ---- GL objects ---- */
-    std::optional<GLShaderProgram> shader_program;
-    std::optional<GLTexture>       texture;
-    std::optional<GLVertexArray>   vao;
-    std::optional<GLBuffer>        vbo;
-    std::optional<GLBuffer>        pbo;
+    GLShaderProgram shader_program;
+    GLTexture       texture;
+    GLVertexArray   vao;
+    GLBuffer        vbo;
+    GLBuffer        pbo;
 
     /* ---- CUDA/GL interop ---- */
     cudaGraphicsResource *d_pbo_resource            = nullptr;

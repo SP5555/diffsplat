@@ -116,13 +116,6 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
 
     initGL();
 
-    cuda_GL_interop_supported = checkCudaGLInterop();
-    if (cuda_GL_interop_supported) {
-        log_info("App", "CUDA-OpenGL interop supported, using PBO for display", ANSI_GREEN);
-        initPBO();
-    } else {
-        h_pixels.resize(width * height * 3);
-    }
     // something might have set an error here
     // that causes the whole debug build to crash
     // clear it
@@ -218,50 +211,29 @@ void AppBase::start()
 
 void AppBase::initGL()
 {
-    shader_program  = GLShaderProgram{};
-    texture         = GLTexture{};
-    vao             = GLVertexArray{};
-    vbo             = GLBuffer{};
+    vao.allocate();
+    vbo.allocate();
+    texture.allocate();
 
-    glBindVertexArray(*vao);
-    glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(QUAD), QUAD, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glBindVertexArray(0);
-
-    // build shader program
-    GLuint vs = compileShader(GL_VERTEX_SHADER,   VS_SRC);
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER, FS_SRC);
-    glAttachShader(*shader_program, vs);
-    glAttachShader(*shader_program, fs);
-    glLinkProgram(*shader_program);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
-    glBindTexture(GL_TEXTURE_2D, *texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    setupFullscreenQuad(vao, vbo);
+    linkShaderProgram(shader_program, VS_SRC, FS_SRC);
+    createTextureAndPBO(width, height);
 }
 
-void AppBase::initPBO()
+void AppBase::resizePBO(int width, int height)
 {
-    pbo = GLBuffer{};
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, *pbo);
+    pbo.allocate();
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
     glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * 3 * sizeof(float), nullptr, GL_STREAM_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, *pbo,
+    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, pbo,
                                                     cudaGraphicsMapFlagsWriteDiscard);
     if (err != cudaSuccess)
     {
         std::cerr << "[AppBase] PBO registration failed, falling back to host copy: "
                   << cudaGetErrorString(err) << "\n";
-        pbo.reset();
+        pbo.release();
         cuda_GL_interop_supported = false;
         h_pixels.resize(width * height * 3);
     }
@@ -283,6 +255,57 @@ bool AppBase::checkCudaGLInterop()
     return false;
 }
 
+void AppBase::linkShaderProgram(GLShaderProgram &program, const char *vs_src, const char *fs_src)
+{
+    assert(!program.isValid() && "Shader program already allocated");
+    program.allocate();
+    GLuint vs = compileShader(GL_VERTEX_SHADER,   vs_src);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER, fs_src);
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    GLint ok;
+    glGetProgramiv(program, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        char log[512];
+        glGetProgramInfoLog(program, 512, nullptr, log);
+        log_error("AppBase", std::string("Shader link error: ") + log);
+    }
+}
+
+void AppBase::setupFullscreenQuad(GLVertexArray &vao, GLBuffer &vbo)
+{
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(QUAD), QUAD, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+}
+
+void AppBase::createTextureAndPBO(int width, int height)
+{
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    cuda_GL_interop_supported = checkCudaGLInterop();
+    if (!cuda_GL_interop_supported)
+    {
+        h_pixels.resize(width * height * 3);
+        return;
+    }
+
+    resizePBO(width, height);
+}
+
 /* ===== ===== Resize ===== ===== */
 
 void AppBase::onResize(int newWidth, int newHeight)
@@ -297,23 +320,23 @@ void AppBase::onResize(int newWidth, int newHeight)
     height = newHeight;
 
     // recreate PBO for new size
-    if (pbo.has_value())
+    if (pbo.isValid())
     {
         if (d_pbo_resource)
         {
             cudaGraphicsUnregisterResource(d_pbo_resource);
             d_pbo_resource = nullptr;
         }
-        pbo.reset();
+        pbo.release();
     }
 
     if (cuda_GL_interop_supported)
-        initPBO();
+        resizePBO(width, height);
     else
         h_pixels.resize(newWidth * newHeight * 3);
 
     // resize texture
-    glBindTexture(GL_TEXTURE_2D, *texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, newWidth, newHeight, 0, GL_RGB, GL_FLOAT, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -335,8 +358,8 @@ void AppBase::displayFrame(const float *d_pixels)
         cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
         cudaGraphicsUnmapResources(1, &d_pbo_resource);
 
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, *pbo);
-        glBindTexture(GL_TEXTURE_2D, *texture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+        glBindTexture(GL_TEXTURE_2D, texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -345,15 +368,15 @@ void AppBase::displayFrame(const float *d_pixels)
     {
         cudaMemcpy(h_pixels.data(), d_pixels,
                    width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        glBindTexture(GL_TEXTURE_2D, *texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, h_pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(*shader_program);
-    glBindTexture(GL_TEXTURE_2D, *texture);
-    glBindVertexArray(*vao);
+    glUseProgram(shader_program);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }

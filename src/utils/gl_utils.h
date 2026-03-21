@@ -29,28 +29,39 @@ struct GLObject
     }
 
     operator GLuint() const { return id; }
+
+    // to extract raw handle for GL calls
+    // if prefered over the implicit conversion
+    GLuint& operator*() { return id; }
+    const GLuint& operator*() const { return id; }
+
+    bool isValid() const { return id != 0; }
 };
 
 struct GLBuffer : GLObject<GLBuffer>
 {
-    GLBuffer()  { glGenBuffers(1, &id); }
-    void release() { glDeleteBuffers(1, &id); }
+    GLBuffer() = default;
+    void allocate() { glGenBuffers(1, &id); }
+    void release() { glDeleteBuffers(1, &id); id = 0; }
 };
 
 struct GLTexture : GLObject<GLTexture>
 {
-    GLTexture()  { glGenTextures(1, &id); }
-    void release() { glDeleteTextures(1, &id); }
+    GLTexture() = default;
+    void allocate() { glGenTextures(1, &id); }
+    void release() { glDeleteTextures(1, &id); id = 0; }
 };
 
 struct GLVertexArray : GLObject<GLVertexArray>
 {
-    GLVertexArray()  { glGenVertexArrays(1, &id); }
-    void release() { glDeleteVertexArrays(1, &id); }
+    GLVertexArray() = default;
+    void allocate() { glGenVertexArrays(1, &id); }
+    void release() { glDeleteVertexArrays(1, &id); id = 0; }
 };
 
 struct GLShaderProgram : GLObject<GLShaderProgram>
 {
-    GLShaderProgram()  { id = glCreateProgram(); }
-    void release() { glDeleteProgram(id); }
+    GLShaderProgram() = default;
+    void allocate() { id = glCreateProgram(); }
+    void release() { glDeleteProgram(id); id = 0; }
 };
