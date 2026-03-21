@@ -14,7 +14,7 @@ namespace SplatUtils
 
         float half_w    = (float)width  * 0.5f;
         float half_h    = (float)height * 0.5f;
-        float log_sigma = logf(3.f);
+        float log_sigma = logf(2.f);
 
         std::vector<Gaussian3D> splats(count);
         for (auto &g : splats)

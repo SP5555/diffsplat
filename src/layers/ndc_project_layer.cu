@@ -6,7 +6,7 @@
 #define BLOCK_SIZE 256
 
 // regularization for covariance gradients 
-#define COV_L2_REG      1e-9f // so small? don't ask. fine-hand-tuned
+#define COV_L2_REG      1e-8f // so small? don't ask. fine-hand-tuned
 
 /* ===== ===== Kernels ===== ===== */
 
