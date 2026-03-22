@@ -41,16 +41,6 @@ void AppImgFit::onFrame()
     fitter.step();
     displayFrame(fitter.getOutput());
 
-    int save_img_at[4] = {1, 100, 500, 8000};
-    if (getIterCount() == save_img_at[0]
-        || getIterCount() == save_img_at[1]
-        || getIterCount() == save_img_at[2]
-        || getIterCount() == save_img_at[3])
-    {
-        std::string path = "assets/fit_" + std::to_string(getIterCount()) + ".png";
-        saveScreenshot(path);
-    }
-
     float current_loss = getLoss();
 
     static int frame_count = 0;
