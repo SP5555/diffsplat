@@ -3,7 +3,7 @@
 #include <float.h>
 
 #include "adam.cuh"
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 
 #define BLOCK_SIZE 256
 

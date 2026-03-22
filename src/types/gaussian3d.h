@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cmath>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_buffer.h"
 
 /* ===== ===== Gaussian3D (CPU) ===== ===== */
 

@@ -1,7 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_buffer.h"
 
 /**
  * @brief GPU-side SoA storage for 2D Gaussian splats in NDC space.

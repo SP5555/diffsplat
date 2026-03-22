@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "layer.h"
+#include "../cuda/cuda_buffer.h"
 #include "../types/splat2d.h"
 
 /**

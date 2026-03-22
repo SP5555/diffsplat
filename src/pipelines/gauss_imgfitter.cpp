@@ -4,7 +4,7 @@
 
 #include "gauss_imgfitter.h"
 #include "../loaders/image_loader.h"
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 #include "../optimizers/adam.cuh"

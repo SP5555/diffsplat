@@ -1,7 +1,7 @@
 #include "ndc_project_layer.h"
 #include <cuda_runtime.h>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 
 #define BLOCK_SIZE 256
 

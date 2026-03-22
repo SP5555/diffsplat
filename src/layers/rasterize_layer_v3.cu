@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 
 // One block per tile, 256 threads per block.
 // Threads iterate over pixels within their tile in a loop.

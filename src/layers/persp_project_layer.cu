@@ -2,7 +2,7 @@
 #include <cuda_runtime.h>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 
 #define BLOCK_SIZE 256
 

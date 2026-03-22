@@ -5,8 +5,8 @@
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
 #include "app_base.h"
+#include "../cuda/cuda_check.h"
 #include "../utils/logs.h"
-#include "../utils/cuda_utils.h"
 #include "../utils/ansi_colors.h"
 #include "../loaders/image_saver.h"
 
@@ -223,11 +223,11 @@ void AppBase::initGL()
 void AppBase::resizePBO(int width, int height)
 {
     pbo.allocate();
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(pbo));
     glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * 3 * sizeof(float), nullptr, GL_STREAM_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, pbo,
+    cudaError_t err = cudaGraphicsGLRegisterBuffer(&d_pbo_resource, static_cast<GLuint>(pbo),
                                                     cudaGraphicsMapFlagsWriteDiscard);
     if (err != cudaSuccess)
     {
@@ -261,25 +261,25 @@ void AppBase::linkShaderProgram(GLShaderProgram &program, const char *vs_src, co
     program.allocate();
     GLuint vs = compileShader(GL_VERTEX_SHADER,   vs_src);
     GLuint fs = compileShader(GL_FRAGMENT_SHADER, fs_src);
-    glAttachShader(program, vs);
-    glAttachShader(program, fs);
-    glLinkProgram(program);
+    glAttachShader(static_cast<GLuint>(program), vs);
+    glAttachShader(static_cast<GLuint>(program), fs);
+    glLinkProgram(static_cast<GLuint>(program));
     glDeleteShader(vs);
     glDeleteShader(fs);
 
     GLint ok;
-    glGetProgramiv(program, GL_LINK_STATUS, &ok);
+    glGetProgramiv(static_cast<GLuint>(program), GL_LINK_STATUS, &ok);
     if (!ok) {
         char log[512];
-        glGetProgramInfoLog(program, 512, nullptr, log);
+        glGetProgramInfoLog(static_cast<GLuint>(program), 512, nullptr, log);
         log_error("AppBase", std::string("Shader link error: ") + log);
     }
 }
 
 void AppBase::setupFullscreenQuad(GLVertexArray &vao, GLBuffer &vbo)
 {
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindVertexArray(static_cast<GLuint>(vao));
+    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(vbo));
     glBufferData(GL_ARRAY_BUFFER, sizeof(QUAD), QUAD, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
@@ -290,7 +290,7 @@ void AppBase::setupFullscreenQuad(GLVertexArray &vao, GLBuffer &vbo)
 
 void AppBase::createTextureAndPBO(int width, int height)
 {
-    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
@@ -336,7 +336,7 @@ void AppBase::onResize(int newWidth, int newHeight)
         h_pixels.resize(newWidth * newHeight * 3);
 
     // resize texture
-    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, newWidth, newHeight, 0, GL_RGB, GL_FLOAT, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -358,8 +358,8 @@ void AppBase::displayFrame(const float *d_pixels)
         cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
         cudaGraphicsUnmapResources(1, &d_pbo_resource);
 
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(pbo));
+        glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -368,15 +368,15 @@ void AppBase::displayFrame(const float *d_pixels)
     {
         cudaMemcpy(h_pixels.data(), d_pixels,
                    width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, h_pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(shader_program);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glBindVertexArray(vao);
+    glUseProgram(static_cast<GLuint>(shader_program));
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    glBindVertexArray(static_cast<GLuint>(vao));
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }

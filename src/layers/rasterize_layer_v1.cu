@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 
 #define BLOCK_SIZE      256
 #define T_THRESHOLD     0.0001f

@@ -7,7 +7,7 @@
 #include <cuda_gl_interop.h>
 
 #include "../input/input.h"
-#include "../utils/gl_utils.h"
+#include "../graphics/gl_object.h"
 
 /**
  * @brief Base class for all apps.

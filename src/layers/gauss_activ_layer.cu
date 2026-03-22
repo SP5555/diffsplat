@@ -2,10 +2,10 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 
 #define BLOCK_SIZE 256
-static constexpr float C0 = 0.28209f;  // DC SH coefficient
+static constexpr float C0 = 0.282095f;  // DC SH coefficient
 
 /* ===== ===== Kernels ===== ===== */
 

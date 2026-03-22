@@ -5,7 +5,7 @@
 
 #include "gauss_plyviewer.h"
 #include "../loaders/ply_loader.h"
-#include "../utils/cuda_utils.h"
+#include "../cuda/cuda_check.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 

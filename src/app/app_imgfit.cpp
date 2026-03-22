@@ -29,7 +29,7 @@ AppImgFit::AppImgFit(int width, int height, const std::string &image_path, int s
 void AppImgFit::onStart()
 {
     fitter.init(width, height);
-    fitter.loadTargetImage(image_path, width, height, 10);
+    fitter.loadTargetImage(image_path, width, height, 5);
     fitter.randomInitGaussians(splat_count);
     // layers can only be wired after gaussians are initialized
     // as it needs to know the gaussian count for allocation

@@ -28,10 +28,11 @@ struct GLObject
         return *this;
     }
 
-    operator GLuint() const { return id; }
-
-    // to extract raw handle for GL calls
-    // if prefered over the implicit conversion
+    // true explicit conversion
+    explicit operator GLuint() const { return id; }
+    // explicit-ish getter
+    GLuint get() const { return id; }
+    // another explicit-ish if * syntax is prefered
     GLuint& operator*() { return id; }
     const GLuint& operator*() const { return id; }
 
