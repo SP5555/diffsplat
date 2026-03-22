@@ -8,6 +8,7 @@ Implements the full pipeline (forward rasterization, analytic backward pass, and
 ## TODO
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
+- [ ] Hate command line args; integrate proper file open buttons in the ImGui window
 - [X] `getopt.h` doesn't exist on Windows, FIX IT
 - [X] Build this on Windows
 - [X] Fly Camera
@@ -108,10 +109,20 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 .\build\Release\imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 ```
 
-<p align="center">
-  <img src="assets/fit_progress.png" width="800">
-  <br><em>Training Example</em>
-</p>
+<table width="100%">
+  <tr>
+    <th width="25%">Initialization</th>
+    <th width="25%">100 steps</th>
+    <th width="25%">500 steps</th>
+    <th width="25%">8000 steps</th>
+  </tr>
+  <tr>
+    <td><img src="assets/fit_1.png" width="100%"></td>
+    <td><img src="assets/fit_100.png" width="100%"></td>
+    <td><img src="assets/fit_500.png" width="100%"></td>
+    <td><img src="assets/fit_8000.png" width="100%"></td>
+  </tr>
+</table>
 
 ### plyviewapp (PLY Scene Viewer)
 
