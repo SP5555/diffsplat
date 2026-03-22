@@ -109,20 +109,37 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 .\build\Release\imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 ```
 
-<table width="100%">
-  <tr>
-    <th width="25%">Initialization</th>
-    <th width="25%">100 steps</th>
-    <th width="25%">500 steps</th>
-    <th width="25%">8000 steps</th>
-  </tr>
-  <tr>
-    <td><img src="assets/fit_1.png" width="100%"></td>
-    <td><img src="assets/fit_100.png" width="100%"></td>
-    <td><img src="assets/fit_500.png" width="100%"></td>
-    <td><img src="assets/fit_8000.png" width="100%"></td>
-  </tr>
-</table>
+<p align="center">
+  <table width="100%">
+    <tr>
+      <th width="25%">Initialization</th>
+      <th width="25%">100 steps</th>
+      <th width="25%">500 steps</th>
+      <th width="25%">8000 steps</th>
+    </tr>
+    <tr>
+      <td><img src="assets/fit_1.png" width="100%"></td>
+      <td><img src="assets/fit_100.png" width="100%"></td>
+      <td><img src="assets/fit_500.png" width="100%"></td>
+      <td><img src="assets/fit_8000.png" width="100%"></td>
+    </tr>
+  </table>
+</p>
+
+<p align="center">
+  <table width="30%">
+    <tr>
+      <th width="100%">Progress over 4000 iterations (frames every 100)</th>
+    </tr>
+    <tr>
+      <td>
+        <p align="center">
+          <img src="assets/fit_progress.gif" width="50%">
+        </p>
+      </td>
+    </tr>
+  </table>
+</p>
 
 ### plyviewapp (PLY Scene Viewer)
 
