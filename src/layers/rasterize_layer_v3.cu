@@ -335,7 +335,7 @@ __global__ void backwardKernel(
     __shared__ float    sh_A  [CHUNK_SIZE];
     __shared__ uint32_t sh_sid[CHUNK_SIZE];
 
-    // per-chunk gradient accumulatorsm, shared mem atomics,
+    // per-chunk gradient accumulators, shared mem atomics,
     // flushed to global after each chunk
     __shared__ float sh_grad_x  [CHUNK_SIZE];
     __shared__ float sh_grad_y  [CHUNK_SIZE];

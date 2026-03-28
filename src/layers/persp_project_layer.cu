@@ -236,9 +236,9 @@ __global__ void perspProjectBackwardKernel(
     float sxy_2D = grad_o_ndc_cxy[i];
     float syy_2D = grad_o_ndc_cyy[i];
 
-    // dL/dCov_3D = 2*d_cxx*(JR0 outer s_jr0)
-    //            + d_cxy*(JR0 outer s_jr1 + JR1 outer s_jr0)
-    //            + 2*d_cyy*(JR1 outer s_jr1)
+    // dL/dCov_3D = J^T * dL/dCov_2D_sym * J
+    // entry (p,q): 2*sxx_2D*(J[0,p]*js[0,q]) + sxy_2D*(J[0,p]*js[1,q] + J[1,p]*js[0,q]) + 2*syy_2D*(J[1,p]*js[1,q])
+    // where js = J * Cov_3D (rows js0x and js1x precomputed above)
     grad_i_w_cxx[i] = 2.f*sxx_2D*j00*js00 + sxy_2D*(j00*js10 + j10*js00) + 2.f*syy_2D*j10*js10;
     grad_i_w_cxy[i] = 2.f*sxx_2D*j00*js01 + sxy_2D*(j00*js11 + j10*js01) + 2.f*syy_2D*j10*js11;
     grad_i_w_cxz[i] = 2.f*sxx_2D*j00*js02 + sxy_2D*(j00*js12 + j10*js02) + 2.f*syy_2D*j10*js12;
