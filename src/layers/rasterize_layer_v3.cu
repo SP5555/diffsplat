@@ -637,10 +637,10 @@ void RasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
-    cudaMemset(d_out_pixels,    0, num_pixels * 3 * sizeof(float));
-    cudaMemset(d_pair_count,    0, sizeof(uint32_t));
-    cudaMemset(d_visible_count, 0, sizeof(uint32_t));
-    cudaMemset(d_tile_ranges,   0, numTiles * sizeof(int2));
+    CUDA_CHECK(cudaMemset(d_out_pixels,    0, num_pixels * 3 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_pair_count,    0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(d_tile_ranges,   0, numTiles * sizeof(int2)));
 
     // tile assign
     {

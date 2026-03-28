@@ -98,7 +98,7 @@ void MSELossLayer::forward()
 {
     int blocks  = (num_pixels + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    cudaMemset(d_loss, 0, sizeof(float));
+    CUDA_CHECK(cudaMemset(d_loss, 0, sizeof(float)));
     mseLossKernel<<<blocks, BLOCK_SIZE>>>(d_in_pixels, d_target_pixels, d_loss, num_pixels);
     CUDA_SYNC_CHECK();
 }

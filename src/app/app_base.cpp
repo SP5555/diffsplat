@@ -108,7 +108,7 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
     ImPlot::CreateContext();
 
     cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties(&deviceProp, 0);
+    CUDA_CHECK(cudaGetDeviceProperties(&deviceProp, 0));
 
     log_info("App", std::string("OpenGL ")
         + (const char*)glGetString(GL_VERSION), ANSI_MAGENTA);
@@ -139,9 +139,8 @@ AppBase::~AppBase()
 {
     if (d_pbo_resource)
     {
-        cudaGraphicsUnregisterResource(d_pbo_resource);
+        CUDA_WARN(cudaGraphicsUnregisterResource(d_pbo_resource));
         d_pbo_resource = nullptr;
-    
     }
 
     ImPlot::DestroyContext();
@@ -251,7 +250,7 @@ bool AppBase::checkCudaGLInterop()
     }
 
     int cudaDevice;
-    cudaGetDevice(&cudaDevice);
+    CUDA_CHECK(cudaGetDevice(&cudaDevice));
 
     for (unsigned int i = 0; i < deviceCount; ++i)
         if (glDevices[i] == cudaDevice)
@@ -329,7 +328,7 @@ void AppBase::onResize(int newWidth, int newHeight)
     {
         if (d_pbo_resource)
         {
-            cudaGraphicsUnregisterResource(d_pbo_resource);
+            CUDA_CHECK(cudaGraphicsUnregisterResource(d_pbo_resource));
             d_pbo_resource = nullptr;
         }
         pbo.release();
@@ -356,12 +355,12 @@ void AppBase::displayFrame(const float *d_pixels)
 
     if (cuda_GL_interop_supported)
     {
-        cudaGraphicsMapResources(1, &d_pbo_resource);
+        CUDA_CHECK(cudaGraphicsMapResources(1, &d_pbo_resource));
         float  *d_pbo    = nullptr;
         size_t  pbo_size = 0;
-        cudaGraphicsResourceGetMappedPointer((void **)&d_pbo, &pbo_size, d_pbo_resource);
+        CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void **)&d_pbo, &pbo_size, d_pbo_resource));
         CUDA_CHECK(cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice));
-        cudaGraphicsUnmapResources(1, &d_pbo_resource);
+        CUDA_CHECK(cudaGraphicsUnmapResources(1, &d_pbo_resource));
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(pbo));
         glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));

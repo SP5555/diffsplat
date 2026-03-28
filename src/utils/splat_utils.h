@@ -1,4 +1,5 @@
 #pragma once
+#include <random>
 #include <vector>
 #include "../types/gaussian3d.h"
 
@@ -8,9 +9,11 @@ namespace SplatUtils
 {
     std::vector<Gaussian3D> randomInit(int count, int width, int height, int seed)
     {
-        srand(seed);
-        auto rnd  = []() { return ((float)rand() / RAND_MAX) * 2.f - 1.f; };
-        auto rndu = []() { return  (float)rand() / RAND_MAX; };
+        std::mt19937 rng(seed);
+        std::uniform_real_distribution<float> dist(-1.f, 1.f);
+        std::uniform_real_distribution<float> distu(0.f, 1.f);
+        auto rnd  = [&]() { return dist(rng); };
+        auto rndu = [&]() { return distu(rng); };
 
         float half_w    = (float)width  * 0.5f;
         float half_h    = (float)height * 0.5f;
@@ -67,13 +70,6 @@ namespace SplatUtils
         for (auto &g : splats)
         {
             g.x -= cx; g.y -= cy; g.z -= cz;
-
-            // OpenCV -> OpenGL convention
-            // flip along any one axis to fix left-handedness
-            // here we flip Z. Flipping Y would make the world upside down.
-            g.z      = -g.z;
-            g.rot_w  = -g.rot_w;
-            g.rot_z  = -g.rot_z;
 
             max_ext = std::max(max_ext, std::abs(g.x));
             max_ext = std::max(max_ext, std::abs(g.y));
