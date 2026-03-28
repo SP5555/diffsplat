@@ -1,11 +1,14 @@
-#include <iostream>
 #include "fly_camera.h"
+
+#include <iostream>
+
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
-#include "../utils/logs.h"
+
 #include "../utils/ansi_colors.h"
+#include "../utils/logs.h"
 
 FlyCamera::FlyCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)

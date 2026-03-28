@@ -1,8 +1,9 @@
 #pragma once
 #include <cuda_runtime.h>
-#include <vector>
-#include <cstdlib>
+
 #include <cmath>
+#include <cstdlib>
+#include <vector>
 
 #include "../cuda/cuda_buffer.h"
 

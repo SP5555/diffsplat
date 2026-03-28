@@ -1,14 +1,17 @@
+#include "app_base.h"
+
 #include <iostream>
 #include <stdexcept>
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
-#include "app_base.h"
+
 #include "../cuda/cuda_check.h"
-#include "../utils/logs.h"
-#include "../utils/ansi_colors.h"
 #include "../loaders/image_saver.h"
+#include "../utils/ansi_colors.h"
+#include "../utils/logs.h"
 
 /* ===== ===== GL Boilerplate ===== ===== */
 

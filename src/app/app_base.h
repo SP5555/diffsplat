@@ -1,13 +1,15 @@
 #pragma once
+
 #include <string>
 #include <vector>
-#include <glad/glad.h>
+
+#include <glad/glad.h>       // must precede any GL headers
 #include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
-#include <cuda_gl_interop.h>
+#include <cuda_gl_interop.h> // must follow glad (pulls in GL/gl.h)
 
-#include "../input/input.h"
 #include "../graphics/gl_object.h"
+#include "../input/input.h"
 
 /**
  * @brief Base class for all apps.

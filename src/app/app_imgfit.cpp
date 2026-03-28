@@ -1,10 +1,13 @@
+#include "app_imgfit.h"
+
 #include <algorithm>
 #include <iostream>
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
-#include "app_imgfit.h"
+
 #include "../utils/logs.h"
 
 // ImPlot

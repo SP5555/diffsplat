@@ -1,10 +1,10 @@
 #include "persp_project_layer.h"
 #include <cuda_runtime.h>
+#include <float.h>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "../cuda/cuda_check.h"
-
-#define BLOCK_SIZE 256
+#include "../cuda/cuda_defs.h"
 
 __constant__ float d_pv[16]; // device copy of PV matrix (column-major, GLM layout)
 
@@ -79,7 +79,7 @@ __global__ void perspProjectForwardKernel(
     // cull splats behind camera
     if (c_w <= 0.f)
     {
-        o_ndc_z[i] = 3.402823466e+38f; // rasterizer will skip this
+        o_ndc_z[i] = FLT_MAX; // rasterizer will skip this
         return;
     }
     float inv_w  = 1.f / c_w;

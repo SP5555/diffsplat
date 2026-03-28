@@ -2,8 +2,7 @@
 #include <cuda_runtime.h>
 
 #include "../cuda/cuda_check.h"
-
-#define BLOCK_SIZE 256
+#include "../cuda/cuda_defs.h"
 
 // regularization for covariance gradients 
 #define COV_L2_REG      1e-8f // so small? don't ask. fine-hand-tuned

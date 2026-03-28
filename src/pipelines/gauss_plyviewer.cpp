@@ -1,11 +1,13 @@
+#include "gauss_plyviewer.h"
+
 #include <cuda_runtime.h>
-#include <iostream>
+
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
-#include "gauss_plyviewer.h"
-#include "../loaders/ply_loader.h"
 #include "../cuda/cuda_check.h"
+#include "../loaders/ply_loader.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 

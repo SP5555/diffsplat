@@ -1,3 +1,5 @@
+#include "ply_loader.h"
+
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -6,7 +8,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-#include "ply_loader.h"
 #include "../utils/logs.h"
 
 /* ===== ===== PLY Parser ===== ===== */

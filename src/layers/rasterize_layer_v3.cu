@@ -1,18 +1,12 @@
 #include "rasterize_layer.h"
-#include <cuda_runtime.h>
+
 #include <cub/cub.cuh>
+#include <cuda_runtime.h>
 #include <math.h>
 #include <stdio.h>
 
 #include "../cuda/cuda_check.h"
-
-// One block per tile, 256 threads per block.
-// Threads iterate over pixels within their tile in a loop.
-#define BLOCK_THREADS   256
-
-// Splats are streamed through shared memory in chunks of this size.
-// Must equal BLOCK_THREADS so one thread loads one splat per chunk.
-#define CHUNK_SIZE      256
+#include "../cuda/cuda_defs.h"
 
 #define T_THRESHOLD     0.0001f
 #define ALPHA_THRESHOLD (1.0f / 255.0f)
@@ -622,7 +616,7 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
 
 void RasterizeLayer::zero_grad()
 {
-    grad_in.zero();
+    grad_in.zero_grad();
 }
 
 void RasterizeLayer::resize(int new_width, int new_height)

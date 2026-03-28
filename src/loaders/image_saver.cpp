@@ -1,10 +1,12 @@
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
-
 #include "image_saver.h"
-#include <vector>
+
 #include <cuda_runtime.h>
 #include <stdint.h>
+
+#include <vector>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
 void ImageSaver::saveAsPNG(const float *d_pixels, int width, int height, const std::string &path)
 {

@@ -1,14 +1,16 @@
 #pragma once
-#include <string>
+
 #include <cuda_runtime.h>
 
+#include <string>
+
 #include "pipeline.h"
-#include "../types/gaussian3d.h"
 #include "../layers/gauss_activ_layer.h"
+#include "../layers/mse_loss_layer.h"
 #include "../layers/ndc_project_layer.h"
 #include "../layers/rasterize_layer.h"
-#include "../layers/mse_loss_layer.h"
 #include "../optimizers/adam.cuh"
+#include "../types/gaussian3d.h"
 
 /**
  * @brief Differentiable Gaussian image fitter.

@@ -3,8 +3,7 @@
 #include <stdexcept>
 
 #include "../cuda/cuda_check.h"
-
-#define BLOCK_SIZE 256
+#include "../cuda/cuda_defs.h"
 
 /* ===== ===== Kernels ===== ===== */
 
