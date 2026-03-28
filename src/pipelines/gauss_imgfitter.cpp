@@ -32,8 +32,8 @@ void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h,
         log_fatal("GaussImgFitter", "Failed to load target image: " + imagePath);
 
     d_target_pixels.allocate(w * h * 3);
-    cudaMemcpy(d_target_pixels, image.pixels.data(),
-               w * h * 3 * sizeof(float), cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMemcpy(d_target_pixels, image.pixels.data(),
+                          w * h * 3 * sizeof(float), cudaMemcpyHostToDevice));
 }
 
 void GaussImgFitter::randomInitGaussians(int count, int seed)

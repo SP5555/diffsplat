@@ -119,11 +119,6 @@ AppBase::AppBase(int width, int height, const std::string &title, bool resizable
 
     initGL();
 
-    // something might have set an error here
-    // that causes the whole debug build to crash
-    // clear it
-    CUDA_WARN(cudaGetLastError());
-
     glfwSetWindowUserPointer(window, this);
     if (resizable) {
         glfwSetFramebufferSizeCallback(window, [](GLFWwindow *win, int w, int h) {
@@ -246,7 +241,14 @@ bool AppBase::checkCudaGLInterop()
 {
     unsigned int deviceCount = 0;
     int glDevices[4];
-    cudaGLGetDevices(&deviceCount, glDevices, 4, cudaGLDeviceListAll);
+    // cudaGLGetDevices sets a sticky error when interop is unavailable;
+    // check the return value and clear the error so it doesn't poison later CUDA_SYNC_CHECKs.
+    cudaError_t err = cudaGLGetDevices(&deviceCount, glDevices, 4, cudaGLDeviceListAll);
+    if (err != cudaSuccess)
+    {
+        cudaGetLastError(); // consume the sticky error
+        return false;
+    }
 
     int cudaDevice;
     cudaGetDevice(&cudaDevice);
@@ -358,7 +360,7 @@ void AppBase::displayFrame(const float *d_pixels)
         float  *d_pbo    = nullptr;
         size_t  pbo_size = 0;
         cudaGraphicsResourceGetMappedPointer((void **)&d_pbo, &pbo_size, d_pbo_resource);
-        cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
+        CUDA_CHECK(cudaMemcpy(d_pbo, d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToDevice));
         cudaGraphicsUnmapResources(1, &d_pbo_resource);
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(pbo));
@@ -369,8 +371,8 @@ void AppBase::displayFrame(const float *d_pixels)
     }
     else
     {
-        cudaMemcpy(h_pixels.data(), d_pixels,
-                   width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        CUDA_CHECK(cudaMemcpy(h_pixels.data(), d_pixels,
+                              width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost));
         glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, h_pixels.data());
         glBindTexture(GL_TEXTURE_2D, 0);

@@ -281,7 +281,7 @@ void PerspProjectLayer::setCamera(const glm::mat4 &view, const glm::mat4 &proj)
 {
     glm::mat4 pv = proj * view;
     memcpy(h_pv, glm::value_ptr(pv), 16 * sizeof(float));
-    cudaMemcpyToSymbol(d_pv, h_pv, 16 * sizeof(float));
+    CUDA_CHECK(cudaMemcpyToSymbol(d_pv, h_pv, 16 * sizeof(float)));
 }
 
 /* ===== ===== Forward / Backward ===== ===== */

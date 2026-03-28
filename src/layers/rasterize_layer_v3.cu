@@ -582,7 +582,7 @@ __global__ void backwardKernel(
 uint32_t RasterizeLayer::getVisibleCount()
 {
     uint32_t c = 0;
-    cudaMemcpy(&c, d_visible_count, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(&c, d_visible_count, sizeof(uint32_t), cudaMemcpyDeviceToHost));
     return c;
 }
 
@@ -658,7 +658,7 @@ void RasterizeLayer::forward()
     }
 
     uint32_t pair_count = 0;
-    cudaMemcpy(&pair_count, d_pair_count, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(&pair_count, d_pair_count, sizeof(uint32_t), cudaMemcpyDeviceToHost));
     if (pair_count == 0) return;
 
     // sort

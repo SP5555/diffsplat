@@ -3,6 +3,8 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
+#include "../cuda/cuda_check.h"
+
 #include <vector>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -11,7 +13,7 @@
 void ImageSaver::saveAsPNG(const float *d_pixels, int width, int height, const std::string &path)
 {
     std::vector<float> h_pixels(width * height * 3);
-    cudaMemcpy(h_pixels.data(), d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(h_pixels.data(), d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost));
 
     // convert float [0.0, 1.0] to uint8 [0, 255]
     std::vector<uint8_t> img_data(width * height * 3);

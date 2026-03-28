@@ -113,6 +113,6 @@ void MSELossLayer::backward()
 float MSELossLayer::getLoss() const
 {
     float h_loss;
-    cudaMemcpy(&h_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(&h_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost));
     return h_loss;
 }
