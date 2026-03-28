@@ -21,6 +21,8 @@ namespace SplatUtils
         std::vector<Gaussian3D> splats(count);
         for (auto &g : splats)
         {
+            memset(g.sh_rest, 0, sizeof(g.sh_rest));  // higher-order SH starts at zero
+
             g.x = rnd() * half_w;
             g.y = rnd() * half_h;
             g.z = rnd();

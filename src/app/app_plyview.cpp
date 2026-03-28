@@ -57,7 +57,7 @@ void AppPlyView::onFrame()
     if (!io.WantCaptureMouse && !io.WantCaptureKeyboard)
         camera->update(input, dt);
 
-    renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix());
+    renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix(), camera->getPosition());
     displayFrame(renderer.getOutput());
 
     static int frame_count = 0;

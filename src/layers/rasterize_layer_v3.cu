@@ -378,7 +378,7 @@ __global__ void backwardKernel(
         int n_contr   = valid_pixel ? n_contrib[pixel_idx] : 0;
 
         // --- forward sweep: collect contributing splats in forward order ---
-        // Worst-case bound: log(T_THRESHOLD) / log(1 - ALPHA_THRESHOLD) ≈ 2300.
+        // Worst-case bound: log(T_THRESHOLD) / log(1 - ALPHA_THRESHOLD) ~ 2300.
         // 512 covers scenes where mean alpha >= ~0.015; deeper contributors have
         // very low T_before and contribute negligible gradient anyway.
         const int MAX_CONTRIB = 512;
