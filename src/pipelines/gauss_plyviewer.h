@@ -22,7 +22,7 @@ public:
     void loadPLY(const std::string &path, const float sceneScale = 1.f);
     void initLayers();
 
-    void render(const glm::mat4 &view, const glm::mat4 &proj);
+    void render(const glm::mat4 &view, const glm::mat4 &proj, const glm::vec3 &cam_pos);
     void resize(int newWidth, int newHeight);
 
     float *getOutput();
@@ -36,8 +36,9 @@ private:
     static constexpr int NUM_TILES_Y = 64;
 
     /* ---- state ---- */
-    int width  = 0;
-    int height = 0;
+    int width     = 0;
+    int height    = 0;
+    int sh_degree = 0;
 
     /* ---- data ---- */
     Gaussian3DParams gaussian_params;

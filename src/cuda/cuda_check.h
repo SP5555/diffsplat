@@ -54,7 +54,7 @@
                     __FILE__, __LINE__, cudaGetErrorString(e));                \
     } while (0)
 
-// No cudaDeviceSynchronize() in release — check the async error flag only.
+// No cudaDeviceSynchronize() in release -- check the async error flag only.
 #define CUDA_SYNC_CHECK() CUDA_CHECK(cudaGetLastError())
 
 #endif // DEBUG

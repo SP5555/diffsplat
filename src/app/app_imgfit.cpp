@@ -79,7 +79,7 @@ void AppImgFit::onFrame()
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(running_color.x+0.1f, running_color.y+0.1f, running_color.z+0.1f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(running_color.x-0.1f, running_color.y-0.1f, running_color.z-0.1f, 1.0f));
 
-        // Make the button a fixed width so label changes don’t resize it
+        // Make the button a fixed width so label changes don't resize it
         float button_width = 60.0f;
         if (ImGui::Button("Run", ImVec2(button_width, 0))) {
             fitter.is_optimization_running = !fitter.is_optimization_running;

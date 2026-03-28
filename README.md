@@ -7,6 +7,7 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 
 ## TODO
 - [ ] SH colors for imgfitapp so splats can finally have opinions about the lighting
+- [X] View-dependent SH colors (degrees 0–3) for plyviewapp — splats now have opinions about the lighting
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
 - [ ] Hate command line args; integrate proper file open buttons in the ImGui window
@@ -130,7 +131,7 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 
 ### plyviewapp (PLY Scene Viewer)
 
-Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines.
+Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines. Automatically detects and evaluates spherical harmonic degrees 0–3 for view-dependent color — orbit the camera and watch the colors change.
 
 | Flag | Default | Description |
 |------|---------|-------------|

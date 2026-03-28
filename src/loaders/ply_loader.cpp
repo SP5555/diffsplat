@@ -12,7 +12,7 @@
 
 /* ===== ===== PLY Parser ===== ===== */
 
-std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
+PLYLoadResult PLYLoader::load(const std::string &path)
 {
     std::string ext = path.substr(path.find_last_of(".") + 1);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -86,6 +86,29 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
     const int i_dc2     = require("f_dc_2");
     const int i_opacity = require("opacity");
 
+    // ===== detect SH degree from f_rest_* count =====
+    int f_rest_count = 0;
+    for (const auto &name : property_order)
+        if (name.rfind("f_rest_", 0) == 0) f_rest_count++;
+
+    // channel-first layout: 3 channels per band set
+    int sh_num_bands = f_rest_count / 3;
+    int sh_degree    = 0;
+    if      (sh_num_bands >= 15) { sh_degree = 3; sh_num_bands = 15; }
+    else if (sh_num_bands >= 8 ) { sh_degree = 2; sh_num_bands = 8;  }
+    else if (sh_num_bands >= 3 ) { sh_degree = 1; sh_num_bands = 3;  }
+
+    log_info("PLYLoader", "Detected SH degree: " + std::to_string(sh_degree) +
+             " (" + std::to_string(sh_num_bands * 3) + " f_rest properties used)");
+
+    // map f_rest_* indices (only up to what we'll use)
+    std::vector<int> i_rest(sh_num_bands * 3, -1);
+    for (int b = 0; b < sh_num_bands * 3; b++)
+    {
+        std::string key = "f_rest_" + std::to_string(b);
+        if (idx.count(key)) i_rest[b] = idx[key];
+    }
+
     // ===== read binary data =====
     const int stride = (int)property_order.size() * sizeof(float);
     std::vector<float> row(property_order.size());
@@ -127,6 +150,12 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
         g.g = row[i_dc1];
         g.b = row[i_dc2];
 
+        // higher-order SH: sh_rest layout is channel-first
+        // [0..K-1] = R bands, [K..2K-1] = G bands, [2K..3K-1] = B bands
+        memset(g.sh_rest, 0, sizeof(g.sh_rest));
+        for (int b = 0; b < sh_num_bands * 3; b++)
+            if (i_rest[b] >= 0) g.sh_rest[b] = row[i_rest[b]];
+
         // logit-opacity stored as-is, sigmoid applied in GaussActivLayer
         g.opacity = row[i_opacity];
 
@@ -134,5 +163,5 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
     }
 
     log_info("PLYLoader", "Loaded " + std::to_string(vertex_count) + " splats from " + path);
-    return splats;
+    return { std::move(splats), sh_degree };
 }

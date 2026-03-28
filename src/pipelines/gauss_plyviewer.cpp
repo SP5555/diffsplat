@@ -27,12 +27,13 @@ void GaussPlyViewer::init(int w, int h)
 
 void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)
 {
-    auto splats = PLYLoader::load(path);
-    if (splats.empty())
+    auto result = PLYLoader::load(path);
+    if (result.splats.empty())
         throw std::runtime_error("[GaussPlyViewer] PLY loaded 0 splats: " + path);
 
-    SplatUtils::normalizeScene(splats, sceneScale);
-    gaussian_params.upload(splats);
+    SplatUtils::normalizeScene(result.splats, sceneScale);
+    sh_degree = result.sh_degree;
+    gaussian_params.upload(result.splats, sh_degree);
 }
 
 float *GaussPlyViewer::getOutput()
@@ -52,6 +53,7 @@ void GaussPlyViewer::initLayers()
     int count = gaussian_params.count;
 
     // allocate
+    atv_layer.setSHDegree(sh_degree);
     atv_layer.allocate(count);
     psp_layer.allocate(count);
     ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, getMaxPairs(), count);
@@ -71,8 +73,9 @@ void GaussPlyViewer::initLayers()
 
 /* ===== ===== Render ===== ===== */
 
-void GaussPlyViewer::render(const glm::mat4 &view, const glm::mat4 &proj)
+void GaussPlyViewer::render(const glm::mat4 &view, const glm::mat4 &proj, const glm::vec3 &cam_pos)
 {
+    atv_layer.setCameraPosition(cam_pos);
     psp_layer.setCamera(view, proj);
 
     pipeline.forward();

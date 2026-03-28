@@ -137,12 +137,10 @@ __global__ void ndcBackwardKernel(
 
 // ===== ===== Covariance Regularization Kernel ===== =====
 /**
- * Applies L2 regularization to the covariance gradients to discourage
- * large covariances especially for non-diagonal entries which can
- * result in the splat stretched in one direction and thin in the other
- * 
- * now, it only regularizes off-diagonal entries since
- * they can cause more extreme stretching
+ * Applies L2 regularization to the covariance gradients.
+ * Only off-diagonal entries are regularized -- they drive the most extreme
+ * stretching (splat thin in one axis, elongated in the other) and benefit
+ * most from a small penalty. Diagonal entries are left unpenalized.
  */
 __global__ void covRegKernel(
     const float *__restrict__ cxx,

@@ -335,7 +335,7 @@ __global__ void backwardKernel(
     __shared__ float    sh_A  [CHUNK_SIZE];
     __shared__ uint32_t sh_sid[CHUNK_SIZE];
 
-    // per-chunk gradient accumulatorsm, shared mem atomics,
+    // per-chunk gradient accumulators, shared mem atomics,
     // flushed to global after each chunk
     __shared__ float sh_grad_x  [CHUNK_SIZE];
     __shared__ float sh_grad_y  [CHUNK_SIZE];
@@ -378,7 +378,7 @@ __global__ void backwardKernel(
         int n_contr   = valid_pixel ? n_contrib[pixel_idx] : 0;
 
         // --- forward sweep: collect contributing splats in forward order ---
-        // Worst-case bound: log(T_THRESHOLD) / log(1 - ALPHA_THRESHOLD) ≈ 2300.
+        // Worst-case bound: log(T_THRESHOLD) / log(1 - ALPHA_THRESHOLD) ~ 2300.
         // 512 covers scenes where mean alpha >= ~0.015; deeper contributors have
         // very low T_before and contribute negligible gradient anyway.
         const int MAX_CONTRIB = 512;

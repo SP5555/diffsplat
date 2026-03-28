@@ -9,7 +9,8 @@
 /* ===== ===== Kernels ===== ===== */
 
 /**
- * Forward kernel: computes 3D covariance Cov = M*M^T where M = R*S.
+ * Forward kernel: computes 3D covariance Cov = M*M^T where M = R*S,
+ * and evaluates spherical harmonic color for the given view direction.
  *
  * Quaternion is normalized in-kernel for robustness.
  * Scale is exponentiated: s_actual = exp(s_log).
@@ -21,6 +22,10 @@
  *       |   2(xz-wy)   2(yz+wx) 1-2(xx+yy) |
  *
  * Cov = R * S * S^T * R^T  (symmetric, stored as upper triangle)
+ *
+ * SH color evaluation (degrees 0-3, Condon-Shortley convention):
+ *   view dir = normalize(cam_pos - splat_pos)
+ *   color = sum_over_bands(SH_coeff * Y(dir)) + 0.5, clamped to [0,1]
  *
  * One thread is launched per splat.
  */
@@ -41,6 +46,14 @@ __global__ void covForwardKernel(
     const float *__restrict__ i_DC_SH_G,
     const float *__restrict__ i_DC_SH_B,
     const float *__restrict__ i_logit_A,
+    // higher-order SH (may be nullptr if sh_degree == 0)
+    // layout: sh_rest_r[band * count + i]
+    const float *__restrict__ sh_rest_r,
+    const float *__restrict__ sh_rest_g,
+    const float *__restrict__ sh_rest_b,
+    int sh_degree,
+    // camera position for view direction
+    float cam_x, float cam_y, float cam_z,
     // outputs: 3D covariance + RGBA
     float *o_x,   float *o_y,   float *o_z,
     float *o_cxx, float *o_cxy, float *o_cxz,
@@ -94,18 +107,78 @@ __global__ void covForwardKernel(
     o_cyy[i] = m10*m10 + m11*m11 + m12*m12;
     o_cyz[i] = m10*m20 + m11*m21 + m12*m22;
     o_czz[i] = m20*m20 + m21*m21 + m22*m22;
-    // for fun!
-    // o_cxx[i] = 1.f;
-    // o_cxy[i] = 0.f;
-    // o_cxz[i] = 0.f;
-    // o_cyy[i] = 1.f;
-    // o_cyz[i] = 0.f;
-    // o_czz[i] = 1.f;
 
-    // DC SH coefficient -> linear RGB
-    o_lin_R[i] = fminf(fmaxf(i_DC_SH_R[i] * SH_C0 + 0.5f, 0.f), 1.f);
-    o_lin_G[i] = fminf(fmaxf(i_DC_SH_G[i] * SH_C0 + 0.5f, 0.f), 1.f);
-    o_lin_B[i] = fminf(fmaxf(i_DC_SH_B[i] * SH_C0 + 0.5f, 0.f), 1.f);
+    // ===== SH color evaluation =====
+    // view direction: camera -> splat center, normalized
+    float dx = cam_x - i_x[i];
+    float dy = cam_y - i_y[i];
+    float dz = cam_z - i_z[i];
+    float inv_len = rsqrtf(fmaxf(dx*dx + dy*dy + dz*dz, 1e-12f));
+    float nx = dx * inv_len;
+    float ny = dy * inv_len;
+    float nz = dz * inv_len;
+
+    float cr = i_DC_SH_R[i] * SH_C0;
+    float cg = i_DC_SH_G[i] * SH_C0;
+    float cb = i_DC_SH_B[i] * SH_C0;
+
+    // branches are uniform across the warp (same sh_degree for all threads)
+    if (sh_degree >= 1)
+    {
+        cr += SH_C1 * (-ny * sh_rest_r[0*count+i] + nz * sh_rest_r[1*count+i] - nx * sh_rest_r[2*count+i]);
+        cg += SH_C1 * (-ny * sh_rest_g[0*count+i] + nz * sh_rest_g[1*count+i] - nx * sh_rest_g[2*count+i]);
+        cb += SH_C1 * (-ny * sh_rest_b[0*count+i] + nz * sh_rest_b[1*count+i] - nx * sh_rest_b[2*count+i]);
+    }
+    if (sh_degree >= 2)
+    {
+        float xx = nx*nx, yy = ny*ny, zz = nz*nz;
+        float xy = nx*ny, yz = ny*nz, xz = nx*nz;
+        cr += SH_C2_0 * xy            * sh_rest_r[3*count+i]
+            + SH_C2_1 * yz            * sh_rest_r[4*count+i]
+            + SH_C2_2 * (2*zz-xx-yy) * sh_rest_r[5*count+i]
+            + SH_C2_3 * xz            * sh_rest_r[6*count+i]
+            + SH_C2_4 * (xx-yy)       * sh_rest_r[7*count+i];
+        cg += SH_C2_0 * xy            * sh_rest_g[3*count+i]
+            + SH_C2_1 * yz            * sh_rest_g[4*count+i]
+            + SH_C2_2 * (2*zz-xx-yy) * sh_rest_g[5*count+i]
+            + SH_C2_3 * xz            * sh_rest_g[6*count+i]
+            + SH_C2_4 * (xx-yy)       * sh_rest_g[7*count+i];
+        cb += SH_C2_0 * xy            * sh_rest_b[3*count+i]
+            + SH_C2_1 * yz            * sh_rest_b[4*count+i]
+            + SH_C2_2 * (2*zz-xx-yy) * sh_rest_b[5*count+i]
+            + SH_C2_3 * xz            * sh_rest_b[6*count+i]
+            + SH_C2_4 * (xx-yy)       * sh_rest_b[7*count+i];
+    }
+    if (sh_degree >= 3)
+    {
+        float xx = nx*nx, yy = ny*ny, zz = nz*nz;
+        float xy = nx*ny;
+        cr += SH_C3_0 * ny*(3*xx-yy)       * sh_rest_r[ 8*count+i]
+            + SH_C3_1 * xy*nz               * sh_rest_r[ 9*count+i]
+            + SH_C3_2 * ny*(4*zz-xx-yy)     * sh_rest_r[10*count+i]
+            + SH_C3_3 * nz*(2*zz-3*xx-3*yy) * sh_rest_r[11*count+i]
+            + SH_C3_4 * nx*(4*zz-xx-yy)     * sh_rest_r[12*count+i]
+            + SH_C3_5 * nz*(xx-yy)           * sh_rest_r[13*count+i]
+            + SH_C3_6 * nx*(xx-3*yy)         * sh_rest_r[14*count+i];
+        cg += SH_C3_0 * ny*(3*xx-yy)       * sh_rest_g[ 8*count+i]
+            + SH_C3_1 * xy*nz               * sh_rest_g[ 9*count+i]
+            + SH_C3_2 * ny*(4*zz-xx-yy)     * sh_rest_g[10*count+i]
+            + SH_C3_3 * nz*(2*zz-3*xx-3*yy) * sh_rest_g[11*count+i]
+            + SH_C3_4 * nx*(4*zz-xx-yy)     * sh_rest_g[12*count+i]
+            + SH_C3_5 * nz*(xx-yy)           * sh_rest_g[13*count+i]
+            + SH_C3_6 * nx*(xx-3*yy)         * sh_rest_g[14*count+i];
+        cb += SH_C3_0 * ny*(3*xx-yy)       * sh_rest_b[ 8*count+i]
+            + SH_C3_1 * xy*nz               * sh_rest_b[ 9*count+i]
+            + SH_C3_2 * ny*(4*zz-xx-yy)     * sh_rest_b[10*count+i]
+            + SH_C3_3 * nz*(2*zz-3*xx-3*yy) * sh_rest_b[11*count+i]
+            + SH_C3_4 * nx*(4*zz-xx-yy)     * sh_rest_b[12*count+i]
+            + SH_C3_5 * nz*(xx-yy)           * sh_rest_b[13*count+i]
+            + SH_C3_6 * nx*(xx-3*yy)         * sh_rest_b[14*count+i];
+    }
+
+    o_lin_R[i] = fminf(fmaxf(cr + 0.5f, 0.f), 1.f);
+    o_lin_G[i] = fminf(fmaxf(cg + 0.5f, 0.f), 1.f);
+    o_lin_B[i] = fminf(fmaxf(cb + 0.5f, 0.f), 1.f);
 
     // sigmoid activation on opacity
     o_A[i] = 1.f / (1.f + expf(-i_logit_A[i]));
@@ -113,18 +186,13 @@ __global__ void covForwardKernel(
 
 /**
  * Backward kernel: chains dL/dCov back to log-scale and quaternion gradients,
+ * dL/dcolor back through SH to SH coefficients,
  * and dL/dopacity back through sigmoid to logit-opacity.
  *
- * Given dL/dCov (upper triangle), chain rule through Cov = R*S*S^T*R^T.
+ * View direction is treated as constant (not differentiated w.r.t. splat position).
+ * This is the standard 3DGS approximation.
  *
- *   dL/dM = 2 * dL/dCov_sym * M      (where dL/dCov_sym symmetrizes the grad)
- *   dL/dS = diag(R^T * dL/dM)        (gradient w.r.t. scale)
- *   dL/ds_log_i = dL/dS_i * exp(s_i) (chain through exp)
- *   dL/dR = dL/dM * S
- *   dL/dq = chain through R(q), then project through normalization Jacobian
- *
- * Sigmoid backward:
- *   s = sigmoid(logit),  dL/dlogit = dL/ds * s * (1 - s)
+ * Gradient through clamp [0,1]: zero when output is at boundary (read from out.color).
  *
  * One thread is launched per splat.
  */
@@ -137,8 +205,21 @@ __global__ void covBackwardKernel(
     const float *__restrict__ rot_x,
     const float *__restrict__ rot_y,
     const float *__restrict__ rot_z,
+    const float *__restrict__ pos_x,
+    const float *__restrict__ pos_y,
+    const float *__restrict__ pos_z,
     const float *__restrict__ opacity,
-    // gradient output
+    // forward outputs (for clamp check)
+    const float *__restrict__ fwd_lin_R,
+    const float *__restrict__ fwd_lin_G,
+    const float *__restrict__ fwd_lin_B,
+    // higher-order SH (may be nullptr if sh_degree == 0)
+    const float *__restrict__ sh_rest_r,
+    const float *__restrict__ sh_rest_g,
+    const float *__restrict__ sh_rest_b,
+    int sh_degree,
+    float cam_x, float cam_y, float cam_z,
+    // gradient output (from next layer)
     const float *__restrict__ grad_o_x,
     const float *__restrict__ grad_o_y,
     const float *__restrict__ grad_o_z,
@@ -152,7 +233,7 @@ __global__ void covBackwardKernel(
     const float *__restrict__ grad_o_lin_g,
     const float *__restrict__ grad_o_lin_b,
     const float *__restrict__ grad_o_A,
-    // gradient input
+    // gradient input (to this layer's parameters)
     float *grad_i_x,
     float *grad_i_y,
     float *grad_i_z,
@@ -167,6 +248,9 @@ __global__ void covBackwardKernel(
     float *grad_i_DC_SH_g,
     float *grad_i_DC_SH_b,
     float *grad_i_logit_A,
+    float *grad_i_sh_rest_r,
+    float *grad_i_sh_rest_g,
+    float *grad_i_sh_rest_b,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -264,10 +348,80 @@ __global__ void covBackwardKernel(
     grad_i_ry[i] = norm_inv * (dqy - dot*qy);
     grad_i_rz[i] = norm_inv * (dqz - dot*qz);
 
-    // --- color gradients: chain through linear SH ---
-    grad_i_DC_SH_r[i] = grad_o_lin_r[i] * SH_C0;
-    grad_i_DC_SH_g[i] = grad_o_lin_g[i] * SH_C0;
-    grad_i_DC_SH_b[i] = grad_o_lin_b[i] * SH_C0;
+    // --- SH color gradients ---
+    // Gradient through clamp: zero if output was clamped (at 0 or 1 boundary)
+    float dR = (fwd_lin_R[i] > 0.f && fwd_lin_R[i] < 1.f) ? grad_o_lin_r[i] : 0.f;
+    float dG = (fwd_lin_G[i] > 0.f && fwd_lin_G[i] < 1.f) ? grad_o_lin_g[i] : 0.f;
+    float dB = (fwd_lin_B[i] > 0.f && fwd_lin_B[i] < 1.f) ? grad_o_lin_b[i] : 0.f;
+
+    // DC
+    grad_i_DC_SH_r[i] = dR * SH_C0;
+    grad_i_DC_SH_g[i] = dG * SH_C0;
+    grad_i_DC_SH_b[i] = dB * SH_C0;
+
+    if (sh_degree >= 1)
+    {
+        // recompute view direction
+        float ddx = cam_x - pos_x[i], ddy = cam_y - pos_y[i], ddz = cam_z - pos_z[i];
+        float il = rsqrtf(fmaxf(ddx*ddx + ddy*ddy + ddz*ddz, 1e-12f));
+        float nx = ddx*il, ny = ddy*il, nz = ddz*il;
+
+        // dL/dSH_lm = dL/dcolor * Y_lm(dir)
+        // degree 1
+        float y0 = SH_C1 * (-ny);
+        float y1 = SH_C1 * ( nz);
+        float y2 = SH_C1 * (-nx);
+        grad_i_sh_rest_r[0*count+i] = dR * y0;
+        grad_i_sh_rest_r[1*count+i] = dR * y1;
+        grad_i_sh_rest_r[2*count+i] = dR * y2;
+        grad_i_sh_rest_g[0*count+i] = dG * y0;
+        grad_i_sh_rest_g[1*count+i] = dG * y1;
+        grad_i_sh_rest_g[2*count+i] = dG * y2;
+        grad_i_sh_rest_b[0*count+i] = dB * y0;
+        grad_i_sh_rest_b[1*count+i] = dB * y1;
+        grad_i_sh_rest_b[2*count+i] = dB * y2;
+
+        if (sh_degree >= 2)
+        {
+            float xx = nx*nx, yy = ny*ny, zz = nz*nz;
+            float xy = nx*ny, yz = ny*nz, xz = nx*nz;
+            float b3 = SH_C2_0*xy,       b4 = SH_C2_1*yz;
+            float b5 = SH_C2_2*(2*zz-xx-yy);
+            float b6 = SH_C2_3*xz,       b7 = SH_C2_4*(xx-yy);
+            grad_i_sh_rest_r[3*count+i] = dR*b3; grad_i_sh_rest_r[4*count+i] = dR*b4;
+            grad_i_sh_rest_r[5*count+i] = dR*b5; grad_i_sh_rest_r[6*count+i] = dR*b6;
+            grad_i_sh_rest_r[7*count+i] = dR*b7;
+            grad_i_sh_rest_g[3*count+i] = dG*b3; grad_i_sh_rest_g[4*count+i] = dG*b4;
+            grad_i_sh_rest_g[5*count+i] = dG*b5; grad_i_sh_rest_g[6*count+i] = dG*b6;
+            grad_i_sh_rest_g[7*count+i] = dG*b7;
+            grad_i_sh_rest_b[3*count+i] = dB*b3; grad_i_sh_rest_b[4*count+i] = dB*b4;
+            grad_i_sh_rest_b[5*count+i] = dB*b5; grad_i_sh_rest_b[6*count+i] = dB*b6;
+            grad_i_sh_rest_b[7*count+i] = dB*b7;
+
+            if (sh_degree >= 3)
+            {
+                float c8  = SH_C3_0*ny*(3*xx-yy);
+                float c9  = SH_C3_1*xy*nz;
+                float c10 = SH_C3_2*ny*(4*zz-xx-yy);
+                float c11 = SH_C3_3*nz*(2*zz-3*xx-3*yy);
+                float c12 = SH_C3_4*nx*(4*zz-xx-yy);
+                float c13 = SH_C3_5*nz*(xx-yy);
+                float c14 = SH_C3_6*nx*(xx-3*yy);
+                grad_i_sh_rest_r[ 8*count+i] = dR*c8;  grad_i_sh_rest_r[ 9*count+i] = dR*c9;
+                grad_i_sh_rest_r[10*count+i] = dR*c10; grad_i_sh_rest_r[11*count+i] = dR*c11;
+                grad_i_sh_rest_r[12*count+i] = dR*c12; grad_i_sh_rest_r[13*count+i] = dR*c13;
+                grad_i_sh_rest_r[14*count+i] = dR*c14;
+                grad_i_sh_rest_g[ 8*count+i] = dG*c8;  grad_i_sh_rest_g[ 9*count+i] = dG*c9;
+                grad_i_sh_rest_g[10*count+i] = dG*c10; grad_i_sh_rest_g[11*count+i] = dG*c11;
+                grad_i_sh_rest_g[12*count+i] = dG*c12; grad_i_sh_rest_g[13*count+i] = dG*c13;
+                grad_i_sh_rest_g[14*count+i] = dG*c14;
+                grad_i_sh_rest_b[ 8*count+i] = dB*c8;  grad_i_sh_rest_b[ 9*count+i] = dB*c9;
+                grad_i_sh_rest_b[10*count+i] = dB*c10; grad_i_sh_rest_b[11*count+i] = dB*c11;
+                grad_i_sh_rest_b[12*count+i] = dB*c12; grad_i_sh_rest_b[13*count+i] = dB*c13;
+                grad_i_sh_rest_b[14*count+i] = dB*c14;
+            }
+        }
+    }
 
     // --- sigmoid backward: dL/dlogit = dL/dopacity * s * (1 - s) ---
     float s = opacity[i];
@@ -280,7 +434,7 @@ void GaussActivLayer::allocate(int count)
 {
     allocated_count = count;
     out.allocate(count);
-    grad_in.allocate(count);
+    grad_in.allocate(count, sh_degree);
 }
 
 void GaussActivLayer::zero_grad()
@@ -295,7 +449,7 @@ void GaussActivLayer::forward()
     int count = in->count;
     out.count = count;
 
-    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
     covForwardKernel<<<blocks, BLOCK_SIZE>>>(
         in->pos_x,   in->pos_y,   in->pos_z,
         in->scale_x, in->scale_y, in->scale_z,
@@ -303,14 +457,19 @@ void GaussActivLayer::forward()
         in->color_sh_r,
         in->color_sh_g,
         in->color_sh_b,
-        in->logit_opacity,   // logit-opacity in
+        in->logit_opacity,
+        in->sh_num_bands > 0 ? (const float *)in->sh_rest_r : nullptr,
+        in->sh_num_bands > 0 ? (const float *)in->sh_rest_g : nullptr,
+        in->sh_num_bands > 0 ? (const float *)in->sh_rest_b : nullptr,
+        sh_degree,
+        cam_x, cam_y, cam_z,
         out.pos_x,  out.pos_y,  out.pos_z,
         out.cov_xx, out.cov_xy, out.cov_xz,
         out.cov_yy, out.cov_yz, out.cov_zz,
         out.color_r,
         out.color_g,
         out.color_b,
-        out.opacity,   // activated opacity out
+        out.opacity,
         count
     );
     CUDA_SYNC_CHECK();
@@ -320,18 +479,25 @@ void GaussActivLayer::backward()
 {
     int count = in->count;
 
-    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
     covBackwardKernel<<<blocks, BLOCK_SIZE>>>(
         in->scale_x, in->scale_y, in->scale_z,
         in->rot_w,   in->rot_x,   in->rot_y,   in->rot_z,
-        out.opacity,   // saved activated opacity for sigmoid backward
+        in->pos_x,   in->pos_y,   in->pos_z,
+        out.opacity,
+        out.color_r, out.color_g, out.color_b,   // saved forward outputs for clamp check
+        in->sh_num_bands > 0 ? (const float *)in->sh_rest_r : nullptr,
+        in->sh_num_bands > 0 ? (const float *)in->sh_rest_g : nullptr,
+        in->sh_num_bands > 0 ? (const float *)in->sh_rest_b : nullptr,
+        sh_degree,
+        cam_x, cam_y, cam_z,
         grad_out->grad_pos_x,  grad_out->grad_pos_y,  grad_out->grad_pos_z,
         grad_out->grad_cov_xx, grad_out->grad_cov_xy, grad_out->grad_cov_xz,
         grad_out->grad_cov_yy, grad_out->grad_cov_yz, grad_out->grad_cov_zz,
         grad_out->grad_color_r,
         grad_out->grad_color_g,
         grad_out->grad_color_b,
-        grad_out->grad_opacity, // activated opacity
+        grad_out->grad_opacity,
         grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
         grad_in.grad_scale_x, grad_in.grad_scale_y, grad_in.grad_scale_z,
         grad_in.grad_rot_w,   grad_in.grad_rot_x,
@@ -339,7 +505,10 @@ void GaussActivLayer::backward()
         grad_in.grad_color_sh_r,
         grad_in.grad_color_sh_g,
         grad_in.grad_color_sh_b,
-        grad_in.grad_logit_opacity, // logit-opacity
+        grad_in.grad_logit_opacity,
+        grad_in.sh_num_bands > 0 ? (float *)grad_in.grad_sh_rest_r : nullptr,
+        grad_in.sh_num_bands > 0 ? (float *)grad_in.grad_sh_rest_g : nullptr,
+        grad_in.sh_num_bands > 0 ? (float *)grad_in.grad_sh_rest_b : nullptr,
         count
     );
     CUDA_SYNC_CHECK();
