@@ -1,3 +1,5 @@
+#include "ply_loader.h"
+
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -6,7 +8,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-#include "ply_loader.h"
 #include "../utils/logs.h"
 
 /* ===== ===== PLY Parser ===== ===== */
@@ -113,6 +114,13 @@ std::vector<Gaussian3D> PLYLoader::load(const std::string &path)
         g.rot_x = row[i_rot1];
         g.rot_y = row[i_rot2];
         g.rot_z = row[i_rot3];
+
+        // PLY files from 3DGS training are in OpenCV convention (Z forward, Y down).
+        // Convert to OpenGL convention (Z backward, Y up) by flipping Z.
+        // Quaternion Z-flip: negate w and z components.
+        g.z     = -g.z;
+        g.rot_w = -g.rot_w;
+        g.rot_z = -g.rot_z;
 
         // DC SH coefficients
         g.r = row[i_dc0];

@@ -1,9 +1,12 @@
+#include "arcball_camera.h"
+
 #include <algorithm>
 #include <iostream>
-#include "arcball_camera.h"
+
 #include <glm/gtc/matrix_transform.hpp>
-#include "../utils/logs.h"
+
 #include "../utils/ansi_colors.h"
+#include "../utils/logs.h"
 
 ArcballCamera::ArcballCamera(float aspect, float fovDegrees, float nearPlane, float farPlane)
     : aspect(aspect)

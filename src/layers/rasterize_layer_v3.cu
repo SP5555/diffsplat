@@ -1,18 +1,12 @@
 #include "rasterize_layer.h"
-#include <cuda_runtime.h>
+
 #include <cub/cub.cuh>
+#include <cuda_runtime.h>
 #include <math.h>
 #include <stdio.h>
 
 #include "../cuda/cuda_check.h"
-
-// One block per tile, 256 threads per block.
-// Threads iterate over pixels within their tile in a loop.
-#define BLOCK_THREADS   256
-
-// Splats are streamed through shared memory in chunks of this size.
-// Must equal BLOCK_THREADS so one thread loads one splat per chunk.
-#define CHUNK_SIZE      256
+#include "../cuda/cuda_defs.h"
 
 #define T_THRESHOLD     0.0001f
 #define ALPHA_THRESHOLD (1.0f / 255.0f)
@@ -62,7 +56,7 @@ __global__ void tileAssignKernel(
     float cyy = ndc_cyy[i];
 
     float det = cxx * cyy - cxy * cxy;
-    if (det <= 0.f) return;
+    if (!(det > 0.f)) return;  // !(x > 0) rejects both negative and NaN
 
     float trace   = cxx + cyy;
     float temp    = fmaxf(0.f, trace * trace - 4.f * det);
@@ -227,7 +221,7 @@ __global__ void rasterizeKernel(
                     float cyy = sh_cyy[j];
 
                     float det = cxx * cyy - cxy * cxy;
-                    if (det <= 0.f) continue;
+                    if (!(det > 0.f)) continue;  // !(x > 0) rejects both negative and NaN
 
                     float inv_det = 1.f / det;
                     float inv_cxx =  cyy * inv_det;
@@ -384,7 +378,10 @@ __global__ void backwardKernel(
         int n_contr   = valid_pixel ? n_contrib[pixel_idx] : 0;
 
         // --- forward sweep: collect contributing splats in forward order ---
-        const int MAX_CONTRIB = 256;
+        // Worst-case bound: log(T_THRESHOLD) / log(1 - ALPHA_THRESHOLD) ≈ 2300.
+        // 512 covers scenes where mean alpha >= ~0.015; deeper contributors have
+        // very low T_before and contribute negligible gradient anyway.
+        const int MAX_CONTRIB = 512;
         uint32_t contrib_pos[MAX_CONTRIB];
         int contributed_splats = 0;
         // --- stream splats in chunks, collect contribs ---
@@ -424,7 +421,7 @@ __global__ void backwardKernel(
                     float cxy = sh_cxy[i];
                     float cyy = sh_cyy[i];
                     float det = cxx * cyy - cxy * cxy;
-                    if (det <= 0.f) continue;
+                    if (!(det > 0.f)) continue;  // !(x > 0) rejects both negative and NaN
 
                     float inv_det = 1.f / det;
                     float inv_cxx =  cyy * inv_det;
@@ -588,7 +585,7 @@ __global__ void backwardKernel(
 uint32_t RasterizeLayer::getVisibleCount()
 {
     uint32_t c = 0;
-    cudaMemcpy(&c, d_visible_count, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(&c, d_visible_count, sizeof(uint32_t), cudaMemcpyDeviceToHost));
     return c;
 }
 
@@ -622,7 +619,7 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
 
 void RasterizeLayer::zero_grad()
 {
-    grad_in.zero();
+    grad_in.zero_grad();
 }
 
 void RasterizeLayer::resize(int new_width, int new_height)
@@ -643,10 +640,10 @@ void RasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
-    cudaMemset(d_out_pixels,    0, num_pixels * 3 * sizeof(float));
-    cudaMemset(d_pair_count,    0, sizeof(uint32_t));
-    cudaMemset(d_visible_count, 0, sizeof(uint32_t));
-    cudaMemset(d_tile_ranges,   0, numTiles * sizeof(int2));
+    CUDA_CHECK(cudaMemset(d_out_pixels,    0, num_pixels * 3 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_pair_count,    0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(d_tile_ranges,   0, numTiles * sizeof(int2)));
 
     // tile assign
     {
@@ -664,7 +661,7 @@ void RasterizeLayer::forward()
     }
 
     uint32_t pair_count = 0;
-    cudaMemcpy(&pair_count, d_pair_count, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(&pair_count, d_pair_count, sizeof(uint32_t), cudaMemcpyDeviceToHost));
     if (pair_count == 0) return;
 
     // sort

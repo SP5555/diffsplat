@@ -1,5 +1,6 @@
-#include <unordered_map>
 #include "input.h"
+
+#include <unordered_map>
 
 static std::unordered_map<GLFWwindow*, Input*> s_inputs;
 

@@ -5,8 +5,7 @@
 #include <stdio.h>
 
 #include "../cuda/cuda_check.h"
-
-#define BLOCK_SIZE      256
+#include "../cuda/cuda_defs.h"
 #define T_THRESHOLD     0.0001f
 #define ALPHA_THRESHOLD (1.0f / 255.0f)
 
@@ -545,7 +544,7 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
 
 void RasterizeLayer::zero_grad()
 {
-    grad_in.zero();
+    grad_in.zero_grad();
 }
 
 void RasterizeLayer::resize(int new_width, int new_height)

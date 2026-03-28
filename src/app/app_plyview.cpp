@@ -1,11 +1,14 @@
+#include "app_plyview.h"
+
 #include <algorithm>
 #include <iostream>
 #include <numeric>
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
-#include "app_plyview.h"
+
 #include "../camera/arcball_camera.h"
 #include "../camera/fly_camera.h"
 #include "../utils/logs.h"

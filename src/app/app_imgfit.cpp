@@ -1,14 +1,17 @@
+#include "app_imgfit.h"
+
 #include <algorithm>
 #include <iostream>
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
-#include "app_imgfit.h"
+
 #include "../utils/logs.h"
 
-// ImPlot
-const int GRAPH_HISTORY_SIZE = 100;
+const int IMAGE_PADDING_PX          = 5;  // keeps the target image from touching the window edge
+const int GRAPH_HISTORY_SIZE        = 100;
 const int UPDATE_FPS_EVERY_N_FRAMES = 5;
 
 AppImgFit::AppImgFit(int width, int height, const std::string &image_path, int splat_count)
@@ -29,7 +32,7 @@ AppImgFit::AppImgFit(int width, int height, const std::string &image_path, int s
 void AppImgFit::onStart()
 {
     fitter.init(width, height);
-    fitter.loadTargetImage(image_path, width, height, 5);
+    fitter.loadTargetImage(image_path, width, height, IMAGE_PADDING_PX);
     fitter.randomInitGaussians(splat_count);
     // layers can only be wired after gaussians are initialized
     // as it needs to know the gaussian count for allocation

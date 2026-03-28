@@ -1,8 +1,9 @@
 #pragma once
 #include <cuda_runtime.h>
-#include <vector>
-#include <cstdlib>
+
 #include <cmath>
+#include <cstdlib>
+#include <vector>
 
 #include "../cuda/cuda_buffer.h"
 
@@ -56,7 +57,7 @@ struct Gaussian3DParams
         std::vector<float> tmp(n);
         auto up = [&](float *dst, auto getter) {
             for (int i = 0; i < n; i++) tmp[i] = getter(host[i]);
-            cudaMemcpy(dst, tmp.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+            CUDA_CHECK(cudaMemcpy(dst, tmp.data(), n * sizeof(float), cudaMemcpyHostToDevice));
         };
 
         up(pos_x,         [](const Gaussian3D &g) { return g.x; });

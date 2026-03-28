@@ -1,11 +1,11 @@
-#include <cuda_runtime.h>
-#include <math.h>
-#include <float.h>
-
 #include "adam.cuh"
-#include "../cuda/cuda_check.h"
 
-#define BLOCK_SIZE 256
+#include <cuda_runtime.h>
+#include <float.h>
+#include <math.h>
+
+#include "../cuda/cuda_check.h"
+#include "../cuda/cuda_defs.h"
 
 /**
  * @brief Adam optimizer kernel for updating Gaussian parameters on the GPU.

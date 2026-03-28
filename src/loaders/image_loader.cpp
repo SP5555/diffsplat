@@ -1,12 +1,14 @@
+#include "image_loader.h"
+
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <stb_image_resize2.h>
 
-#include "image_loader.h"
 #include "../utils/logs.h"
 
 LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_h, int padding)

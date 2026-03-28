@@ -3,8 +3,7 @@
 #include <stdexcept>
 
 #include "../cuda/cuda_check.h"
-
-#define BLOCK_SIZE 256
+#include "../cuda/cuda_defs.h"
 
 /* ===== ===== Kernels ===== ===== */
 
@@ -99,7 +98,7 @@ void MSELossLayer::forward()
 {
     int blocks  = (num_pixels + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    cudaMemset(d_loss, 0, sizeof(float));
+    CUDA_CHECK(cudaMemset(d_loss, 0, sizeof(float)));
     mseLossKernel<<<blocks, BLOCK_SIZE>>>(d_in_pixels, d_target_pixels, d_loss, num_pixels);
     CUDA_SYNC_CHECK();
 }
@@ -114,6 +113,6 @@ void MSELossLayer::backward()
 float MSELossLayer::getLoss() const
 {
     float h_loss;
-    cudaMemcpy(&h_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(&h_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost));
     return h_loss;
 }

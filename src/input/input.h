@@ -1,7 +1,9 @@
 #pragma once
+
+#include <unordered_set>
+
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
-#include <unordered_set>
 
 class Input
 {

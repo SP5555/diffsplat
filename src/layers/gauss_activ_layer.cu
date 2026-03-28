@@ -3,9 +3,8 @@
 #include <math.h>
 
 #include "../cuda/cuda_check.h"
-
-#define BLOCK_SIZE 256
-static constexpr float C0 = 0.282095f;  // DC SH coefficient
+#include "../cuda/cuda_defs.h"
+#include "../utils/sh_consts.h"
 
 /* ===== ===== Kernels ===== ===== */
 
@@ -60,9 +59,9 @@ __global__ void covForwardKernel(
     o_y[i] = i_y[i];
     o_z[i] = i_z[i];
 
-    // normalize quaternion
+    // normalize quaternion (fmaxf guards against all-zero input -> rsqrtf(0) = inf)
     float qw = i_rw[i], qx = i_rx[i], qy = i_ry[i], qz = i_rz[i];
-    float norm = rsqrtf(qw*qw + qx*qx + qy*qy + qz*qz);
+    float norm = rsqrtf(fmaxf(qw*qw + qx*qx + qy*qy + qz*qz, 1e-12f));
     qw *= norm; qx *= norm; qy *= norm; qz *= norm;
 
     // actual scale
@@ -104,9 +103,9 @@ __global__ void covForwardKernel(
     // o_czz[i] = 1.f;
 
     // DC SH coefficient -> linear RGB
-    o_lin_R[i] = fminf(fmaxf(i_DC_SH_R[i] * C0 + 0.5f, 0.f), 1.f);
-    o_lin_G[i] = fminf(fmaxf(i_DC_SH_G[i] * C0 + 0.5f, 0.f), 1.f);
-    o_lin_B[i] = fminf(fmaxf(i_DC_SH_B[i] * C0 + 0.5f, 0.f), 1.f);
+    o_lin_R[i] = fminf(fmaxf(i_DC_SH_R[i] * SH_C0 + 0.5f, 0.f), 1.f);
+    o_lin_G[i] = fminf(fmaxf(i_DC_SH_G[i] * SH_C0 + 0.5f, 0.f), 1.f);
+    o_lin_B[i] = fminf(fmaxf(i_DC_SH_B[i] * SH_C0 + 0.5f, 0.f), 1.f);
 
     // sigmoid activation on opacity
     o_A[i] = 1.f / (1.f + expf(-i_logit_A[i]));
@@ -180,7 +179,7 @@ __global__ void covBackwardKernel(
 
     // --- recompute forward values ---
     float qw_raw = rot_w[i], qx_raw = rot_x[i], qy_raw = rot_y[i], qz_raw = rot_z[i];
-    float norm_inv = rsqrtf(qw_raw*qw_raw + qx_raw*qx_raw + qy_raw*qy_raw + qz_raw*qz_raw);
+    float norm_inv = rsqrtf(fmaxf(qw_raw*qw_raw + qx_raw*qx_raw + qy_raw*qy_raw + qz_raw*qz_raw, 1e-12f));
     float qw = qw_raw * norm_inv;
     float qx = qx_raw * norm_inv;
     float qy = qy_raw * norm_inv;
@@ -266,9 +265,9 @@ __global__ void covBackwardKernel(
     grad_i_rz[i] = norm_inv * (dqz - dot*qz);
 
     // --- color gradients: chain through linear SH ---
-    grad_i_DC_SH_r[i] = grad_o_lin_r[i] * C0;
-    grad_i_DC_SH_g[i] = grad_o_lin_g[i] * C0;
-    grad_i_DC_SH_b[i] = grad_o_lin_b[i] * C0;
+    grad_i_DC_SH_r[i] = grad_o_lin_r[i] * SH_C0;
+    grad_i_DC_SH_g[i] = grad_o_lin_g[i] * SH_C0;
+    grad_i_DC_SH_b[i] = grad_o_lin_b[i] * SH_C0;
 
     // --- sigmoid backward: dL/dlogit = dL/dopacity * s * (1 - s) ---
     float s = opacity[i];

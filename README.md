@@ -1,11 +1,12 @@
 # diffsplat
-A differentiable 3D Gaussian Splatting renderer built from scratch in CUDA, inspired by
+A differentiable 3D Gaussian Splatting renderer written from scratch in CUDA, no PyTorch, no libtorch, no deep learning framework of any kind. Just raw GPU code.
+
+Implements the full pipeline end-to-end on the GPU: tile-based forward rasterization, analytic backward pass with alpha-blending gradients, and Adam optimization. Inspired by
 [3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)
 (Kerbl et al., SIGGRAPH 2023).
 
-Implements the full pipeline (forward rasterization, analytic backward pass, and Adam optimization) entirely on the GPU, with no deep learning framework dependencies.
-
 ## TODO
+- [ ] SH colors for imgfitapp so splats can finally have opinions about the lighting
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
 - [ ] Hate command line args; integrate proper file open buttons in the ImGui window
@@ -43,7 +44,6 @@ git submodule update --init
 
 ### Linux
 
-An easy way, using the build script:
 ```sh
 ./build.sh
 ```
@@ -51,19 +51,12 @@ An easy way, using the build script:
 Or manually:
 ```sh
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-```
-
-To target a specific architecture only:
-```sh
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
-make -j$(nproc)
+cmake .. -DCMAKE_BUILD_TYPE=Release [-DCMAKE_CUDA_ARCHITECTURES=89]
+cmake --build . --parallel $(nproc)
 ```
 
 ### Windows
 
-An easy way, using the build script:
 ```bat
 .\build.bat
 ```
@@ -71,13 +64,7 @@ An easy way, using the build script:
 Or manually:
 ```bat
 mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
-cmake --build . --config Release --parallel
-```
-
-To target a specific architecture only:
-```bat
-cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_CUDA_ARCHITECTURES=89
+cmake .. -G "Visual Studio 17 2022" -A x64 [-DCMAKE_CUDA_ARCHITECTURES=89]
 cmake --build . --config Release --parallel
 ```
 

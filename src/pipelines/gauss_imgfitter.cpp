@@ -1,13 +1,15 @@
-#include <cuda_runtime.h>
-#include <iostream>
-#include <chrono>
-
 #include "gauss_imgfitter.h"
-#include "../loaders/image_loader.h"
+
+#include <cuda_runtime.h>
+
+#include <chrono>
+#include <iostream>
+
 #include "../cuda/cuda_check.h"
+#include "../loaders/image_loader.h"
+#include "../optimizers/adam.cuh"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
-#include "../optimizers/adam.cuh"
 
 /* ===== ===== Lifecycle ===== ===== */
 
@@ -30,8 +32,8 @@ void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h,
         log_fatal("GaussImgFitter", "Failed to load target image: " + imagePath);
 
     d_target_pixels.allocate(w * h * 3);
-    cudaMemcpy(d_target_pixels, image.pixels.data(),
-               w * h * 3 * sizeof(float), cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMemcpy(d_target_pixels, image.pixels.data(),
+                          w * h * 3 * sizeof(float), cudaMemcpyHostToDevice));
 }
 
 void GaussImgFitter::randomInitGaussians(int count, int seed)

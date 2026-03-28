@@ -1,16 +1,18 @@
 #pragma once
+#include <random>
 #include <vector>
 #include "../types/gaussian3d.h"
-
-static constexpr float C0 = 0.28209f;  // DC SH coefficient
+#include "sh_consts.h"
 
 namespace SplatUtils
 {
     std::vector<Gaussian3D> randomInit(int count, int width, int height, int seed)
     {
-        srand(seed);
-        auto rnd  = []() { return ((float)rand() / RAND_MAX) * 2.f - 1.f; };
-        auto rndu = []() { return  (float)rand() / RAND_MAX; };
+        std::mt19937 rng(seed);
+        std::uniform_real_distribution<float> dist(-1.f, 1.f);
+        std::uniform_real_distribution<float> distu(0.f, 1.f);
+        auto rnd  = [&]() { return dist(rng); };
+        auto rndu = [&]() { return distu(rng); };
 
         float half_w    = (float)width  * 0.5f;
         float half_h    = (float)height * 0.5f;
@@ -38,9 +40,9 @@ namespace SplatUtils
             g.rot_y /= norm; g.rot_z /= norm;
 
             // initialize DC SH coefficients to random colors in [0, 1]
-            g.r = (rndu() - 0.5f) / C0;
-            g.g = (rndu() - 0.5f) / C0;
-            g.b = (rndu() - 0.5f) / C0;
+            g.r = (rndu() - 0.5f) / SH_C0;
+            g.g = (rndu() - 0.5f) / SH_C0;
+            g.b = (rndu() - 0.5f) / SH_C0;
 
             float o_raw = 0.6f + 0.4f * rndu();
             g.opacity = logf(o_raw / (1.f - o_raw));
@@ -67,13 +69,6 @@ namespace SplatUtils
         for (auto &g : splats)
         {
             g.x -= cx; g.y -= cy; g.z -= cz;
-
-            // OpenCV -> OpenGL convention
-            // flip along any one axis to fix left-handedness
-            // here we flip Z. Flipping Y would make the world upside down.
-            g.z      = -g.z;
-            g.rot_w  = -g.rot_w;
-            g.rot_z  = -g.rot_z;
 
             max_ext = std::max(max_ext, std::abs(g.x));
             max_ext = std::max(max_ext, std::abs(g.y));
