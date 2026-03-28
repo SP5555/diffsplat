@@ -19,4 +19,4 @@ cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=89 \
     -DCMAKE_CUDA_COMPILER=$NVCC_PATH
-make -j$(nproc)
+cmake --build . --parallel $(nproc)
