@@ -2,8 +2,7 @@
 #include <random>
 #include <vector>
 #include "../types/gaussian3d.h"
-
-static constexpr float C0 = 0.28209f;  // DC SH coefficient
+#include "sh_consts.h"
 
 namespace SplatUtils
 {
@@ -41,9 +40,9 @@ namespace SplatUtils
             g.rot_y /= norm; g.rot_z /= norm;
 
             // initialize DC SH coefficients to random colors in [0, 1]
-            g.r = (rndu() - 0.5f) / C0;
-            g.g = (rndu() - 0.5f) / C0;
-            g.b = (rndu() - 0.5f) / C0;
+            g.r = (rndu() - 0.5f) / SH_C0;
+            g.g = (rndu() - 0.5f) / SH_C0;
+            g.b = (rndu() - 0.5f) / SH_C0;
 
             float o_raw = 0.6f + 0.4f * rndu();
             g.opacity = logf(o_raw / (1.f - o_raw));

@@ -56,7 +56,7 @@ __global__ void tileAssignKernel(
     float cyy = ndc_cyy[i];
 
     float det = cxx * cyy - cxy * cxy;
-    if (det <= 0.f) return;
+    if (!(det > 0.f)) return;  // !(x > 0) rejects both negative and NaN
 
     float trace   = cxx + cyy;
     float temp    = fmaxf(0.f, trace * trace - 4.f * det);
@@ -221,7 +221,7 @@ __global__ void rasterizeKernel(
                     float cyy = sh_cyy[j];
 
                     float det = cxx * cyy - cxy * cxy;
-                    if (det <= 0.f) continue;
+                    if (!(det > 0.f)) continue;  // !(x > 0) rejects both negative and NaN
 
                     float inv_det = 1.f / det;
                     float inv_cxx =  cyy * inv_det;
@@ -378,7 +378,10 @@ __global__ void backwardKernel(
         int n_contr   = valid_pixel ? n_contrib[pixel_idx] : 0;
 
         // --- forward sweep: collect contributing splats in forward order ---
-        const int MAX_CONTRIB = 256;
+        // Worst-case bound: log(T_THRESHOLD) / log(1 - ALPHA_THRESHOLD) ≈ 2300.
+        // 512 covers scenes where mean alpha >= ~0.015; deeper contributors have
+        // very low T_before and contribute negligible gradient anyway.
+        const int MAX_CONTRIB = 512;
         uint32_t contrib_pos[MAX_CONTRIB];
         int contributed_splats = 0;
         // --- stream splats in chunks, collect contribs ---
@@ -418,7 +421,7 @@ __global__ void backwardKernel(
                     float cxy = sh_cxy[i];
                     float cyy = sh_cyy[i];
                     float det = cxx * cyy - cxy * cxy;
-                    if (det <= 0.f) continue;
+                    if (!(det > 0.f)) continue;  // !(x > 0) rejects both negative and NaN
 
                     float inv_det = 1.f / det;
                     float inv_cxx =  cyy * inv_det;
