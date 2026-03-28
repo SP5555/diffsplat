@@ -6,6 +6,7 @@ A differentiable 3D Gaussian Splatting renderer built from scratch in CUDA, insp
 Implements the full pipeline (forward rasterization, analytic backward pass, and Adam optimization) entirely on the GPU, with no deep learning framework dependencies.
 
 ## TODO
+- [ ] SH colors for imgfitapp so splats can finally have opinions about the lighting
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
 - [ ] Hate command line args; integrate proper file open buttons in the ImGui window
