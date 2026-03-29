@@ -161,7 +161,7 @@ __global__ void covRegKernel(
     if (i >= count) return;
 
     // Diagonal entries (cxx, cyy, czz / grad_cxx, grad_cyy, grad_czz) are
-    // intentionally not regularized — add here if needed in the future.
+    // intentionally not regularized -- add here if needed in the future.
     grad_cxy[i] += COV_L2_REG * (2.f * cxy[i]);
     grad_cxz[i] += COV_L2_REG * (2.f * cxz[i]);
     grad_cyz[i] += COV_L2_REG * (2.f * cyz[i]);

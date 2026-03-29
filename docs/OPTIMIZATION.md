@@ -56,7 +56,7 @@ if (tid == 0)
     atomicAdd(loss, sdata[0]);
 ```
 
-**Result:** `mseLossKernel` dropped from 17.5% to ~2% of kernel runtime. FPS improvement scaled with resolution (7% at 720p, ~12% at 2000×1200) because the original atomic contention scaled directly with pixel count.
+**Result:** `mseLossKernel` dropped from 17.5% to ~2% of kernel runtime. FPS improvement scaled with resolution (7% at 720p, ~12% at 2000x1200) because the original atomic contention scaled directly with pixel count.
 
 ---
 
