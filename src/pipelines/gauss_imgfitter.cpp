@@ -7,6 +7,7 @@
 
 #include "../cuda/cuda_check.h"
 #include "../io/image_loader.h"
+#include "../io/ply_saver.h"
 #include "../optimizers/adam.cuh"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
@@ -95,4 +96,10 @@ void GaussImgFitter::step()
 
     pipeline.backward();
     optimizer.step(gaussian_params, atv_layer.getGradInput());
+}
+
+void GaussImgFitter::savePLY(const std::string &path)
+{
+    auto splats = gaussian_params.download();
+    PLYSaver::save(path, splats, gaussian_params.sh_num_bands);
 }

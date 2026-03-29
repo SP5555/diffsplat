@@ -70,6 +70,14 @@ void AppImgFit::onFrame()
 
     ImGui::Separator();
 
+    // Save PLY
+    ImGui::InputText("##plypath", save_ply_path, sizeof(save_ply_path));
+    ImGui::SameLine();
+    if (ImGui::Button("Save PLY"))
+        fitter.savePLY(save_ply_path);
+
+    ImGui::Separator();
+
     // Pause / Continue toggle
     {
         // Determine color based on state

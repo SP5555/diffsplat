@@ -29,4 +29,5 @@ private:
     // ImGui
     std::vector<float> loss_history;
     std::vector<float> iter_history;
+    char save_ply_path[256] = "output.ply";
 };

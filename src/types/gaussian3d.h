@@ -108,6 +108,48 @@ struct Gaussian3DParams
             }
         }
     }
+
+    std::vector<Gaussian3D> download() const
+    {
+        int n = count;
+        std::vector<Gaussian3D> host(n);
+        std::vector<float> tmp(n);
+
+        auto dn = [&](const float *src, auto setter) {
+            CUDA_CHECK(cudaMemcpy(tmp.data(), src, n * sizeof(float), cudaMemcpyDeviceToHost));
+            for (int i = 0; i < n; i++) setter(host[i], tmp[i]);
+        };
+
+        dn(pos_x,         [](Gaussian3D &g, float v) { g.x       = v; });
+        dn(pos_y,         [](Gaussian3D &g, float v) { g.y       = v; });
+        dn(pos_z,         [](Gaussian3D &g, float v) { g.z       = v; });
+        dn(scale_x,       [](Gaussian3D &g, float v) { g.scale_x = v; });
+        dn(scale_y,       [](Gaussian3D &g, float v) { g.scale_y = v; });
+        dn(scale_z,       [](Gaussian3D &g, float v) { g.scale_z = v; });
+        dn(rot_w,         [](Gaussian3D &g, float v) { g.rot_w   = v; });
+        dn(rot_x,         [](Gaussian3D &g, float v) { g.rot_x   = v; });
+        dn(rot_y,         [](Gaussian3D &g, float v) { g.rot_y   = v; });
+        dn(rot_z,         [](Gaussian3D &g, float v) { g.rot_z   = v; });
+        dn(color_sh_r,    [](Gaussian3D &g, float v) { g.r       = v; });
+        dn(color_sh_g,    [](Gaussian3D &g, float v) { g.g       = v; });
+        dn(color_sh_b,    [](Gaussian3D &g, float v) { g.b       = v; });
+        dn(logit_opacity, [](Gaussian3D &g, float v) { g.opacity = v; });
+
+        if (sh_num_bands > 0) {
+            for (int b = 0; b < sh_num_bands; b++) {
+                CUDA_CHECK(cudaMemcpy(tmp.data(), sh_rest_r.ptr + b * n, n * sizeof(float), cudaMemcpyDeviceToHost));
+                for (int i = 0; i < n; i++) host[i].sh_rest[b] = tmp[i];
+
+                CUDA_CHECK(cudaMemcpy(tmp.data(), sh_rest_g.ptr + b * n, n * sizeof(float), cudaMemcpyDeviceToHost));
+                for (int i = 0; i < n; i++) host[i].sh_rest[sh_num_bands + b] = tmp[i];
+
+                CUDA_CHECK(cudaMemcpy(tmp.data(), sh_rest_b.ptr + b * n, n * sizeof(float), cudaMemcpyDeviceToHost));
+                for (int i = 0; i < n; i++) host[i].sh_rest[2 * sh_num_bands + b] = tmp[i];
+            }
+        }
+
+        return host;
+    }
 };
 
 struct Gaussian3DGrads

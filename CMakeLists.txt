@@ -146,6 +146,7 @@ add_executable(imgfitapp
     src/main_imgfit.cpp
     src/app/app_imgfit.cpp
     src/io/image_loader.cpp
+    src/io/ply_saver.cpp
     src/pipelines/gauss_imgfitter.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}

@@ -8,9 +8,11 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 ## TODO
 - [ ] SH colors for imgfitapp so splats can finally have opinions about the lighting
 - [X] View-dependent SH colors (degrees 0-3) for plyviewapp -- splats now have opinions about the lighting
+- [X] SH degree selector (0 to max) in plyviewapp ImGui window
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
 - [ ] Hate command line args; integrate proper file open buttons in the ImGui window
+- [X] PLY file saving for imgfitapp -- export fitted splats and view them in plyviewapp
 - [X] `getopt.h` doesn't exist on Windows, FIX IT
 - [X] Build this on Windows
 - [X] Fly Camera
@@ -78,7 +80,7 @@ cmake --build . --config Release --parallel
 
 ### imgfitapp (Image Fitter)
 
-Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** as the renderer learns to reconstruct the image iteration by iteration.
+Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** and export the result to a `.ply` file for viewing in plyviewapp.
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -131,7 +133,7 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 
 ### plyviewapp (PLY Scene Viewer)
 
-Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines. Automatically detects and evaluates spherical harmonic degrees 0-3 for view-dependent color -- orbit the camera and watch the colors change.
+Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines. Automatically detects and evaluates spherical harmonic degrees 0-3 for view-dependent color -- orbit the camera and watch the colors change. The active SH degree can be changed live from the ImGui window.
 
 | Flag | Default | Description |
 |------|---------|-------------|

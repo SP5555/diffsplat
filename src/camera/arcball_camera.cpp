@@ -69,7 +69,7 @@ bool ArcballCamera::update(const Input &input, float dt)
     {
         glm::vec3 translation =
             right * (-mouseDelta_x * distance * speed_pan) +
-            up    * ( mouseDelta_y * distance * speed_pan);
+            up    * (-mouseDelta_y * distance * speed_pan);
 
         position += translation;
         target   += translation;

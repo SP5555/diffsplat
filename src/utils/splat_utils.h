@@ -25,7 +25,7 @@ namespace SplatUtils
 
             g.x = rnd() * half_w;
             g.y = rnd() * half_h;
-            g.z = rnd();
+            g.z = rnd() * std::min(half_w, half_h);
 
             float s = rnd() * 0.5;
             g.scale_x = log_sigma + s;

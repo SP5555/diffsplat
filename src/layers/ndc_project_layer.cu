@@ -13,8 +13,8 @@
  * Forward kernel: projects world-space positions and 3D covariance
  * into 2D NDC space using an orthographic projection.
  * 
- * pos_ndc  = pos_world * s
- * J        = [[sx, 0, 0], [0, sy, 0]]
+ * pos_ndc  = pos_world * s   (sz = 2 / min(width, height) for Z)
+ * J        = [[sx, 0, 0], [0, sy, 0]]   (Z row dropped for 2D covariance)
  * Cov2D    = J * Cov3D * J^T
  * 
  *   cov_xx_2d = sx*sx * cov_xx_3d
@@ -49,15 +49,15 @@ __global__ void ndcForwardKernel(
     float *o_B,
     float *o_A,
     // projection scales
-    float sx, float sy,
+    float sx, float sy, float sz,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    o_ndc_x[i] =  i_w_x[i] * sx;
-    o_ndc_y[i] = -i_w_y[i] * sy;  // ndc_y=+1 is screen top; world y increases downward in image space
-    o_ndc_z[i] = i_w_z[i]; // Z is not transformed by projection
+    o_ndc_x[i] = i_w_x[i] * sx;
+    o_ndc_y[i] = i_w_y[i] * sy;
+    o_ndc_z[i] = i_w_z[i] * sz;
 
     o_ndc_cxx[i] = i_w_cxx[i] * sx * sx;
     o_ndc_cxy[i] = i_w_cxy[i] * sx * sy;
@@ -110,15 +110,15 @@ __global__ void ndcBackwardKernel(
     float *grad_i_G,
     float *grad_i_B,
     float *grad_i_A,
-    // projection scales
+    // projection scales (sz unused: Z is not differentiated)
     float sx, float sy,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    grad_i_ndc_x[i] =  grad_o_w_x[i] * sx;
-    grad_i_ndc_y[i] = -grad_o_w_y[i] * sy;
+    grad_i_ndc_x[i] = grad_o_w_x[i] * sx;
+    grad_i_ndc_y[i] = grad_o_w_y[i] * sy;
     grad_i_ndc_z[i] = 0;
 
     grad_i_ndc_cxx[i] = grad_o_w_cxx[i] * sx * sx;
@@ -189,6 +189,7 @@ void NDCProjectLayer::forward()
 {
     float sx = 2.f / (float)screen_width;
     float sy = 2.f / (float)screen_height;
+    float sz = 2.f / (float)(screen_width < screen_height ? screen_width : screen_height);
     int count = in->count;
 
     int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
@@ -199,7 +200,7 @@ void NDCProjectLayer::forward()
         out.pos_x,   out.pos_y,   out.pos_z,
         out.cov_xx,  out.cov_xy,  out.cov_yy,
         out.color_r, out.color_g, out.color_b, out.opacity,
-        sx, sy, count
+        sx, sy, sz, count
     );
     CUDA_SYNC_CHECK();
 }

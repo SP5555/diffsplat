@@ -31,6 +31,7 @@ public:
     void initLayers();
 
     void step();
+    void savePLY(const std::string &path);
 
     float *getOutput();
     int    getIterCount() const { return optimizer.getStepCount(); }
