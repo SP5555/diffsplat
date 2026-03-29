@@ -119,6 +119,7 @@ function(diffsplat_target_setup TARGET)
         $<$<COMPILE_LANGUAGE:CUDA>:
             --use_fast_math
             -diag-suppress=20012
+            -diag-suppress=20013
             $<$<CONFIG:Debug>:-lineinfo>
         >
     )
