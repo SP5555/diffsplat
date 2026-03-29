@@ -58,16 +58,16 @@ bool FlyCamera::update(const Input &input, float dt)
     if (input.isKeyDown(GLFW_KEY_D)) { position += plane_right   * move_delta; is_dirty = true; }
 
     // RF up/down
-    if (input.isKeyDown(GLFW_KEY_R)) { position -= plane_up      * move_delta; is_dirty = true; }
-    if (input.isKeyDown(GLFW_KEY_F)) { position += plane_up      * move_delta; is_dirty = true; }
+    if (input.isKeyDown(GLFW_KEY_R)) { position += plane_up      * move_delta; is_dirty = true; }
+    if (input.isKeyDown(GLFW_KEY_F)) { position -= plane_up      * move_delta; is_dirty = true; }
 
     // QE roll
     if (input.isKeyDown(GLFW_KEY_Q)) {
-        orientation = orientation * glm::angleAxis( roll_delta, glm::vec3(0.f, 0.f, -1.f));
+        orientation = orientation * glm::angleAxis(-roll_delta, glm::vec3(0.f, 0.f, -1.f));
         is_dirty = true;
     }
     if (input.isKeyDown(GLFW_KEY_E)) {
-        orientation = orientation * glm::angleAxis(-roll_delta, glm::vec3(0.f, 0.f, -1.f));
+        orientation = orientation * glm::angleAxis( roll_delta, glm::vec3(0.f, 0.f, -1.f));
         is_dirty = true;
     }
 
@@ -82,7 +82,7 @@ bool FlyCamera::update(const Input &input, float dt)
             is_dirty = true;
         }
         if (mouse_delta_y != 0.f) {
-            pitch += -mouse_delta_y * look_delta;
+            pitch += mouse_delta_y * look_delta;
             pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
             is_dirty = true;
         }

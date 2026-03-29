@@ -29,13 +29,13 @@ int main(int argc, char *argv[])
     /* ===== Argument Validation ===== */
     if ((result.count("width") && !result.count("height")) ||
         (!result.count("width") && result.count("height"))) {
-        log_info("Main", "Error: --width and --height must be specified together.");
-        return 0;
+        log_error("Main", "Error: --width and --height must be specified together.");
+        return 1;
     }
 
     if (width <= 0 || height <= 0) {
-        log_info("Main", "Error: width and height must be positive integers.");
-        return 0;
+        log_error("Main", "Error: width and height must be positive integers.");
+        return 1;
     }
 
     if (!result.count("width") && !result.count("height")) {
@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
     }
 
     if (splat_count <= 0) {
-        log_info("Main", "Error: splat count must be positive.");
-        return 0;
+        log_error("Main", "Error: splat count must be positive.");
+        return 1;
     }
 
     try {
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     {
         char buf[128];
         snprintf(buf, sizeof(buf), "Failed to start application: %s", e.what());
-        log_info("Main", buf);
+        log_error("Main", buf);
         return 1;
     }
 

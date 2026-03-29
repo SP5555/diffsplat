@@ -55,8 +55,8 @@ __global__ void ndcForwardKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    o_ndc_x[i] = i_w_x[i] * sx;
-    o_ndc_y[i] = i_w_y[i] * sy;
+    o_ndc_x[i] =  i_w_x[i] * sx;
+    o_ndc_y[i] = -i_w_y[i] * sy;  // ndc_y=+1 is screen top; world y increases downward in image space
     o_ndc_z[i] = i_w_z[i]; // Z is not transformed by projection
 
     o_ndc_cxx[i] = i_w_cxx[i] * sx * sx;
@@ -117,8 +117,8 @@ __global__ void ndcBackwardKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    grad_i_ndc_x[i] = grad_o_w_x[i] * sx;
-    grad_i_ndc_y[i] = grad_o_w_y[i] * sy;
+    grad_i_ndc_x[i] =  grad_o_w_x[i] * sx;
+    grad_i_ndc_y[i] = -grad_o_w_y[i] * sy;
     grad_i_ndc_z[i] = 0;
 
     grad_i_ndc_cxx[i] = grad_o_w_cxx[i] * sx * sx;
@@ -160,19 +160,11 @@ __global__ void covRegKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    // float c_xx = cxx[i];
-    float c_xy = cxy[i];
-    float c_xz = cxz[i];
-    // float c_yy = cyy[i];
-    float c_yz = cyz[i];
-    // float c_zz = czz[i];
-
-    // grad_cxx[i] += COV_L2_REG * c_xx;
-    grad_cxy[i] += COV_L2_REG * (2.f * c_xy);
-    grad_cxz[i] += COV_L2_REG * (2.f * c_xz);
-    // grad_cyy[i] += COV_L2_REG * c_yy;
-    grad_cyz[i] += COV_L2_REG * (2.f * c_yz);
-    // grad_czz[i] += COV_L2_REG * c_zz;
+    // Diagonal entries (cxx, cyy, czz / grad_cxx, grad_cyy, grad_czz) are
+    // intentionally not regularized — add here if needed in the future.
+    grad_cxy[i] += COV_L2_REG * (2.f * cxy[i]);
+    grad_cxz[i] += COV_L2_REG * (2.f * cxz[i]);
+    grad_cyz[i] += COV_L2_REG * (2.f * cyz[i]);
 }
 
 /* ===== ===== Lifecycle ===== ===== */

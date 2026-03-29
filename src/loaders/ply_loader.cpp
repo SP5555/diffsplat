@@ -138,11 +138,12 @@ PLYLoadResult PLYLoader::load(const std::string &path)
         g.rot_y = row[i_rot2];
         g.rot_z = row[i_rot3];
 
-        // PLY files from 3DGS training are in OpenCV convention (Z forward, Y down).
-        // Convert to OpenGL convention (Z backward, Y up) by flipping Z.
-        // Quaternion Z-flip: negate w and z components.
+        // PLY files from 3DGS training are in OpenCV convention (X right, Y down, Z forward).
+        // Convert to OpenGL convention (X right, Y up, Z backward) by flipping both Y and Z.
+        // Quaternion for combined Y+Z flip: negate y and z components (w cancels from double negation).
+        g.y     = -g.y;
         g.z     = -g.z;
-        g.rot_w = -g.rot_w;
+        g.rot_y = -g.rot_y;
         g.rot_z = -g.rot_z;
 
         // DC SH coefficients

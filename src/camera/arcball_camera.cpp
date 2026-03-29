@@ -48,7 +48,7 @@ bool ArcballCamera::update(const Input &input, float dt)
         float pitch = glm::asin(glm::clamp(dir.y, -1.f, 1.f));
         float yaw   = glm::atan(dir.x, dir.z);
 
-        pitch += mouseDelta_y * speed_rotate * dt;
+        pitch -= mouseDelta_y * speed_rotate * dt;
         yaw   -= mouseDelta_x * speed_rotate * dt;
 
         pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);

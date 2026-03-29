@@ -72,10 +72,12 @@ __global__ void tileAssignKernel(
     float min_y = y - max_radius, max_y = y + max_radius;
 
     auto ndcToTileX = [&](float v) { return (int)floorf((v + 1.f) * 0.5f * num_tiles_x); };
-    auto ndcToTileY = [&](float v) { return (int)floorf((v + 1.f) * 0.5f * num_tiles_y); };
+    // Y-axis: ndc_y=+1 is the top of the screen (tile_y=0), ndc_y=-1 is the bottom.
+    auto ndcToTileY = [&](float v) { return (int)floorf((1.f - v) * 0.5f * num_tiles_y); };
 
-    int tx0 = max(ndcToTileX(min_x), 0),         tx1 = min(ndcToTileX(max_x), num_tiles_x - 1);
-    int ty0 = max(ndcToTileY(min_y), 0),         ty1 = min(ndcToTileY(max_y), num_tiles_y - 1);
+    int tx0 = max(ndcToTileX(min_x), 0), tx1 = min(ndcToTileX(max_x), num_tiles_x - 1);
+    // Because ndcToTileY is decreasing in v, max_y maps to the lower tile index (top).
+    int ty0 = max(ndcToTileY(max_y), 0), ty1 = min(ndcToTileY(min_y), num_tiles_y - 1);
     if (tx0 > tx1 || ty0 > ty1) return;
 
     atomicAdd(visible_count, 1u);
@@ -180,7 +182,7 @@ __global__ void rasterizeKernel(
         bool valid_pixel = (local_px_idx < tile_pixels);
 
         float x_ndc = valid_pixel ? (2.f * (pixel_x + 0.5f) / screen_width)  - 1.f : 0.f;
-        float y_ndc = valid_pixel ? (2.f * (pixel_y + 0.5f) / screen_height) - 1.f : 0.f;
+        float y_ndc = valid_pixel ? 1.f - (2.f * (pixel_y + 0.5f) / screen_height) : 0.f;
 
         float C_R = 0.f, C_G = 0.f, C_B = 0.f;
         float T   = 1.f;
@@ -372,7 +374,7 @@ __global__ void backwardKernel(
         bool valid_pixel = (local_px_idx < tile_pixels);
 
         float x_ndc = valid_pixel ? (2.f * (pixel_x + 0.5f) / screen_width)  - 1.f : 0.f;
-        float y_ndc = valid_pixel ? (2.f * (pixel_y + 0.5f) / screen_height) - 1.f : 0.f;
+        float y_ndc = valid_pixel ? 1.f - (2.f * (pixel_y + 0.5f) / screen_height) : 0.f;
 
         int pixel_idx = pixel_y * screen_width + pixel_x;
         int n_contr   = valid_pixel ? n_contrib[pixel_idx] : 0;
@@ -667,11 +669,11 @@ void RasterizeLayer::forward()
     // sort
     {
         size_t required = 0;
-        cub::DeviceRadixSort::SortPairs(
+        CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
             nullptr, required,
             d_keys.ptr, d_keys_sorted.ptr,
             d_values.ptr, d_values_sorted.ptr,
-            (int)pair_count);
+            (int)pair_count));
 
         if (required > sort_temp_bytes)
         {
@@ -679,11 +681,11 @@ void RasterizeLayer::forward()
             sort_temp_bytes = required;
         }
 
-        cub::DeviceRadixSort::SortPairs(
+        CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
             (void *)d_sort_temp.ptr, required,
             d_keys.ptr, d_keys_sorted.ptr,
             d_values.ptr, d_values_sorted.ptr,
-            (int)pair_count);
+            (int)pair_count));
     }
 
     // build tile ranges

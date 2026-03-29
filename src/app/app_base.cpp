@@ -62,7 +62,8 @@ static GLuint compileShader(GLenum type, const char *src)
     {
         char log[512];
         glGetShaderInfoLog(s, 512, nullptr, log);
-        std::cerr << "[GL] Shader error: " << log << "\n";
+        glDeleteShader(s);
+        log_fatal("AppBase", std::string("Shader compile error: ") + log);
     }
     return s;
 }

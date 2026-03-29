@@ -128,5 +128,16 @@ void launchAdam(
     go(g.color_sh_g, gr.grad_color_sh_g, o.m_color_g, o.v_color_g, c.lr_color);
     go(g.color_sh_b, gr.grad_color_sh_b, o.m_color_b, o.v_color_b, c.lr_color);
     go(g.logit_opacity, gr.grad_logit_opacity, o.m_opacity, o.v_opacity, c.lr_opacity);
+
+    if (o.sh_num_bands > 0) {
+        int n_sh = n * o.sh_num_bands;
+        stepOne(g.sh_rest_r, gr.grad_sh_rest_r, o.m_sh_rest_r, o.v_sh_rest_r,
+                c.lr_sh_rest, config.beta1, config.beta2, config.epsilon, bc1, bc2, n_sh);
+        stepOne(g.sh_rest_g, gr.grad_sh_rest_g, o.m_sh_rest_g, o.v_sh_rest_g,
+                c.lr_sh_rest, config.beta1, config.beta2, config.epsilon, bc1, bc2, n_sh);
+        stepOne(g.sh_rest_b, gr.grad_sh_rest_b, o.m_sh_rest_b, o.v_sh_rest_b,
+                c.lr_sh_rest, config.beta1, config.beta2, config.epsilon, bc1, bc2, n_sh);
+    }
+
     CUDA_SYNC_CHECK();
 }

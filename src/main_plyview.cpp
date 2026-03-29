@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     }
 
     if (scale <= 0.f) {
-        log_info("Main", "Error: scale must be a positive number.");
+        log_error("Main", "Error: scale must be a positive number.");
         return 1;
     }
 
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     if      (camera_str == "arcball") camera_mode = CameraMode::Arcball;
     else if (camera_str == "fly")     camera_mode = CameraMode::Fly;
     else {
-        log_info("Main", "Error: invalid camera mode. Valid options: arcball, fly.");
+        log_error("Main", "Error: invalid camera mode. Valid options: arcball, fly.");
         return 1;
     }
 
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     catch (const std::exception &e) {
         char buf[256];
         snprintf(buf, sizeof(buf), "Failed to start application: %s", e.what());
-        log_info("Main", buf);
+        log_error("Main", buf);
         return 1;
     }
 
