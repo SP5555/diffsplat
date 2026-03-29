@@ -28,6 +28,9 @@ public:
     float *getOutput();
     uint32_t getVisibleCount();
 
+    int  getMaxSHDegree()       const { return sh_degree; }
+    void setActiveSHDegree(int d)     { atv_layer.setSHDegree(d); }
+
 private:
     int getMaxPairs() const { return (1 << 25); }
 

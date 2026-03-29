@@ -47,6 +47,7 @@ void AppPlyView::onStart()
 {
     renderer.init(width, height);
     renderer.loadPLY(ply_path, scene_scale);
+    active_sh_degree = renderer.getMaxSHDegree();
 
     renderer.initLayers();
 }
@@ -70,13 +71,20 @@ void AppPlyView::onFrame()
 
     // ImGui
     ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
-    ImGui::SetNextWindowSize(ImVec2(240, 200), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(260, 220), ImGuiCond_Once);
     ImGui::Begin("Splat Viewer");
 
     ImGui::Text("Visible Splats: %d", renderer.getVisibleCount());
     auto pos = camera->getPosition();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
+
+    int max_sh = renderer.getMaxSHDegree();
+    if (max_sh > 0) {
+        const char *sh_items[] = {"0 (DC only)", "1", "2", "3"};
+        if (ImGui::Combo("SH Degree", &active_sh_degree, sh_items, max_sh + 1))
+            renderer.setActiveSHDegree(active_sh_degree);
+    }
 
     int history_size = static_cast<int>(fps_history.size());
     if (history_size > 0 && ImPlot::BeginPlot("##FPSRolling", ImVec2(-1, ImGui::GetTextLineHeight() * 8))) {

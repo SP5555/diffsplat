@@ -35,4 +35,5 @@ private:
     // ImGui
     std::vector<float> fps_history;
     std::vector<float> x_axis;
+    int active_sh_degree = 0;
 };
