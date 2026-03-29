@@ -6,7 +6,7 @@
 #include <iostream>
 
 #include "../cuda/cuda_check.h"
-#include "../loaders/image_loader.h"
+#include "../io/image_loader.h"
 #include "../optimizers/adam.cuh"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"

@@ -86,7 +86,7 @@ set(CPP_SHARED_SOURCES
     src/glad.c
     src/input/input.cpp
     src/app/app_base.cpp
-    src/loaders/image_saver.cpp
+    src/io/image_saver.cpp
 )
 
 set(CUDA_SHARED_SOURCES
@@ -145,7 +145,7 @@ endfunction()
 add_executable(imgfitapp
     src/main_imgfit.cpp
     src/app/app_imgfit.cpp
-    src/loaders/image_loader.cpp
+    src/io/image_loader.cpp
     src/pipelines/gauss_imgfitter.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
@@ -156,7 +156,7 @@ diffsplat_target_setup(imgfitapp)
 add_executable(plyviewapp
     src/main_plyview.cpp
     src/app/app_plyview.cpp
-    src/loaders/ply_loader.cpp
+    src/io/ply_loader.cpp
     src/camera/arcball_camera.cpp
     src/camera/fly_camera.cpp
     src/pipelines/gauss_plyviewer.cpp

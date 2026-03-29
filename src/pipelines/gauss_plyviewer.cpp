@@ -7,7 +7,7 @@
 #include <iostream>
 
 #include "../cuda/cuda_check.h"
-#include "../loaders/ply_loader.h"
+#include "../io/ply_loader.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 
