@@ -109,7 +109,7 @@ __global__ void covForwardKernel(
     o_czz[i] = m20*m20 + m21*m21 + m22*m22;
 
     // ===== SH color evaluation =====
-    // view direction: camera -> splat center, normalized
+    // view direction: splat -> camera, normalized (standard 3DGS convention)
     float dx = cam_x - i_x[i];
     float dy = cam_y - i_y[i];
     float dz = cam_z - i_z[i];

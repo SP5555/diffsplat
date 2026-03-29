@@ -17,7 +17,7 @@
  *   Cov = R * S * S^T * R^T
  *
  *   Color is evaluated from SH coefficients using a per-splat view direction:
- *     dir = normalize(splat_pos - camera_pos)
+ *     dir = normalize(camera_pos - splat_pos)
  *   For sh_degree == 0, only the DC term is used (view-independent).
  *
  * Backward pass: Gradients flow back through covariance, SH color, and opacity.

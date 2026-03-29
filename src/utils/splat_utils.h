@@ -36,10 +36,6 @@ namespace SplatUtils
             g.rot_x = 0.f;
             g.rot_y = 0.f;
             g.rot_z = 0.f;
-            float norm = sqrtf(g.rot_w*g.rot_w + g.rot_x*g.rot_x +
-                            g.rot_y*g.rot_y + g.rot_z*g.rot_z);
-            g.rot_w /= norm; g.rot_x /= norm;
-            g.rot_y /= norm; g.rot_z /= norm;
 
             // initialize DC SH coefficients to random colors in [0, 1]
             g.r = (rndu() - 0.5f) / SH_C0;
