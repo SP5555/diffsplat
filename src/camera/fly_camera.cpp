@@ -98,7 +98,7 @@ bool FlyCamera::update(const Input &input, float dt)
 
 void FlyCamera::setAspect(float newAspect)
 {
-    aspect  = newAspect;
+    aspect   = newAspect;
     p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
 }
 

@@ -76,18 +76,25 @@ bool ArcballCamera::update(const Input &input, float dt)
         isDirty   = true;
     }
 
-    // ===== zoom =====
+    // ===== zoom / ortho scale =====
     if (input.scroll_delta != 0.f)
     {
-        glm::vec3 translation = viewDir * (input.scroll_delta * distance * speed_zoom);
-        position += translation;
+        if (ortho_mode)
+        {
+            ortho_half_h *= (1.f - input.scroll_delta * speed_zoom);
+            ortho_half_h  = glm::max(ortho_half_h, 0.01f);
+        }
+        else
+        {
+            glm::vec3 translation = viewDir * (input.scroll_delta * distance * speed_zoom);
+            position += translation;
 
-        float newDist = glm::distance(position, target);
-        if (newDist < zoom_min_dist)
-            position = target + (-viewDir) * zoom_min_dist;
-        if (newDist > zoom_max_dist)
-            position = target + (-viewDir) * zoom_max_dist;
-
+            float newDist = glm::distance(position, target);
+            if (newDist < zoom_min_dist)
+                position = target + (-viewDir) * zoom_min_dist;
+            if (newDist > zoom_max_dist)
+                position = target + (-viewDir) * zoom_max_dist;
+        }
         isDirty = true;
     }
 
@@ -101,8 +108,20 @@ bool ArcballCamera::update(const Input &input, float dt)
 
 void ArcballCamera::setAspect(float newAspect)
 {
-    aspect  = newAspect;
-    p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
+    aspect = newAspect;
+    if (ortho_mode)
+        p_matrix = glm::ortho(-ortho_half_h * aspect, ortho_half_h * aspect,
+                              -ortho_half_h, ortho_half_h, near_plane, far_plane);
+    else
+        p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
+}
+
+void ArcballCamera::setOrthoMode(bool enable)
+{
+    if (enable && !ortho_mode)
+        ortho_half_h = glm::tan(fov * 0.5f) * glm::distance(position, target);
+    ortho_mode = enable;
+    updateMatrices();
 }
 
 /* ===== ===== Helpers ===== ===== */
@@ -117,5 +136,9 @@ void ArcballCamera::updateViewSpaceVectors()
 void ArcballCamera::updateMatrices()
 {
     v_matrix = glm::lookAt(position, target, up);
-    p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
+    if (ortho_mode)
+        p_matrix = glm::ortho(-ortho_half_h * aspect, ortho_half_h * aspect,
+                              -ortho_half_h, ortho_half_h, near_plane, far_plane);
+    else
+        p_matrix = glm::perspective(fov, aspect, near_plane, far_plane);
 }

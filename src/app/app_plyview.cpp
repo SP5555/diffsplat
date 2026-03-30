@@ -24,6 +24,7 @@ AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMod
     : AppBase(START_WIDTH, START_HEIGHT, "Splat viewer", true)
     , ply_path(ply_path)
     , scene_scale(scene_scale)
+    , camera_mode(camera_mode)
 {
     float aspect = (float)START_WIDTH / START_HEIGHT;
     if (camera_mode == CameraMode::Arcball)
@@ -78,6 +79,11 @@ void AppPlyView::onFrame()
     auto pos = camera->getPosition();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
+
+    if (camera_mode == CameraMode::Arcball) {
+        if (ImGui::Checkbox("Orthographic", &ortho_mode))
+            camera->setOrthoMode(ortho_mode);
+    }
 
     int max_sh = renderer.getMaxSHDegree();
     if (max_sh > 0) {

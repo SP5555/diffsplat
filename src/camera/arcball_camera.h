@@ -29,6 +29,9 @@ public:
     // call on window resize
     void setAspect(float aspect);
 
+    // toggle orthographic projection; initial ortho scale is matched to current persp view
+    void setOrthoMode(bool enable);
+
     const glm::vec3 &getPosition()         const { return position; }
     const glm::mat4 &getViewMatrix()       const { return v_matrix; }
     const glm::mat4 &getProjectionMatrix() const { return p_matrix; }
@@ -57,6 +60,8 @@ private:
     float aspect;
     float near_plane;
     float far_plane;
+    bool  ortho_mode   = false;
+    float ortho_half_h = 1.f; // half-height of ortho frustum in world units
 
     // ---- cached matrices ----
     glm::mat4 v_matrix = glm::mat4(1.f);

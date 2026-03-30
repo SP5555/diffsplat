@@ -28,6 +28,7 @@ protected:
 private:
     std::string    ply_path;
     float          scene_scale;
+    CameraMode     camera_mode;
     GaussPlyViewer renderer;
 
     std::unique_ptr<Camera> camera;
@@ -35,5 +36,6 @@ private:
     // ImGui
     std::vector<float> fps_history;
     std::vector<float> x_axis;
-    int active_sh_degree = 0;
+    int  active_sh_degree = 0;
+    bool ortho_mode       = false;
 };
