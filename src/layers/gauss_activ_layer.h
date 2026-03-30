@@ -3,6 +3,7 @@
 #include "layer.h"
 #include "../types/gaussian3d.h"
 #include "../types/splat3d.h"
+#include "../cuda/cuda_buffer.h"
 
 #include <glm/glm.hpp>
 
@@ -57,6 +58,12 @@ private:
 
     /* ---- backward output (owned) ---- */
     Gaussian3DGrads grad_in;
+
+    /* ---- saved for backward ---- */
+    CudaBuffer<float> d_save_sx,       d_save_sy,       d_save_sz;
+    CudaBuffer<float> d_save_norm_inv;
+    CudaBuffer<float> d_save_qw,       d_save_qx,       d_save_qy, d_save_qz;
+    CudaBuffer<float> d_save_nx,       d_save_ny,       d_save_nz;
 
     /* ---- config ---- */
     int   allocated_count = 0;

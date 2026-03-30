@@ -62,6 +62,11 @@ __global__ void covForwardKernel(
     float *o_lin_G,
     float *o_lin_B,
     float *o_A,
+    // saved intermediate values for backward pass
+    float *save_sx,       float *save_sy,       float *save_sz,
+    float *save_norm_inv,
+    float *save_qw,       float *save_qx,       float *save_qy, float *save_qz,
+    float *save_nx,       float *save_ny,       float *save_nz,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -81,6 +86,11 @@ __global__ void covForwardKernel(
     float sx = expf(i_sx[i]);
     float sy = expf(i_sy[i]);
     float sz = expf(i_sz[i]);
+
+    // save transcendental results for backward (avoids recomputing expf and rsqrtf)
+    save_norm_inv[i] = norm;
+    save_qw[i] = qw; save_qx[i] = qx; save_qy[i] = qy; save_qz[i] = qz;
+    save_sx[i]  = sx; save_sy[i]  = sy; save_sz[i]  = sz;
 
     // rotation matrix columns (R[:,0], R[:,1], R[:,2])
     float r00 = 1.f - 2.f*(qy*qy + qz*qz);
@@ -117,6 +127,7 @@ __global__ void covForwardKernel(
     float nx = dx * inv_len;
     float ny = dy * inv_len;
     float nz = dz * inv_len;
+    save_nx[i] = nx; save_ny[i] = ny; save_nz[i] = nz;
 
     float cr = i_DC_SH_R[i] * SH_C0;
     float cg = i_DC_SH_G[i] * SH_C0;
@@ -197,17 +208,18 @@ __global__ void covForwardKernel(
  * One thread is launched per splat.
  */
 __global__ void covBackwardKernel(
-    // inputs: log-scale and raw quaternion
-    const float *__restrict__ scale_x,
-    const float *__restrict__ scale_y,
-    const float *__restrict__ scale_z,
-    const float *__restrict__ rot_w,
-    const float *__restrict__ rot_x,
-    const float *__restrict__ rot_y,
-    const float *__restrict__ rot_z,
-    const float *__restrict__ pos_x,
-    const float *__restrict__ pos_y,
-    const float *__restrict__ pos_z,
+    // saved from forward pass (avoids recomputing expf and rsqrtf)
+    const float *__restrict__ save_sx,
+    const float *__restrict__ save_sy,
+    const float *__restrict__ save_sz,
+    const float *__restrict__ save_norm_inv,
+    const float *__restrict__ save_qw,
+    const float *__restrict__ save_qx,
+    const float *__restrict__ save_qy,
+    const float *__restrict__ save_qz,
+    const float *__restrict__ save_nx,
+    const float *__restrict__ save_ny,
+    const float *__restrict__ save_nz,
     const float *__restrict__ opacity,
     // forward outputs (for clamp check)
     const float *__restrict__ fwd_lin_R,
@@ -218,7 +230,6 @@ __global__ void covBackwardKernel(
     const float *__restrict__ sh_rest_g,
     const float *__restrict__ sh_rest_b,
     int sh_degree,
-    float cam_x, float cam_y, float cam_z,
     // gradient output (from next layer)
     const float *__restrict__ grad_o_x,
     const float *__restrict__ grad_o_y,
@@ -261,19 +272,12 @@ __global__ void covBackwardKernel(
     grad_i_y[i] = grad_o_y[i];
     grad_i_z[i] = grad_o_z[i];
 
-    // --- recompute forward values ---
-    float qw_raw = rot_w[i], qx_raw = rot_x[i], qy_raw = rot_y[i], qz_raw = rot_z[i];
-    float norm_inv = rsqrtf(fmaxf(qw_raw*qw_raw + qx_raw*qx_raw + qy_raw*qy_raw + qz_raw*qz_raw, 1e-12f));
-    float qw = qw_raw * norm_inv;
-    float qx = qx_raw * norm_inv;
-    float qy = qy_raw * norm_inv;
-    float qz = qz_raw * norm_inv;
+    // --- read saved forward values (no expf or rsqrtf needed) ---
+    float sx = save_sx[i], sy = save_sy[i], sz = save_sz[i];
+    float norm_inv = save_norm_inv[i];
+    float qw = save_qw[i], qx = save_qx[i], qy = save_qy[i], qz = save_qz[i];
 
-    float sx = expf(scale_x[i]);
-    float sy = expf(scale_y[i]);
-    float sz = expf(scale_z[i]);
-
-    // rotation matrix
+    // rotation matrix (from already-normalized quaternion — no transcendentals)
     float r00 = 1.f - 2.f*(qy*qy + qz*qz);
     float r10 =       2.f*(qx*qy + qw*qz);
     float r20 =       2.f*(qx*qz - qw*qy);
@@ -361,10 +365,8 @@ __global__ void covBackwardKernel(
 
     if (sh_degree >= 1)
     {
-        // recompute view direction
-        float ddx = cam_x - pos_x[i], ddy = cam_y - pos_y[i], ddz = cam_z - pos_z[i];
-        float il = rsqrtf(fmaxf(ddx*ddx + ddy*ddy + ddz*ddz, 1e-12f));
-        float nx = ddx*il, ny = ddy*il, nz = ddz*il;
+        // read saved view direction
+        float nx = save_nx[i], ny = save_ny[i], nz = save_nz[i];
 
         // dL/dSH_lm = dL/dcolor * Y_lm(dir)
         // degree 1
@@ -435,6 +437,11 @@ void GaussActivLayer::allocate(int count)
     allocated_count = count;
     out.allocate(count);
     grad_in.allocate(count, sh_degree);
+    d_save_sx.allocate(count);       d_save_sy.allocate(count);       d_save_sz.allocate(count);
+    d_save_norm_inv.allocate(count);
+    d_save_qw.allocate(count);       d_save_qx.allocate(count);
+    d_save_qy.allocate(count);       d_save_qz.allocate(count);
+    d_save_nx.allocate(count);       d_save_ny.allocate(count);       d_save_nz.allocate(count);
 }
 
 void GaussActivLayer::zero_grad()
@@ -470,6 +477,10 @@ void GaussActivLayer::forward()
         out.color_g,
         out.color_b,
         out.opacity,
+        d_save_sx,  d_save_sy,  d_save_sz,
+        d_save_norm_inv,
+        d_save_qw,  d_save_qx,  d_save_qy, d_save_qz,
+        d_save_nx,  d_save_ny,  d_save_nz,
         count
     );
     CUDA_SYNC_CHECK();
@@ -481,16 +492,16 @@ void GaussActivLayer::backward()
 
     int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
     covBackwardKernel<<<blocks, BLOCK_SIZE>>>(
-        in->scale_x, in->scale_y, in->scale_z,
-        in->rot_w,   in->rot_x,   in->rot_y,   in->rot_z,
-        in->pos_x,   in->pos_y,   in->pos_z,
+        d_save_sx,  d_save_sy,  d_save_sz,
+        d_save_norm_inv,
+        d_save_qw,  d_save_qx,  d_save_qy, d_save_qz,
+        d_save_nx,  d_save_ny,  d_save_nz,
         out.opacity,
         out.color_r, out.color_g, out.color_b,   // saved forward outputs for clamp check
         in->sh_num_bands > 0 ? (const float *)in->sh_rest_r : nullptr,
         in->sh_num_bands > 0 ? (const float *)in->sh_rest_g : nullptr,
         in->sh_num_bands > 0 ? (const float *)in->sh_rest_b : nullptr,
         sh_degree,
-        cam_x, cam_y, cam_z,
         grad_out->grad_pos_x,  grad_out->grad_pos_y,  grad_out->grad_pos_z,
         grad_out->grad_cov_xx, grad_out->grad_cov_xy, grad_out->grad_cov_xz,
         grad_out->grad_cov_yy, grad_out->grad_cov_yz, grad_out->grad_cov_zz,

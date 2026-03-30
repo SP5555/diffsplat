@@ -147,15 +147,15 @@ __global__ void rasterizeKernel(
     int screen_width, int screen_height)
 {
     // shared memory splat cache, loaded collaboratively each chunk
-    __shared__ float sh_x  [CHUNK_SIZE];
-    __shared__ float sh_y  [CHUNK_SIZE];
-    __shared__ float sh_cxx[CHUNK_SIZE];
-    __shared__ float sh_cxy[CHUNK_SIZE];
-    __shared__ float sh_cyy[CHUNK_SIZE];
-    __shared__ float sh_R  [CHUNK_SIZE];
-    __shared__ float sh_G  [CHUNK_SIZE];
-    __shared__ float sh_B  [CHUNK_SIZE];
-    __shared__ float sh_A  [CHUNK_SIZE];
+    __shared__ float sh_x      [CHUNK_SIZE];
+    __shared__ float sh_y      [CHUNK_SIZE];
+    __shared__ float sh_inv_cxx[CHUNK_SIZE]; // precomputed: cyy / det
+    __shared__ float sh_inv_cxy[CHUNK_SIZE]; // precomputed: -cxy / det
+    __shared__ float sh_inv_cyy[CHUNK_SIZE]; // precomputed: cxx / det
+    __shared__ float sh_R      [CHUNK_SIZE];
+    __shared__ float sh_G      [CHUNK_SIZE];
+    __shared__ float sh_B      [CHUNK_SIZE];
+    __shared__ float sh_A      [CHUNK_SIZE];
 
     int tile_id = blockIdx.x;
     int tid     = threadIdx.x;
@@ -198,16 +198,21 @@ __global__ void rasterizeKernel(
             // --- collaborative load ---
             if (tid < chunk_size)
             {
-                uint32_t sid  = values_sorted[chunk_start + tid];
-                sh_x  [tid]   = ndc_x  [sid];
-                sh_y  [tid]   = ndc_y  [sid];
-                sh_cxx[tid]   = ndc_cxx[sid];
-                sh_cxy[tid]   = ndc_cxy[sid];
-                sh_cyy[tid]   = ndc_cyy[sid];
-                sh_R  [tid]   = ndc_R  [sid];
-                sh_G  [tid]   = ndc_G  [sid];
-                sh_B  [tid]   = ndc_B  [sid];
-                sh_A  [tid]   = ndc_A  [sid];
+                uint32_t sid    = values_sorted[chunk_start + tid];
+                float cxx       = ndc_cxx[sid];
+                float cxy       = ndc_cxy[sid];
+                float cyy       = ndc_cyy[sid];
+                // all values_sorted entries have det > 0 (guaranteed by tileAssignKernel)
+                float inv_det   = 1.f / (cxx * cyy - cxy * cxy);
+                sh_x      [tid] = ndc_x  [sid];
+                sh_y      [tid] = ndc_y  [sid];
+                sh_inv_cxx[tid] =  cyy * inv_det;
+                sh_inv_cxy[tid] = -cxy * inv_det;
+                sh_inv_cyy[tid] =  cxx * inv_det;
+                sh_R      [tid] = ndc_R  [sid];
+                sh_G      [tid] = ndc_G  [sid];
+                sh_B      [tid] = ndc_B  [sid];
+                sh_A      [tid] = ndc_A  [sid];
             }
             __syncthreads();
 
@@ -216,19 +221,11 @@ __global__ void rasterizeKernel(
             {
                 for (int j = 0; j < chunk_size; j++)
                 {
-                    float dx  = x_ndc - sh_x[j];
-                    float dy  = y_ndc - sh_y[j];
-                    float cxx = sh_cxx[j];
-                    float cxy = sh_cxy[j];
-                    float cyy = sh_cyy[j];
-
-                    float det = cxx * cyy - cxy * cxy;
-                    if (!(det > 0.f)) continue;  // !(x > 0) rejects both negative and NaN
-
-                    float inv_det = 1.f / det;
-                    float inv_cxx =  cyy * inv_det;
-                    float inv_cxy = -cxy * inv_det;
-                    float inv_cyy =  cxx * inv_det;
+                    float dx      = x_ndc - sh_x[j];
+                    float dy      = y_ndc - sh_y[j];
+                    float inv_cxx = sh_inv_cxx[j];
+                    float inv_cxy = sh_inv_cxy[j];
+                    float inv_cyy = sh_inv_cyy[j];
 
                     float dist2 = dx*dx*inv_cxx + 2.f*dx*dy*inv_cxy + dy*dy*inv_cyy;
                     if (dist2 > 9.f) continue;
@@ -326,16 +323,20 @@ __global__ void backwardKernel(
     int screen_width, int screen_height)
 {
     // splat data cache (loaded collaboratively)
-    __shared__ float    sh_x  [CHUNK_SIZE];
-    __shared__ float    sh_y  [CHUNK_SIZE];
-    __shared__ float    sh_cxx[CHUNK_SIZE];
-    __shared__ float    sh_cxy[CHUNK_SIZE];
-    __shared__ float    sh_cyy[CHUNK_SIZE];
-    __shared__ float    sh_R  [CHUNK_SIZE];
-    __shared__ float    sh_G  [CHUNK_SIZE];
-    __shared__ float    sh_B  [CHUNK_SIZE];
-    __shared__ float    sh_A  [CHUNK_SIZE];
-    __shared__ uint32_t sh_sid[CHUNK_SIZE];
+    __shared__ float    sh_x      [CHUNK_SIZE];
+    __shared__ float    sh_y      [CHUNK_SIZE];
+    __shared__ float    sh_cxx    [CHUNK_SIZE];
+    __shared__ float    sh_cxy    [CHUNK_SIZE];
+    __shared__ float    sh_cyy    [CHUNK_SIZE];
+    __shared__ float    sh_inv_cxx[CHUNK_SIZE]; // precomputed: cyy / det
+    __shared__ float    sh_inv_cxy[CHUNK_SIZE]; // precomputed: -cxy / det
+    __shared__ float    sh_inv_cyy[CHUNK_SIZE]; // precomputed: cxx / det
+    __shared__ float    sh_inv_det[CHUNK_SIZE]; // precomputed: 1 / det (needed for grad formulas)
+    __shared__ float    sh_R      [CHUNK_SIZE];
+    __shared__ float    sh_G      [CHUNK_SIZE];
+    __shared__ float    sh_B      [CHUNK_SIZE];
+    __shared__ float    sh_A      [CHUNK_SIZE];
+    __shared__ uint32_t sh_sid    [CHUNK_SIZE];
 
     // per-chunk gradient accumulators, shared mem atomics,
     // flushed to global after each chunk
@@ -395,17 +396,25 @@ __global__ void backwardKernel(
             // --- cooperative load ---
             if (tid < chunk_size)
             {
-                uint32_t sid  = values_sorted[chunk_start + tid];
-                sh_sid[tid]   = sid;
-                sh_x  [tid]   = ndc_x  [sid];
-                sh_y  [tid]   = ndc_y  [sid];
-                sh_cxx[tid]   = ndc_cxx[sid];
-                sh_cxy[tid]   = ndc_cxy[sid];
-                sh_cyy[tid]   = ndc_cyy[sid];
-                sh_R  [tid]   = ndc_R  [sid];
-                sh_G  [tid]   = ndc_G  [sid];
-                sh_B  [tid]   = ndc_B  [sid];
-                sh_A  [tid]   = ndc_A  [sid];
+                uint32_t sid    = values_sorted[chunk_start + tid];
+                float cxx       = ndc_cxx[sid];
+                float cxy       = ndc_cxy[sid];
+                float cyy       = ndc_cyy[sid];
+                float inv_det   = 1.f / (cxx * cyy - cxy * cxy);
+                sh_sid    [tid] = sid;
+                sh_x      [tid] = ndc_x  [sid];
+                sh_y      [tid] = ndc_y  [sid];
+                sh_cxx    [tid] = cxx;
+                sh_cxy    [tid] = cxy;
+                sh_cyy    [tid] = cyy;
+                sh_inv_cxx[tid] =  cyy * inv_det;
+                sh_inv_cxy[tid] = -cxy * inv_det;
+                sh_inv_cyy[tid] =  cxx * inv_det;
+                sh_inv_det[tid] = inv_det;
+                sh_R      [tid] = ndc_R  [sid];
+                sh_G      [tid] = ndc_G  [sid];
+                sh_B      [tid] = ndc_B  [sid];
+                sh_A      [tid] = ndc_A  [sid];
             }
             __syncthreads();
 
@@ -417,18 +426,11 @@ __global__ void backwardKernel(
                     contributed_splats < MAX_CONTRIB;
                     i++)
                 {
-                    float dx  = x_ndc - sh_x[i];
-                    float dy  = y_ndc - sh_y[i];
-                    float cxx = sh_cxx[i];
-                    float cxy = sh_cxy[i];
-                    float cyy = sh_cyy[i];
-                    float det = cxx * cyy - cxy * cxy;
-                    if (!(det > 0.f)) continue;  // !(x > 0) rejects both negative and NaN
-
-                    float inv_det = 1.f / det;
-                    float inv_cxx =  cyy * inv_det;
-                    float inv_cxy = -cxy * inv_det;
-                    float inv_cyy =  cxx * inv_det;
+                    float dx      = x_ndc - sh_x[i];
+                    float dy      = y_ndc - sh_y[i];
+                    float inv_cxx = sh_inv_cxx[i];
+                    float inv_cxy = sh_inv_cxy[i];
+                    float inv_cyy = sh_inv_cyy[i];
                     float dist2 = dx*dx*inv_cxx + 2.f*dx*dy*inv_cxy + dy*dy*inv_cyy;
                     if (dist2 > 9.f) continue;
 
@@ -469,17 +471,25 @@ __global__ void backwardKernel(
             // --- collaborative load ---
             if (tid < chunk_size)
             {
-                uint32_t sid  = values_sorted[chunk_start + tid];
-                sh_sid[tid]   = sid;
-                sh_x  [tid]   = ndc_x  [sid];
-                sh_y  [tid]   = ndc_y  [sid];
-                sh_cxx[tid]   = ndc_cxx[sid];
-                sh_cxy[tid]   = ndc_cxy[sid];
-                sh_cyy[tid]   = ndc_cyy[sid];
-                sh_R  [tid]   = ndc_R  [sid];
-                sh_G  [tid]   = ndc_G  [sid];
-                sh_B  [tid]   = ndc_B  [sid];
-                sh_A  [tid]   = ndc_A  [sid];
+                uint32_t sid    = values_sorted[chunk_start + tid];
+                float cxx       = ndc_cxx[sid];
+                float cxy       = ndc_cxy[sid];
+                float cyy       = ndc_cyy[sid];
+                float inv_det   = 1.f / (cxx * cyy - cxy * cxy);
+                sh_sid    [tid] = sid;
+                sh_x      [tid] = ndc_x  [sid];
+                sh_y      [tid] = ndc_y  [sid];
+                sh_cxx    [tid] = cxx;
+                sh_cxy    [tid] = cxy;
+                sh_cyy    [tid] = cyy;
+                sh_inv_cxx[tid] =  cyy * inv_det;
+                sh_inv_cxy[tid] = -cxy * inv_det;
+                sh_inv_cyy[tid] =  cxx * inv_det;
+                sh_inv_det[tid] = inv_det;
+                sh_R      [tid] = ndc_R  [sid];
+                sh_G      [tid] = ndc_G  [sid];
+                sh_B      [tid] = ndc_B  [sid];
+                sh_A      [tid] = ndc_A  [sid];
             }
             // zero gradient accumulators for this chunk
             if (tid < chunk_size)
@@ -505,16 +515,15 @@ __global__ void backwardKernel(
                     // index within the chunk's shared memory
                     int i = (int)(contrib_pos[contrib_cursor] - chunk_start);
 
-                    float dx  = x_ndc - sh_x[i];
-                    float dy  = y_ndc - sh_y[i];
-                    float cxx = sh_cxx[i];
-                    float cxy = sh_cxy[i];
-                    float cyy = sh_cyy[i];
-                    float det = cxx * cyy - cxy * cxy;
-                    float inv_det = 1.f / det;
-                    float inv_cxx =  cyy * inv_det;
-                    float inv_cxy = -cxy * inv_det;
-                    float inv_cyy =  cxx * inv_det;
+                    float dx      = x_ndc - sh_x[i];
+                    float dy      = y_ndc - sh_y[i];
+                    float cxx     = sh_cxx[i];
+                    float cxy     = sh_cxy[i];
+                    float cyy     = sh_cyy[i];
+                    float inv_det = sh_inv_det[i];
+                    float inv_cxx = sh_inv_cxx[i];
+                    float inv_cxy = sh_inv_cxy[i];
+                    float inv_cyy = sh_inv_cyy[i];
                     float dist2   = dx*dx*inv_cxx + 2.f*dx*dy*inv_cxy + dy*dy*inv_cyy;
                     float g       = expf(-0.5f * dist2);
                     float alpha   = fminf(0.99f, sh_A[i] * g);
