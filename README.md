@@ -164,7 +164,7 @@ If you see errors about missing GLM or ImGui headers:
 git submodule update --init
 ```
 
-### Black Screen
+### Black Screen / `named symbol not found` CUDA errors
 Most likely a CUDA architecture mismatch.
 If you're on an older or newer GPU, rebuild with the correct architecture manually:
 ```sh

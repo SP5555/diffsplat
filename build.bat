@@ -16,7 +16,7 @@ cd build
 cmake .. ^
     -G "Visual Studio 17 2022" ^
     -A x64 ^
-    -DCMAKE_CUDA_ARCHITECTURES=89 ^
+    "-DCMAKE_CUDA_ARCHITECTURES=86;89" ^
     -DCMAKE_CUDA_COMPILER="%NVCC_PATH%"
 
 cmake --build . --config Release --parallel
