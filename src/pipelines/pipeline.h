@@ -6,6 +6,7 @@ class Pipeline
 {
 public:
     void add(Layer *layer) { layers.push_back(layer); }
+    void clear() { layers.clear(); }
 
     void zero_grad()
     {

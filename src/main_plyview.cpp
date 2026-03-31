@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     cxxopts::Options options("plyview", "PLY Scene Viewer");
 
     options.add_options()
-        ("S,scene",  "Path to PLY scene file", cxxopts::value<std::string>()->default_value("data/ply/fly.ply"))
+        ("S,scene",  "Path to PLY scene file", cxxopts::value<std::string>()->default_value(""))
         ("s,scale",  "Scene scale",             cxxopts::value<float>()->default_value("1.0"))
         ("c,camera", "Camera mode (arcball, fly)", cxxopts::value<std::string>()->default_value("arcball"))
         ("help",     "Print usage");
@@ -26,12 +26,6 @@ int main(int argc, char *argv[])
     std::string camera_str = result["camera"].as<std::string>();
 
     /* ===== Argument Validation ===== */
-    if (!result.count("scene")) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "No scene specified, defaulting to %s", ply_path.c_str());
-        log_info("Main", buf);
-    }
-
     if (scale <= 0.f) {
         log_error("Main", "Error: scale must be a positive number.");
         return 1;

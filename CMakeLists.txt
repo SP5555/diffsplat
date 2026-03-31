@@ -83,7 +83,8 @@ endif()
 
 # ===== Shared sources =====
 set(CPP_SHARED_SOURCES
-    src/glad.c
+    src/vendor/glad.c
+    src/vendor/tinyfiledialogs.c
     src/input/input.cpp
     src/app/app_base.cpp
     src/io/image_saver.cpp

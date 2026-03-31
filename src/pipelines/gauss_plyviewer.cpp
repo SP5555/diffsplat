@@ -69,6 +69,15 @@ void GaussPlyViewer::initLayers()
     pipeline.add(&atv_layer);
     pipeline.add(&psp_layer);
     pipeline.add(&ras_layer);
+
+    loaded = true;
+}
+
+void GaussPlyViewer::reloadPLY(const std::string &path, float sceneScale)
+{
+    pipeline.clear();
+    loadPLY(path, sceneScale);
+    initLayers();
 }
 
 /* ===== ===== Render ===== ===== */

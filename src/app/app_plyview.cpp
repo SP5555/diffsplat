@@ -8,6 +8,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
+#include "tinyfiledialogs.h"
 
 #include "../camera/arcball_camera.h"
 #include "../camera/fly_camera.h"
@@ -42,15 +43,22 @@ AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMod
     std::iota(x_axis.begin(), x_axis.end(), 0.f);
 }
 
+/* ===== ===== Helpers ===== ===== */
+
+void AppPlyView::loadScene(const std::string &path)
+{
+    renderer.reloadPLY(path, scene_scale);
+    active_sh_degree = renderer.getMaxSHDegree();
+}
+
 /* ===== ===== App overrides ===== ===== */
 
 void AppPlyView::onStart()
 {
     renderer.init(width, height);
-    renderer.loadPLY(ply_path, scene_scale);
-    active_sh_degree = renderer.getMaxSHDegree();
 
-    renderer.initLayers();
+    if (!ply_path.empty())
+        loadScene(ply_path);
 }
 
 void AppPlyView::onFrame()
@@ -59,12 +67,14 @@ void AppPlyView::onFrame()
     if (!io.WantCaptureMouse && !io.WantCaptureKeyboard)
         camera->update(input, dt);
 
-    renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix(), camera->getPosition());
-    displayFrame(renderer.getOutput());
+    if (renderer.isLoaded()) {
+        renderer.render(camera->getViewMatrix(), camera->getProjectionMatrix(), camera->getPosition());
+        displayFrame(renderer.getOutput());
+    }
 
     static int frame_count = 0;
     frame_count++;
-    if (frame_count % UPDATE_FPS_EVERY_N_FRAMES == 0) {
+    if (renderer.isLoaded() && frame_count % UPDATE_FPS_EVERY_N_FRAMES == 0) {
         fps_history.push_back(getFPS());
         if (fps_history.size() > GRAPH_HISTORY_SIZE)
             fps_history.erase(fps_history.begin());
@@ -75,41 +85,51 @@ void AppPlyView::onFrame()
     ImGui::SetNextWindowSize(ImVec2(260, 220), ImGuiCond_Once);
     ImGui::Begin("Splat Viewer");
 
-    ImGui::Text("Visible Splats: %d", renderer.getVisibleCount());
-    auto pos = camera->getPosition();
-    ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
-    ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
-
-    if (camera_mode == CameraMode::Arcball) {
-        if (ImGui::Checkbox("Orthographic", &ortho_mode))
-            camera->setOrthoMode(ortho_mode);
+    if (ImGui::Button("Open PLY...")) {
+        const char *filter_patterns[] = {"*.ply"};
+        const char *result = tinyfd_openFileDialog("Open PLY Scene", "", 1, filter_patterns, "PLY files", 0);
+        if (result) {
+            ply_path = result;
+            loadScene(ply_path);
+            fps_history.clear();
+        }
     }
 
-    int max_sh = renderer.getMaxSHDegree();
-    if (max_sh > 0) {
-        const char *sh_items[] = {"0 (DC only)", "1", "2", "3"};
-        if (ImGui::Combo("SH Degree", &active_sh_degree, sh_items, max_sh + 1))
-            renderer.setActiveSHDegree(active_sh_degree);
-    }
+    if (renderer.isLoaded()) {
+        ImGui::Text("Visible Splats: %d", renderer.getVisibleCount());
+        auto pos = camera->getPosition();
+        ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+        ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
 
-    int history_size = static_cast<int>(fps_history.size());
-    if (history_size > 0 && ImPlot::BeginPlot("##FPSRolling", ImVec2(-1, ImGui::GetTextLineHeight() * 8))) {
+        if (camera_mode == CameraMode::Arcball) {
+            if (ImGui::Checkbox("Orthographic", &ortho_mode))
+                camera->setOrthoMode(ortho_mode);
+        }
 
-        ImPlot::SetupAxes(nullptr, "FPS", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_None);
+        int max_sh = renderer.getMaxSHDegree();
+        if (max_sh > 0) {
+            const char *sh_items[] = {"0 (DC only)", "1", "2", "3"};
+            if (ImGui::Combo("SH Degree", &active_sh_degree, sh_items, max_sh + 1))
+                renderer.setActiveSHDegree(active_sh_degree);
+        }
 
-        // X axis
-        ImPlot::SetupAxisLimits(ImAxis_X1, 0, GRAPH_HISTORY_SIZE, ImPlotCond_Always);
+        int history_size = static_cast<int>(fps_history.size());
+        if (history_size > 0 && ImPlot::BeginPlot("##FPSRolling", ImVec2(-1, ImGui::GetTextLineHeight() * 8))) {
 
-        // Y axis
-        float max_fps = *std::max_element(fps_history.begin(), fps_history.end());
-        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, max_fps + 20, ImPlotCond_Always);
+            ImPlot::SetupAxes(nullptr, "FPS", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_None);
 
-        ImPlotSpec spec;
-        spec.LineColor = ImVec4(0.4f, 0.9f, 0.4f, 1.0f);
-        spec.LineWeight = 2.0f;
-        ImPlot::PlotLine("FPS", x_axis.data(), fps_history.data(), history_size, spec);
+            ImPlot::SetupAxisLimits(ImAxis_X1, 0, GRAPH_HISTORY_SIZE, ImPlotCond_Always);
 
-        ImPlot::EndPlot();
+            float max_fps = *std::max_element(fps_history.begin(), fps_history.end());
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 0, max_fps + 20, ImPlotCond_Always);
+
+            ImPlotSpec spec;
+            spec.LineColor = ImVec4(0.4f, 0.9f, 0.4f, 1.0f);
+            spec.LineWeight = 2.0f;
+            ImPlot::PlotLine("FPS", x_axis.data(), fps_history.data(), history_size, spec);
+
+            ImPlot::EndPlot();
+        }
     }
 
     ImGui::End();

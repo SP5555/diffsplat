@@ -26,6 +26,8 @@ protected:
     void onWindowResize(int newWidth, int newHeight) override;
 
 private:
+    void loadScene(const std::string &path);
+
     std::string    ply_path;
     float          scene_scale;
     CameraMode     camera_mode;

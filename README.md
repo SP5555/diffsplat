@@ -11,7 +11,7 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 - [X] SH degree selector (0 to max) in plyviewapp ImGui window
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
-- [ ] Hate command line args; integrate proper file open buttons in the ImGui window
+- [X] Hate command line args; integrate proper file open buttons in the ImGui window -- plyviewapp now has an Open PLY button
 - [X] PLY file saving for imgfitapp -- export fitted splats and view them in plyviewapp
 - [X] `getopt.h` doesn't exist on Windows, FIX IT
 - [X] Build this on Windows
@@ -31,8 +31,8 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 ## Dependencies
 - CUDA Toolkit 11.0+ (tested on 13.0)
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
-- GLAD, stb_image, cxxopts (included in `include/`)
-- GLFW3, GLM, Dear ImGui (included as submodules in `third_party/`)
+- GLAD, stb_image, cxxopts, tinyfiledialogs (included in `include/` and `src/vendor/`)
+- GLFW3, GLM, Dear ImGui, ImPlot (included as submodules in `third_party/`)
 
 ## Build
 ```sh
@@ -137,16 +137,16 @@ Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders i
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--scene` | REQUIRED | Path to `.ply` file |
+| `--scene` | _(none)_ | Path to `.ply` file -- if omitted, use the **Open PLY...** button in the UI |
 | `--scale` | `1.0` | Scene normalization scale |
 | `--camera` | `arcball` | Camera mode: `fly` or `arcball` |
 
 ```sh
 # Linux
-./build/plyviewapp --scene path/to/scene.ply [--scale 1.0] [--camera fly|arcball]
+./build/plyviewapp [--scene path/to/scene.ply] [--scale 1.0] [--camera fly|arcball]
 
 # Windows
-.\build\Release\plyviewapp --scene path/to/scene.ply [--scale 1.0] [--camera fly|arcball]
+.\build\Release\plyviewapp [--scene path/to/scene.ply] [--scale 1.0] [--camera fly|arcball]
 ```
 
 <p align="center">
