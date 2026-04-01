@@ -1,4 +1,4 @@
-#include "app_plyview.h"
+#include "viewer_app.h"
 
 #include <algorithm>
 #include <iostream>
@@ -9,6 +9,8 @@
 #include "imgui_impl_opengl3.h"
 #include "implot.h"
 #include "tinyfiledialogs.h"
+
+#include <cuda_runtime.h>
 
 #include "../camera/arcball_camera.h"
 #include "../camera/fly_camera.h"
@@ -21,7 +23,7 @@ const int START_HEIGHT = 720;
 const int GRAPH_HISTORY_SIZE = 100;
 const int UPDATE_FPS_EVERY_N_FRAMES = 2;
 
-AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMode camera_mode)
+ViewerApp::ViewerApp(const std::string &ply_path, float scene_scale, CameraMode camera_mode)
     : AppBase(START_WIDTH, START_HEIGHT, "Splat viewer", true)
     , ply_path(ply_path)
     , scene_scale(scene_scale)
@@ -33,7 +35,7 @@ AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMod
     else if (camera_mode == CameraMode::Fly)
         camera = std::make_unique<FlyCamera>(aspect);
 
-    log_info("AppPlyView",
+    log_info("ViewerApp",
         "PLY=" + ply_path +
         " Scale=" + std::to_string(scene_scale) +
         " Camera=" + (camera_mode == CameraMode::Arcball ? "Arcball" : "Fly")
@@ -45,15 +47,22 @@ AppPlyView::AppPlyView(const std::string &ply_path, float scene_scale, CameraMod
 
 /* ===== ===== Helpers ===== ===== */
 
-void AppPlyView::loadScene(const std::string &path)
+void ViewerApp::loadScene(const std::string &path)
 {
-    renderer.reloadPLY(path, scene_scale);
-    active_sh_degree = renderer.getMaxSHDegree();
+    load_error.clear();
+    try {
+        renderer.reloadPLY(path, scene_scale);
+        active_sh_degree = renderer.getMaxSHDegree();
+    } catch (const std::exception &e) {
+        load_error = e.what();
+        log_error("ViewerApp", "Failed to load scene: " + load_error);
+        cudaGetLastError(); // clear any sticky CUDA error state
+    }
 }
 
 /* ===== ===== App overrides ===== ===== */
 
-void AppPlyView::onStart()
+void ViewerApp::onStart()
 {
     renderer.init(width, height);
 
@@ -61,7 +70,7 @@ void AppPlyView::onStart()
         loadScene(ply_path);
 }
 
-void AppPlyView::onFrame()
+void ViewerApp::onFrame()
 {
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureMouse && !io.WantCaptureKeyboard)
@@ -72,7 +81,6 @@ void AppPlyView::onFrame()
         displayFrame(renderer.getOutput());
     }
 
-    static int frame_count = 0;
     frame_count++;
     if (renderer.isLoaded() && frame_count % UPDATE_FPS_EVERY_N_FRAMES == 0) {
         fps_history.push_back(getFPS());
@@ -93,6 +101,12 @@ void AppPlyView::onFrame()
             loadScene(ply_path);
             fps_history.clear();
         }
+    }
+
+    if (!load_error.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
+        ImGui::TextWrapped("Error: %s", load_error.c_str());
+        ImGui::PopStyleColor();
     }
 
     if (renderer.isLoaded()) {
@@ -135,7 +149,7 @@ void AppPlyView::onFrame()
     ImGui::End();
 }
 
-void AppPlyView::onWindowResize(int newWidth, int newHeight)
+void ViewerApp::onWindowResize(int newWidth, int newHeight)
 {
     camera->setAspect((float)newWidth / newHeight);
     renderer.resize(newWidth, newHeight);

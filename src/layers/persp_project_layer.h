@@ -27,6 +27,7 @@ public:
     ~PerspProjectLayer() {}
 
     void allocate(int count);
+    void allocateGrad(int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
@@ -56,6 +57,4 @@ private:
     /* ---- camera (set every frame, uploaded to device) ---- */
     float h_pv[16]; // PV = P * V, row-major on device
 
-    /* ---- config ---- */
-    int allocated_count = 0;
 };

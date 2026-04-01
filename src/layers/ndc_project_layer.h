@@ -25,6 +25,7 @@ public:
     ~NDCProjectLayer() {}
 
     void allocate(int width, int height, int count);
+    void allocateGrad(int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
@@ -51,5 +52,4 @@ private:
     /* ---- config ---- */
     int screen_width  = 0;
     int screen_height = 0;
-    int allocated_count = 0;
 };

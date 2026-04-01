@@ -173,8 +173,11 @@ void NDCProjectLayer::allocate(int width, int height, int count)
 {
     screen_width  = width;
     screen_height = height;
-    allocated_count = count;
     out.allocate(count);
+}
+
+void NDCProjectLayer::allocateGrad(int count)
+{
     grad_in.allocate(count);
 }
 

@@ -54,8 +54,8 @@ protected:
     void updateWindowTitle(const std::string &t);
 
     // expose states for ImGui to display
-    float getFPS() const { return avg_FPS; }
-    float getFrametime() const { return 1000.f / avg_FPS; } // in ms
+    float getFPS() const { return avg_fps; }
+    float getFrametime() const { return 1000.f / avg_fps; } // in ms
 
     // window / input state
     GLFWwindow *window = nullptr;
@@ -102,6 +102,6 @@ private:
     double last_frametime     = 0.0;
     double time_since_update  = 0.0;
     int    frame_since_update = 0;
-    float  avg_FPS            = 0.f;
+    float  avg_fps            = 0.f;
     std::string title;
 };

@@ -14,7 +14,7 @@
  * and PLYLoader expect.
  *
  * NOTE: positions are saved in whatever scale they were trained in
- * (e.g. pixel-scaled world space for imgfitapp). PLYLoader normalizes
+ * (e.g. pixel-scaled world space for fitter). PLYLoader normalizes
  * the scene to [-1, 1] on load, so scale differences are handled automatically.
  *
  * Property order written: x y z f_dc_0..2 [f_rest_0..N] opacity scale_0..2 rot_0..3

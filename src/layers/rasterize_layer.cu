@@ -610,6 +610,24 @@ void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_
     d_visible_count.allocate(1);
     d_tile_ranges.allocate  (numTiles);
 
+    // Pre-reserve CUB sort temp at max_pairs depth so forward() never allocates.
+    {
+        size_t required = 0;
+        uint64_t *dummy_keys = nullptr;
+        uint32_t *dummy_vals = nullptr;
+        CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
+            nullptr, required,
+            dummy_keys, dummy_keys,
+            dummy_vals, dummy_vals,
+            max_pairs));
+        d_sort_temp.allocate(required);
+        sort_temp_bytes = required;
+    }
+
+}
+
+void RasterizeLayer::allocateGrad(int count)
+{
     grad_in.allocate(count);
 }
 

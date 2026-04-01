@@ -1,4 +1,4 @@
-#include "gauss_imgfitter.h"
+#include "image_fitter.h"
 
 #include <cuda_runtime.h>
 
@@ -14,30 +14,30 @@
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void GaussImgFitter::init(int w, int h)
+void ImageFitter::init(int w, int h)
 {
     width  = w;
     height = h;
 
-    log_info("GaussImgFitter",
+    log_info("ImageFitter",
         "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
         " Tiles=" + std::to_string(NUM_TILES_X) + "x" + std::to_string(NUM_TILES_Y) +
-        " MaxPairs=" + std::to_string(getMaxPairs())
+        " MaxPairs=" + std::to_string(MAX_PAIRS)
     );
 }
 
-void GaussImgFitter::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
+void ImageFitter::loadTargetImage(const std::string &imagePath, int w, int h, int padding)
 {
     auto image = ImageLoader::load(imagePath, w, h, padding);
     if (image.pixels.empty())
-        log_fatal("GaussImgFitter", "Failed to load target image: " + imagePath);
+        log_fatal("ImageFitter", "Failed to load target image: " + imagePath);
 
     d_target_pixels.allocate(w * h * 3);
     CUDA_CHECK(cudaMemcpy(d_target_pixels, image.pixels.data(),
                           w * h * 3 * sizeof(float), cudaMemcpyHostToDevice));
 }
 
-void GaussImgFitter::randomInitGaussians(int count, int seed)
+void ImageFitter::randomInitGaussians(int count, int seed)
 {
     if (seed < 0)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
@@ -46,22 +46,27 @@ void GaussImgFitter::randomInitGaussians(int count, int seed)
     gaussian_params.upload(splats);
 }
 
-float *GaussImgFitter::getOutput()
+float *ImageFitter::getOutput()
 {
     return ras_layer.getOutput();
 }
 
 /* ===== ===== Init ===== ===== */
 
-void GaussImgFitter::initLayers()
+void ImageFitter::initLayers()
 {
     int count = gaussian_params.count;
 
-    // allocate
+    // allocate forward buffers
     atv_layer.allocate(count);
     ndc_layer.allocate(width, height, count);
-    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, getMaxPairs(), count);
+    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, MAX_PAIRS, count);
     mse_layer.allocate(width, height);
+
+    // allocate grad buffers
+    atv_layer.allocateGrad(count);
+    ndc_layer.allocateGrad(count);
+    ras_layer.allocateGrad(count);
 
     // wire forward
     atv_layer.setInput(&gaussian_params);
@@ -87,7 +92,7 @@ void GaussImgFitter::initLayers()
 
 /* ===== ===== Render ===== ===== */
 
-void GaussImgFitter::step()
+void ImageFitter::step()
 {
     pipeline.zero_grad();
     pipeline.forward();
@@ -98,7 +103,7 @@ void GaussImgFitter::step()
     optimizer.step(gaussian_params, atv_layer.getGradInput());
 }
 
-void GaussImgFitter::savePLY(const std::string &path)
+void ImageFitter::savePLY(const std::string &path)
 {
     auto splats = gaussian_params.download();
     PLYSaver::save(path, splats, gaussian_params.sh_num_bands);

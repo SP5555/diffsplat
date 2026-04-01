@@ -2,17 +2,17 @@
 #include <string>
 #include <vector>
 #include "app_base.h"
-#include "../pipelines/gauss_imgfitter.h"
+#include "../pipelines/image_fitter.h"
 
 /**
  * @brief App for differentiable Gaussian image fitting.
- * 
- * Owns a GaussImgFitter renderer and drives the fit loop.
+ *
+ * Owns an ImageFitter pipeline and drives the fit loop.
  */
-class AppImgFit : public AppBase
+class FitterApp : public AppBase
 {
 public:
-    AppImgFit(int width, int height, const std::string &image_path, int splat_count = 60000);
+    FitterApp(int width, int height, const std::string &image_path, int splat_count = 60000);
 
 protected:
     void onStart()  override;
@@ -22,9 +22,9 @@ private:
     int getIterCount() const { return fitter.getIterCount(); }
     float getLoss()    const { return fitter.getLoss(); }
 
-    std::string     image_path;
-    int             splat_count;
-    GaussImgFitter  fitter;
+    std::string  image_path;
+    int          splat_count;
+    ImageFitter  fitter;
 
     // ImGui
     std::vector<float> loss_history;

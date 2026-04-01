@@ -142,30 +142,30 @@ function(diffsplat_target_setup TARGET)
     )
 endfunction()
 
-# ===== imgfitapp: differentiable image fitter =====
-add_executable(imgfitapp
-    src/main_imgfit.cpp
-    src/app/app_imgfit.cpp
+# ===== fitter: differentiable image fitter =====
+add_executable(fitter
+    src/main_fitter.cpp
+    src/app/fitter_app.cpp
     src/io/image_loader.cpp
     src/io/ply_saver.cpp
-    src/pipelines/gauss_imgfitter.cpp
+    src/pipelines/image_fitter.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
 )
-diffsplat_target_setup(imgfitapp)
+diffsplat_target_setup(fitter)
 
-# ===== plyviewapp: PLY scene viewer =====
-add_executable(plyviewapp
-    src/main_plyview.cpp
-    src/app/app_plyview.cpp
+# ===== viewer: PLY scene viewer =====
+add_executable(viewer
+    src/main_viewer.cpp
+    src/app/viewer_app.cpp
     src/io/ply_loader.cpp
     src/camera/arcball_camera.cpp
     src/camera/fly_camera.cpp
-    src/pipelines/gauss_plyviewer.cpp
+    src/pipelines/splat_renderer.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
 )
-diffsplat_target_setup(plyviewapp)
+diffsplat_target_setup(viewer)
 
 # ===== Status =====
 message(STATUS "CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")

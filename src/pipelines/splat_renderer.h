@@ -9,18 +9,16 @@
 
 /**
  * @brief Forward-only Gaussian splatting pipeline for PLY scene viewing.
- * 
+ *
  * Loads a PLY file, normalizes splat positions to [-1, 1], and renders
  * forward-only (no backward pass, no optimizer).
  */
-class GaussPlyViewer
+class SplatRenderer
 {
 public:
-    ~GaussPlyViewer() {};
+    ~SplatRenderer() {};
 
     void init(int w, int h);
-    void loadPLY(const std::string &path, const float sceneScale = 1.f);
-    void initLayers();
     void reloadPLY(const std::string &path, float sceneScale = 1.f);
 
     bool isLoaded() const { return loaded; }
@@ -35,11 +33,13 @@ public:
     void setActiveSHDegree(int d)     { atv_layer.setSHDegree(d); }
 
 private:
-    int getMaxPairs() const { return (1 << 25); }
+    void loadPLY(const std::string &path, float sceneScale);
+    void initLayers();
 
     /* ---- config ---- */
     static constexpr int NUM_TILES_X = 64;
     static constexpr int NUM_TILES_Y = 64;
+    static constexpr int MAX_PAIRS   = (1 << 25);
 
     /* ---- state ---- */
     int  width     = 0;

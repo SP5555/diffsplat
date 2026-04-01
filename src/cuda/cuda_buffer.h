@@ -1,5 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
+#include <stdexcept>
+#include <string>
 #include "cuda_check.h"
 
 template <typename T>
@@ -40,14 +42,22 @@ struct CudaBuffer
     {
         free();
         size = size_;
-        CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
+        cudaError_t err = cudaMalloc(&ptr, size * sizeof(T));
+        if (err != cudaSuccess)
+        {
+            size = 0;
+            throw std::runtime_error(
+                std::string("[CUDA] cudaMalloc failed (")
+                + std::to_string(size_ * sizeof(T) / (1024 * 1024)) + " MB): "
+                + cudaGetErrorString(err));
+        }
     }
 
     void free()
     {
         if (ptr)
         {
-            CUDA_CHECK(cudaFree(ptr));
+            CUDA_WARN(cudaFree(ptr));
             ptr = nullptr;
             size = 0;
         }

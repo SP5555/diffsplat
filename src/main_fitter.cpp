@@ -1,11 +1,11 @@
 #include <iostream>
 #include "cxxopts.hpp"
-#include "app/app_imgfit.h"
+#include "app/fitter_app.h"
 #include "utils/logs.h"
 
 int main(int argc, char *argv[])
 {
-    cxxopts::Options options("imgfit", "Image Fitter");
+    cxxopts::Options options("fitter", "Image Fitter");
 
     options.add_options()
         ("w,width",       "Window width",              cxxopts::value<int>()->default_value("1280"))
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     }
 
     try {
-        AppImgFit app(width, height, image_path, splat_count);
+        FitterApp app(width, height, image_path, splat_count);
         app.start();
     }
     catch (const std::exception &e)

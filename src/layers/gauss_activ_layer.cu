@@ -432,8 +432,11 @@ __global__ void covBackwardKernel(
 
 void GaussActivLayer::allocate(int count)
 {
-    allocated_count = count;
     out.allocate(count);
+}
+
+void GaussActivLayer::allocateGrad(int count)
+{
     grad_in.allocate(count, sh_degree);
 }
 

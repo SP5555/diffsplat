@@ -6,13 +6,13 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 (Kerbl et al., SIGGRAPH 2023).
 
 ## TODO
-- [ ] SH colors for imgfitapp so splats can finally have opinions about the lighting
-- [X] View-dependent SH colors (degrees 0-3) for plyviewapp -- splats now have opinions about the lighting
-- [X] SH degree selector (0 to max) in plyviewapp ImGui window
+- [ ] SH colors for fitter so splats can finally have opinions about the lighting
+- [X] View-dependent SH colors (degrees 0-3) for viewer -- splats now have opinions about the lighting
+- [X] SH degree selector (0 to max) in viewer ImGui window
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
 - [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
-- [X] Hate command line args; integrate proper file open buttons in the ImGui window -- plyviewapp now has an Open PLY button
-- [X] PLY file saving for imgfitapp -- export fitted splats and view them in plyviewapp
+- [X] Hate command line args; integrate proper file open buttons in the ImGui window -- viewer now has an Open PLY button
+- [X] PLY file saving for fitter -- export fitted splats and view them in viewer
 - [X] `getopt.h` doesn't exist on Windows, FIX IT
 - [X] Build this on Windows
 - [X] Fly Camera
@@ -78,9 +78,9 @@ cmake --build . --config Release --parallel
 
 ## Apps
 
-### imgfitapp (Image Fitter)
+### fitter (Image Fitter)
 
-Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** and export the result to a `.ply` file for viewing in plyviewapp.
+Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target image using gradient descent, fully on the GPU. Watch the splats converge **live** and export the result to a `.ply` file for viewing in viewer.
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -93,10 +93,10 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 
 ```sh
 # Linux
-./build/imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
+./build/fitter --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 
 # Windows
-.\build\Release\imgfitapp --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
+.\build\Release\fitter --image path/to/image.png [--width 1280] [--height 720] [--splats 60000]
 ```
 
 <p align="center">
@@ -131,7 +131,7 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
   </table>
 </p>
 
-### plyviewapp (PLY Scene Viewer)
+### viewer (PLY Scene Viewer)
 
 Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders it in real time with a free-orbit camera. Accepts any PLY file produced by standard 3DGS training pipelines. Automatically detects and evaluates spherical harmonic degrees 0-3 for view-dependent color -- orbit the camera and watch the colors change. The active SH degree can be changed live from the ImGui window.
 
@@ -143,10 +143,10 @@ Loads a pre-trained 3D Gaussian Splatting scene from a `.ply` file and renders i
 
 ```sh
 # Linux
-./build/plyviewapp [--scene path/to/scene.ply] [--scale 1.0] [--camera fly|arcball]
+./build/viewer [--scene path/to/scene.ply] [--scale 1.0] [--camera fly|arcball]
 
 # Windows
-.\build\Release\plyviewapp [--scene path/to/scene.ply] [--scale 1.0] [--camera fly|arcball]
+.\build\Release\viewer [--scene path/to/scene.ply] [--scale 1.0] [--camera fly|arcball]
 ```
 
 <p align="center">
@@ -184,5 +184,5 @@ Not sure which architecture you need? Check https://developer.nvidia.com/cuda/gp
 By default the renderer falls back to a host-copy display path (GPU->CPU->GPU) since
 CUDA and OpenGL are on different devices. To force direct GPU display:
 ```sh
-__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/<app>
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./build/viewer
 ```

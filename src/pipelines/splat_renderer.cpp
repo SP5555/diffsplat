@@ -1,4 +1,4 @@
-#include "gauss_plyviewer.h"
+#include "splat_renderer.h"
 
 #include <cuda_runtime.h>
 
@@ -13,50 +13,50 @@
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void GaussPlyViewer::init(int w, int h)
+void SplatRenderer::init(int w, int h)
 {
     width       = w;
     height      = h;
 
-    log_info("GaussPlyViewer",
+    log_info("SplatRenderer",
         "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
         " Tiles=" + std::to_string(NUM_TILES_X) + "x" + std::to_string(NUM_TILES_Y) +
-        " MaxPairs=" + std::to_string(getMaxPairs())
+        " MaxPairs=" + std::to_string(MAX_PAIRS)
     );
 }
 
-void GaussPlyViewer::loadPLY(const std::string &path, const float sceneScale)
+void SplatRenderer::loadPLY(const std::string &path, const float sceneScale)
 {
     auto result = PLYLoader::load(path);
     if (result.splats.empty())
-        throw std::runtime_error("[GaussPlyViewer] PLY loaded 0 splats: " + path);
+        throw std::runtime_error("[SplatRenderer] PLY loaded 0 splats: " + path);
 
     SplatUtils::normalizeScene(result.splats, sceneScale);
     sh_degree = result.sh_degree;
     gaussian_params.upload(result.splats, sh_degree);
 }
 
-float *GaussPlyViewer::getOutput()
+float *SplatRenderer::getOutput()
 {
     return ras_layer.getOutput();
 }
 
-uint32_t GaussPlyViewer::getVisibleCount()
+uint32_t SplatRenderer::getVisibleCount()
 {
     return ras_layer.getVisibleCount();
 }
 
 /* ===== ===== Init ===== ===== */
 
-void GaussPlyViewer::initLayers()
+void SplatRenderer::initLayers()
 {
     int count = gaussian_params.count;
 
-    // allocate
+    // allocate forward buffers only (no grad buffers needed for viewer)
     atv_layer.setSHDegree(sh_degree);
     atv_layer.allocate(count);
     psp_layer.allocate(count);
-    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, getMaxPairs(), count);
+    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, MAX_PAIRS, count);
 
     // wire forward
     atv_layer.setInput(&gaussian_params);
@@ -73,8 +73,9 @@ void GaussPlyViewer::initLayers()
     loaded = true;
 }
 
-void GaussPlyViewer::reloadPLY(const std::string &path, float sceneScale)
+void SplatRenderer::reloadPLY(const std::string &path, float sceneScale)
 {
+    loaded = false;
     pipeline.clear();
     loadPLY(path, sceneScale);
     initLayers();
@@ -82,7 +83,7 @@ void GaussPlyViewer::reloadPLY(const std::string &path, float sceneScale)
 
 /* ===== ===== Render ===== ===== */
 
-void GaussPlyViewer::render(const glm::mat4 &view, const glm::mat4 &proj, const glm::vec3 &cam_pos)
+void SplatRenderer::render(const glm::mat4 &view, const glm::mat4 &proj, const glm::vec3 &cam_pos)
 {
     atv_layer.setCameraPosition(cam_pos);
     psp_layer.setCamera(view, proj);
@@ -90,7 +91,7 @@ void GaussPlyViewer::render(const glm::mat4 &view, const glm::mat4 &proj, const 
     pipeline.forward();
 }
 
-void GaussPlyViewer::resize(int newWidth, int newHeight)
+void SplatRenderer::resize(int newWidth, int newHeight)
 {
     width  = newWidth;
     height = newHeight;

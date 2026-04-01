@@ -1,4 +1,4 @@
-#include "app_imgfit.h"
+#include "fitter_app.h"
 
 #include <algorithm>
 #include <iostream>
@@ -14,12 +14,12 @@ const int IMAGE_PADDING_PX          = 5;  // keeps the target image from touchin
 const int GRAPH_HISTORY_SIZE        = 100;
 const int UPDATE_FPS_EVERY_N_FRAMES = 5;
 
-AppImgFit::AppImgFit(int width, int height, const std::string &image_path, int splat_count)
+FitterApp::FitterApp(int width, int height, const std::string &image_path, int splat_count)
     : AppBase(width, height, "Image Fitter", false)
     , image_path(image_path)
     , splat_count(splat_count)
 {
-    log_info("AppImgFit",
+    log_info("FitterApp",
         "Width=" + std::to_string(width) +
         " Height=" + std::to_string(height) +
         " Image=" + image_path +
@@ -29,7 +29,7 @@ AppImgFit::AppImgFit(int width, int height, const std::string &image_path, int s
 
 /* ===== ===== App overrides ===== ===== */
 
-void AppImgFit::onStart()
+void FitterApp::onStart()
 {
     fitter.init(width, height);
     fitter.loadTargetImage(image_path, width, height, IMAGE_PADDING_PX);
@@ -39,7 +39,7 @@ void AppImgFit::onStart()
     fitter.initLayers();
 }
 
-void AppImgFit::onFrame()
+void FitterApp::onFrame()
 {
     fitter.step();
     displayFrame(fitter.getOutput());

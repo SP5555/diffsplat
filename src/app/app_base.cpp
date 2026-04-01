@@ -185,7 +185,7 @@ void AppBase::start()
 
         if (time_since_update >= 0.1)
         {
-            avg_FPS = avg_FPS * 0.4f + (frame_since_update / (float)time_since_update) * 0.6f;
+            avg_fps = avg_fps * 0.4f + (frame_since_update / (float)time_since_update) * 0.6f;
             time_since_update  = 0.0;
             frame_since_update = 0;
         }

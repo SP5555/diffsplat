@@ -1,12 +1,12 @@
 #include <algorithm>
 #include <iostream>
 #include "cxxopts.hpp"
-#include "app/app_plyview.h"
+#include "app/viewer_app.h"
 #include "utils/logs.h"
 
 int main(int argc, char *argv[])
 {
-    cxxopts::Options options("plyview", "PLY Scene Viewer");
+    cxxopts::Options options("viewer", "PLY Scene Viewer");
 
     options.add_options()
         ("S,scene",  "Path to PLY scene file", cxxopts::value<std::string>()->default_value(""))
@@ -41,13 +41,11 @@ int main(int argc, char *argv[])
     }
 
     try {
-        AppPlyView app(ply_path, scale, camera_mode);
+        ViewerApp app(ply_path, scale, camera_mode);
         app.start();
     }
     catch (const std::exception &e) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "Failed to start application: %s", e.what());
-        log_error("Main", buf);
+        log_error("Main", std::string("Fatal: ") + e.what());
         return 1;
     }
 

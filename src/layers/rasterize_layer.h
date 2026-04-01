@@ -33,6 +33,7 @@ public:
 
     void allocate(int width, int height, int num_tiles_x, int num_tiles_y,
                   int max_pairs, int count);
+    void allocateGrad(int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;

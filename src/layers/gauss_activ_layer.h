@@ -29,6 +29,7 @@ public:
     ~GaussActivLayer() {}
 
     void allocate(int count);
+    void allocateGrad(int count);
     void forward()      override;
     void backward()     override;
     void zero_grad()    override;
@@ -59,7 +60,6 @@ private:
     Gaussian3DGrads grad_in;
 
     /* ---- config ---- */
-    int   allocated_count = 0;
-    int   sh_degree       = 0;
+    int   sh_degree = 0;
     float cam_x = 0.f, cam_y = 0.f, cam_z = 0.f;
 };
