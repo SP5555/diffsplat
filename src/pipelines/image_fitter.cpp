@@ -1,6 +1,7 @@
 #include "image_fitter.h"
 
 #include <cuda_runtime.h>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -18,6 +19,14 @@ void ImageFitter::init(int w, int h)
 {
     width  = w;
     height = h;
+
+    float half_w = width  * 0.5f;
+    float half_h = height * 0.5f;
+    float z_range = std::min(half_w, half_h) * 0.25f; // matches init range
+    psp_layer.setCamera(
+        glm::mat4(1.0f),                                          // identity view
+        glm::ortho(-half_w, half_w, -half_h, half_h, -z_range, z_range)
+    );
 
     log_info("ImageFitter",
         "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
@@ -59,33 +68,33 @@ void ImageFitter::initLayers()
 
     // allocate forward buffers
     atv_layer.allocate(count);
-    ndc_layer.allocate(width, height, count);
+    psp_layer.allocate(count);
     ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, MAX_PAIRS, count);
     mse_layer.allocate(width, height);
 
     // allocate grad buffers
     atv_layer.allocateGrad(count);
-    ndc_layer.allocateGrad(count);
+    psp_layer.allocateGrad(count);
     ras_layer.allocateGrad(count);
 
     // wire forward
     atv_layer.setInput(&gaussian_params);
-    ndc_layer.setInput(&atv_layer.getOutput());
-    ras_layer.setInput(&ndc_layer.getOutput());
+    psp_layer.setInput(&atv_layer.getOutput());
+    ras_layer.setInput(&psp_layer.getOutput());
     mse_layer.setInput(ras_layer.getOutput());
     mse_layer.setTarget(d_target_pixels);
 
     // wire backward
     ras_layer.setGradOutput(mse_layer.getGradInput());
-    ndc_layer.setGradOutput(&ras_layer.getGradInput());
-    atv_layer.setGradOutput(&ndc_layer.getGradInput());
+    psp_layer.setGradOutput(&ras_layer.getGradInput());
+    atv_layer.setGradOutput(&psp_layer.getGradInput());
 
     // optimizer state
     optimizer.init(count);
 
     // register in pipeline
     pipeline.add(&atv_layer);
-    pipeline.add(&ndc_layer);
+    pipeline.add(&psp_layer);
     pipeline.add(&ras_layer);
     pipeline.add(&mse_layer);
 }
