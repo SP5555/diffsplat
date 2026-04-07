@@ -11,6 +11,11 @@
 #define T_THRESHOLD     0.0001f
 #define ALPHA_THRESHOLD (1.0f / 255.0f)
 
+// Tile size matches the gsplat convention: 16x16 pixels per tile.
+// num_tiles_x/y are always ceil(W/TILE_SIZE) x ceil(H/TILE_SIZE), computed
+// internally from the resolution so tile boundaries align with pixel blocks.
+static constexpr int TILE_SIZE = 16;
+
 /* ===== ===== Tile Assign ===== ===== */
 
 __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
@@ -71,9 +76,14 @@ __global__ void tileAssignKernel(
     float min_x = x - max_radius, max_x = x + max_radius;
     float min_y = y - max_radius, max_y = y + max_radius;
 
-    auto ndcToTileX = [&](float v) { return (int)floorf((v + 1.f) * 0.5f * num_tiles_x); };
+    // Convert NDC → pixel → tile. Using screen_width/TILE_SIZE (float) rather
+    // than num_tiles_x ensures tile boundaries align with the pixel blocks used
+    // by the rasterize kernel even when the resolution isn't a multiple of TILE_SIZE.
+    const float fx = (float)screen_width  / TILE_SIZE;
+    const float fy = (float)screen_height / TILE_SIZE;
+    auto ndcToTileX = [&](float v) { return (int)floorf((v + 1.f) * 0.5f * fx); };
     // Y-axis: ndc_y=+1 is the top of the screen (tile_y=0), ndc_y=-1 is the bottom.
-    auto ndcToTileY = [&](float v) { return (int)floorf((1.f - v) * 0.5f * num_tiles_y); };
+    auto ndcToTileY = [&](float v) { return (int)floorf((1.f - v) * 0.5f * fy); };
 
     int tx0 = max(ndcToTileX(min_x), 0), tx1 = min(ndcToTileX(max_x), num_tiles_x - 1);
     // Because ndcToTileY is decreasing in v, max_y maps to the lower tile index (top).
@@ -163,11 +173,11 @@ __global__ void rasterizeKernel(
     int tile_ix = tile_id % num_tiles_x;
     int tile_iy = tile_id / num_tiles_x;
 
-    // pixel bounds for this tile
-    int px0 = (tile_ix     * screen_width)  / num_tiles_x;
-    int px1 = ((tile_ix+1) * screen_width)  / num_tiles_x;
-    int py0 = (tile_iy     * screen_height) / num_tiles_y;
-    int py1 = ((tile_iy+1) * screen_height) / num_tiles_y;
+    // pixel bounds for this tile (clamped so the last tile handles partial coverage)
+    int px0 = tile_ix * TILE_SIZE;
+    int px1 = min((tile_ix + 1) * TILE_SIZE, screen_width);
+    int py0 = tile_iy * TILE_SIZE;
+    int py1 = min((tile_iy + 1) * TILE_SIZE, screen_height);
     int tile_pixels = (px1 - px0) * (py1 - py0);
 
     int2 range = tile_ranges[tile_id];
@@ -281,7 +291,7 @@ __global__ void rasterizeKernel(
  *    early once all contributors have been processed, making sparse pixels
  *    essentially free.
  *    Because each thread accesses a different contrib_pos[] index, atomicAdds
- *    to sh_grad_* scatter across different slots — avoiding serialization.
+ *    to sh_grad_* scatter across different slots - avoiding serialization.
  *    (A j-loop visiting the same index for all threads would serialize all
  *    warp threads onto the same shared memory slot.)
  *
@@ -293,7 +303,7 @@ __global__ void rasterizeKernel(
  *
  * 4. REFORMULATED COVARIANCE GRADIENTS (no sh_cxx/sh_cxy/sh_cyy):
  *    ddist2/dcxx, dcyy, dcxy are expressed using ddist2_dx, ddist2_dy,
- *    inv_cxy, inv_det, and dist2 — all already in registers. Eliminates
+ *    inv_cxy, inv_det, and dist2 - all already in registers. Eliminates
  *    sh_cxx/sh_cxy/sh_cyy (3KB shared memory), improving occupancy.
  *    Identities: ddist2_dcxx = -ddist2_dx^2 / 4,
  *                ddist2_dcyy = -ddist2_dy^2 / 4,
@@ -357,11 +367,11 @@ __global__ void backwardKernel(
     int tile_ix = tile_id % num_tiles_x;
     int tile_iy = tile_id / num_tiles_x;
 
-    // pixel bounds for this tile
-    int px0 = (tile_ix     * screen_width)  / num_tiles_x;
-    int px1 = ((tile_ix+1) * screen_width)  / num_tiles_x;
-    int py0 = (tile_iy     * screen_height) / num_tiles_y;
-    int py1 = ((tile_iy+1) * screen_height) / num_tiles_y;
+    // pixel bounds for this tile (clamped so the last tile handles partial coverage)
+    int px0 = tile_ix * TILE_SIZE;
+    int px1 = min((tile_ix + 1) * TILE_SIZE, screen_width);
+    int py0 = tile_iy * TILE_SIZE;
+    int py1 = min((tile_iy + 1) * TILE_SIZE, screen_height);
     int tile_pixels = (px1 - px0) * (py1 - py0);
 
     int2 range = tile_ranges[tile_id];
@@ -587,15 +597,15 @@ uint32_t RasterizeLayer::getVisibleCount()
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void RasterizeLayer::allocate(int width, int height, int _num_tiles_x, int _num_tiles_y,
-                               int _max_pairs, int count)
+void RasterizeLayer::allocate(int width, int height, int count)
 {
     screen_width  = width;
     screen_height = height;
     num_pixels    = width * height;
-    num_tiles_x   = _num_tiles_x;
-    num_tiles_y   = _num_tiles_y;
-    max_pairs     = _max_pairs;
+    num_tiles_x   = (width  + TILE_SIZE - 1) / TILE_SIZE;
+    num_tiles_y   = (height + TILE_SIZE - 1) / TILE_SIZE;
+    // The tile-assign kernel degrades gracefully (drops excess pairs) if exceeded.
+    max_pairs     = (1 << 25);
     int numTiles  = num_tiles_x * num_tiles_y;
 
     d_out_pixels.allocate   (num_pixels * 3);
@@ -643,9 +653,12 @@ void RasterizeLayer::resize(int new_width, int new_height)
     screen_width  = new_width;
     screen_height = new_height;
     num_pixels    = screen_width * screen_height;
+    num_tiles_x   = (screen_width  + TILE_SIZE - 1) / TILE_SIZE;
+    num_tiles_y   = (screen_height + TILE_SIZE - 1) / TILE_SIZE;
     d_out_pixels.allocate(num_pixels * 3);
     d_T_final.allocate   (num_pixels);
     d_n_contrib.allocate (num_pixels);
+    d_tile_ranges.allocate(num_tiles_x * num_tiles_y);
 }
 
 /* ===== ===== Forward / Backward ===== ===== */

@@ -18,10 +18,11 @@ void SplatRenderer::init(int w, int h)
     width       = w;
     height      = h;
 
+    int tiles_x = (w + 15) / 16;
+    int tiles_y = (h + 15) / 16;
     log_info("SplatRenderer",
         "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
-        " Tiles=" + std::to_string(NUM_TILES_X) + "x" + std::to_string(NUM_TILES_Y) +
-        " MaxPairs=" + std::to_string(MAX_PAIRS)
+        " Tiles=" + std::to_string(tiles_x) + "x" + std::to_string(tiles_y)
     );
 }
 
@@ -56,7 +57,7 @@ void SplatRenderer::initLayers()
     atv_layer.setSHDegree(sh_degree);
     atv_layer.allocate(count);
     psp_layer.allocate(count);
-    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, MAX_PAIRS, count);
+    ras_layer.allocate(width, height, count);
 
     // wire forward
     atv_layer.setInput(&gaussian_params);

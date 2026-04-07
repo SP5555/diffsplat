@@ -31,8 +31,7 @@ class RasterizeLayer : public Layer
 public:
     ~RasterizeLayer() {}
 
-    void allocate(int width, int height, int num_tiles_x, int num_tiles_y,
-                  int max_pairs, int count);
+    void allocate(int width, int height, int count);
     void allocateGrad(int count);
     void forward()      override;
     void backward()     override;

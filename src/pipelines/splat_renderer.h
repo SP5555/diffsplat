@@ -5,7 +5,7 @@
 #include "../types/gaussian3d.h"
 #include "../layers/gauss_activ_layer.h"
 #include "../layers/persp_project_layer.h"
-#include "../layers/rasterize_layer.h"
+#include "../layers/gsplat_rasterize_layer.h"
 
 /**
  * @brief Forward-only Gaussian splatting pipeline for PLY scene viewing.
@@ -36,10 +36,6 @@ private:
     void loadPLY(const std::string &path, float sceneScale);
     void initLayers();
 
-    /* ---- config ---- */
-    static constexpr int NUM_TILES_X = 64;
-    static constexpr int NUM_TILES_Y = 64;
-    static constexpr int MAX_PAIRS   = (1 << 25);
 
     /* ---- state ---- */
     int  width     = 0;
@@ -56,5 +52,5 @@ private:
     /* ---- layers ---- */
     GaussActivLayer   atv_layer;
     PerspProjectLayer psp_layer;
-    RasterizeLayer    ras_layer;
+    GsplatRasterizeLayer ras_layer;
 };

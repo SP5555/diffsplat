@@ -10,8 +10,8 @@ struct AdamConfig
     // different parameters may require different learning rates
     // because of different scalings. manually tune them!
     float lr_pos        = lr_master * 16.f;
-    float lr_scale      = lr_master * 0.4f;
-    float lr_rot        = lr_master * 0.4f;
+    float lr_scale      = lr_master * 1.0f;
+    float lr_rot        = lr_master * 0.6f;
     float lr_color      = lr_master * 6.f;
     float lr_sh_rest    = lr_master * 6.f;
     float lr_opacity    = lr_master * 6.f;

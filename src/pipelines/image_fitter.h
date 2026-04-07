@@ -8,7 +8,7 @@
 #include "../layers/gauss_activ_layer.h"
 #include "../layers/mse_loss_layer.h"
 #include "../layers/persp_project_layer.h"
-#include "../layers/rasterize_layer.h"
+#include "../layers/gsplat_rasterize_layer.h"
 #include "../optimizers/adam.cuh"
 #include "../types/gaussian3d.h"
 
@@ -43,9 +43,6 @@ private:
     int width  = 0;
     int height = 0;
 
-    static constexpr int NUM_TILES_X = 32;
-    static constexpr int NUM_TILES_Y = 32;
-    static constexpr int MAX_PAIRS   = (1 << 20);
 
     /* ---- Gaussian state ---- */
     Gaussian3DParams gaussian_params;
@@ -56,7 +53,7 @@ private:
     /* ---- layers ---- */
     GaussActivLayer   atv_layer;
     PerspProjectLayer psp_layer;
-    RasterizeLayer    ras_layer;
+    GsplatRasterizeLayer ras_layer;
     MSELossLayer      mse_layer;
 
     /* ---- optimizer ---- */

@@ -28,10 +28,11 @@ void ImageFitter::init(int w, int h)
         glm::ortho(-half_w, half_w, -half_h, half_h, -z_range, z_range)
     );
 
+    int tiles_x = (w + 15) / 16;
+    int tiles_y = (h + 15) / 16;
     log_info("ImageFitter",
         "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
-        " Tiles=" + std::to_string(NUM_TILES_X) + "x" + std::to_string(NUM_TILES_Y) +
-        " MaxPairs=" + std::to_string(MAX_PAIRS)
+        " Tiles=" + std::to_string(tiles_x) + "x" + std::to_string(tiles_y)
     );
 }
 
@@ -69,7 +70,7 @@ void ImageFitter::initLayers()
     // allocate forward buffers
     atv_layer.allocate(count);
     psp_layer.allocate(count);
-    ras_layer.allocate(width, height, NUM_TILES_X, NUM_TILES_Y, MAX_PAIRS, count);
+    ras_layer.allocate(width, height, count);
     mse_layer.allocate(width, height);
 
     // allocate grad buffers
