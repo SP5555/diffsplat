@@ -53,11 +53,11 @@ __global__ void gsTileAssignKernel(
     const float *__restrict__ ndc_cxy,
     const float *__restrict__ ndc_cyy,
     int splat_count,
-    uint64_t *keys,
-    uint32_t *values,
-    uint32_t *pair_count,
+    uint64_t *isect_ids,
+    uint32_t *gauss_ids,
+    uint32_t *n_isects,
     uint32_t *visible_count,
-    int max_pairs,
+    int max_isects,
     int num_tiles_x,
     int num_tiles_y,
     int screen_width,
@@ -112,10 +112,10 @@ __global__ void gsTileAssignKernel(
     {
         uint32_t tile_id = (uint32_t)(ty * num_tiles_x + tx);
         uint64_t key     = makeKey(tile_id, z);
-        uint32_t slot    = atomicAdd(pair_count, 1u);
-        if (slot >= (uint32_t)max_pairs) { atomicSub(pair_count, 1u); return; }
-        keys[slot]   = key;
-        values[slot] = (uint32_t)i;
+        uint32_t slot    = atomicAdd(n_isects, 1u);
+        if (slot >= (uint32_t)max_isects) { atomicSub(n_isects, 1u); return; }
+        isect_ids[slot] = key;
+        gauss_ids[slot] = (uint32_t)i;
     }
 }
 
@@ -123,18 +123,18 @@ __global__ void gsTileAssignKernel(
 
 __global__ void gsBuildTileRangesKernel(
     const uint64_t *keys_sorted,
-    int2 *tile_ranges,
-    uint32_t pair_count,
+    int2 *tile_offsets,
+    uint32_t n_isects,
     int num_tiles)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if ((uint32_t)i >= pair_count) return;
+    if ((uint32_t)i >= n_isects) return;
     int tile_id = (int)(keys_sorted[i] >> 32);
     if (tile_id < 0 || tile_id >= num_tiles) return;
     if (i == 0 || (int)(keys_sorted[i - 1] >> 32) != tile_id)
-        tile_ranges[tile_id].x = i;
-    if (i == (int)pair_count - 1 || (int)(keys_sorted[i + 1] >> 32) != tile_id)
-        tile_ranges[tile_id].y = i + 1;
+        tile_offsets[tile_id].x = i;
+    if (i == (int)n_isects - 1 || (int)(keys_sorted[i + 1] >> 32) != tile_id)
+        tile_offsets[tile_id].y = i + 1;
 }
 
 /* ===== ===== Warp Utilities ===== ===== */
@@ -186,9 +186,9 @@ __global__ void gsplatFwdKernel(
     const float    *__restrict__ color_b,
     const float    *__restrict__ opacity,
     const uint32_t *__restrict__ flatten_ids, // values_sorted
-    const int2     *__restrict__ tile_ranges,  // {start, end} per tile
-    float    *__restrict__ render_pixels,      // [H*W*3]
-    float    *__restrict__ render_alpha,       // [H*W]
+    const int2     *__restrict__ tile_offsets, // {start, end} per tile
+    float    *__restrict__ render_colors,      // [H*W*3]
+    float    *__restrict__ render_alphas,      // [H*W]
     int32_t  *__restrict__ last_ids,           // [H*W]
     int image_width,
     int image_height,
@@ -220,7 +220,7 @@ __global__ void gsplatFwdKernel(
     bool inside = (i < image_height && j < image_width);
     bool done   = !inside;
 
-    int2     range      = tile_ranges[tile_id];
+    int2     range      = tile_offsets[tile_id];
     int      range_start = range.x;
     int      range_end   = range.y;
     uint32_t num_batches = ((uint32_t)(range_end - range_start) + TILE_PIXELS - 1) / TILE_PIXELS;
@@ -288,10 +288,10 @@ __global__ void gsplatFwdKernel(
 
     if (inside)
     {
-        render_pixels[pix_id * 3 + 0] = C_r;
-        render_pixels[pix_id * 3 + 1] = C_g;
-        render_pixels[pix_id * 3 + 2] = C_b;
-        render_alpha [pix_id]          = 1.f - T;
+        render_colors[pix_id * 3 + 0] = C_r;
+        render_colors[pix_id * 3 + 1] = C_g;
+        render_colors[pix_id * 3 + 2] = C_b;
+        render_alphas[pix_id]          = 1.f - T;
         last_ids     [pix_id]          = (int32_t)cur_idx;
     }
 }
@@ -335,12 +335,12 @@ __global__ void gsplatBwdKernel(
     const float    *__restrict__ color_b,
     const float    *__restrict__ opacity,
     const uint32_t *__restrict__ flatten_ids,
-    const int2     *__restrict__ tile_ranges,
+    const int2     *__restrict__ tile_offsets,
     // forward outputs (saved)
-    const float    *__restrict__ render_alpha,
+    const float    *__restrict__ render_alphas,
     const int32_t  *__restrict__ last_ids,
     // incoming gradient
-    const float    *__restrict__ grad_pixels, // dL/d_pixels [H*W*3]
+    const float    *__restrict__ v_render_colors, // dL/d_render_colors [H*W*3]
     // gradient outputs (accumulated)
     float *v_ndc_x,
     float *v_ndc_y,
@@ -350,7 +350,7 @@ __global__ void gsplatBwdKernel(
     float *v_color_r,
     float *v_color_g,
     float *v_color_b,
-    float *v_opacity,
+    float *v_opacities,
     int image_width,
     int image_height,
     int num_tiles_x)
@@ -381,7 +381,7 @@ __global__ void gsplatBwdKernel(
     // Clamp pix_id for out-of-bounds threads; `inside` guards all output writes.
     int pix_id = min(i * image_width + j, image_width * image_height - 1);
 
-    int2 range      = tile_ranges[tile_id];
+    int2 range      = tile_offsets[tile_id];
     int  range_start = range.x;
     int  range_end   = range.y;
     if (range_end <= range_start) return;
@@ -392,18 +392,18 @@ __global__ void gsplatBwdKernel(
     uint32_t warp_lane = tr % 32;
 
     // Per-pixel state (T is recovered from T_final going back-to-front).
-    float T_final   = 1.f - render_alpha[pix_id];
-    float T         = T_final;
-    float buf_r     = 0.f, buf_g = 0.f, buf_b = 0.f; // colour of Gaussians farther than current
+    float T_final = 1.f - render_alphas[pix_id];
+    float T       = T_final;
+    float accum_r = 0.f, accum_g = 0.f, accum_b = 0.f; // colour of Gaussians farther than current
 
     // Index in the sorted list of the last Gaussian that contributed to this pixel.
     // -1 for out-of-bounds threads so they don't affect warp_bin_final.
     int32_t bin_final     = inside ? last_ids[pix_id] : -1;
     int32_t warp_bin_final = warpAllReduceMax(bin_final);
 
-    float dL_dr = inside ? grad_pixels[pix_id * 3 + 0] : 0.f;
-    float dL_dg = inside ? grad_pixels[pix_id * 3 + 1] : 0.f;
-    float dL_db = inside ? grad_pixels[pix_id * 3 + 2] : 0.f;
+    float v_render_r = inside ? v_render_colors[pix_id * 3 + 0] : 0.f;
+    float v_render_g = inside ? v_render_colors[pix_id * 3 + 1] : 0.f;
+    float v_render_b = inside ? v_render_colors[pix_id * 3 + 2] : 0.f;
 
     // Process batches back-to-front (b=0 covers the farthest Gaussians).
     for (uint32_t b = 0; b < num_batches; ++b)
@@ -480,15 +480,15 @@ __global__ void gsplatBwdKernel(
                 float fac      = alpha * T_before;
 
                 // dL / d(color)
-                v_r_l = fac * dL_dr;
-                v_g_l = fac * dL_dg;
-                v_b_l = fac * dL_db;
+                v_r_l = fac * v_render_r;
+                v_g_l = fac * v_render_g;
+                v_b_l = fac * v_render_b;
 
                 // dL / d(alpha)
                 float v_alpha =
-                    T_before * ((sh_r[t] - buf_r) * dL_dr +
-                                (sh_g[t] - buf_g) * dL_dg +
-                                (sh_b[t] - buf_b) * dL_db);
+                    T_before * ((sh_r[t] - accum_r) * v_render_r +
+                                (sh_g[t] - accum_g) * v_render_g +
+                                (sh_b[t] - accum_b) * v_render_b);
 
                 // dL / d(sigma) = -opac . exp(-sigma) . v_alpha
                 // (chain through alpha = min(MAX_ALPHA, opac.exp(-sigma)))
@@ -512,9 +512,9 @@ __global__ void gsplatBwdKernel(
                 }
 
                 // Update running accumulators for next (closer) Gaussian.
-                buf_r += sh_r[t] * fac;
-                buf_g += sh_g[t] * fac;
-                buf_b += sh_b[t] * fac;
+                accum_r += sh_r[t] * fac;
+                accum_g += sh_g[t] * fac;
+                accum_b += sh_b[t] * fac;
                 T      = T_before;
             }
 
@@ -541,7 +541,7 @@ __global__ void gsplatBwdKernel(
                 atomicAdd(&v_cov_xx [g], v_cxx_l);
                 atomicAdd(&v_cov_xy [g], v_cxy_l);
                 atomicAdd(&v_cov_yy [g], v_cyy_l);
-                atomicAdd(&v_opacity [g], v_a_l);
+                atomicAdd(&v_opacities[g], v_a_l);
             }
         }
     }
@@ -568,20 +568,20 @@ void GsplatRasterizeLayer::allocate(int width, int height, int count)
     num_tiles_x   = (width  + TILE_SIZE - 1) / TILE_SIZE;
     num_tiles_y   = (height + TILE_SIZE - 1) / TILE_SIZE;
     // The tile-assign kernel degrades gracefully (drops excess pairs) if exceeded.
-    max_pairs     = (1 << 25);
+    max_isects     = (1 << 25);
     int numTiles  = num_tiles_x * num_tiles_y;
 
-    d_out_pixels.allocate  (num_pixels * 3);
-    d_render_alpha.allocate(num_pixels);
+    d_render_colors.allocate  (num_pixels * 3);
+    d_render_alphas.allocate(num_pixels);
     d_last_ids.allocate    (num_pixels);
 
-    d_keys.allocate         (max_pairs);
-    d_values.allocate       (max_pairs);
-    d_keys_sorted.allocate  (max_pairs);
-    d_values_sorted.allocate(max_pairs);
-    d_pair_count.allocate   (1);
+    d_isect_ids.allocate         (max_isects);
+    d_gauss_ids.allocate       (max_isects);
+    d_isect_ids_sorted.allocate  (max_isects);
+    d_flatten_ids.allocate(max_isects);
+    d_n_isects.allocate   (1);
     d_visible_count.allocate(1);
-    d_tile_ranges.allocate  (numTiles);
+    d_tile_offsets.allocate  (numTiles);
 
     {
         size_t required = 0;
@@ -591,7 +591,7 @@ void GsplatRasterizeLayer::allocate(int width, int height, int count)
             nullptr, required,
             dummy_keys, dummy_keys,
             dummy_vals, dummy_vals,
-            max_pairs));
+            max_isects));
         d_sort_temp.allocate(required);
         sort_temp_bytes = required;
     }
@@ -616,10 +616,10 @@ void GsplatRasterizeLayer::resize(int new_width, int new_height)
     num_pixels    = screen_width * screen_height;
     num_tiles_x   = (screen_width  + TILE_SIZE - 1) / TILE_SIZE;
     num_tiles_y   = (screen_height + TILE_SIZE - 1) / TILE_SIZE;
-    d_out_pixels.allocate  (num_pixels * 3);
-    d_render_alpha.allocate(num_pixels);
+    d_render_colors.allocate  (num_pixels * 3);
+    d_render_alphas.allocate(num_pixels);
     d_last_ids.allocate    (num_pixels);
-    d_tile_ranges.allocate (num_tiles_x * num_tiles_y);
+    d_tile_offsets.allocate (num_tiles_x * num_tiles_y);
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -628,10 +628,10 @@ void GsplatRasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
-    CUDA_CHECK(cudaMemset(d_out_pixels,    0, num_pixels * 3 * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_pair_count,    0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(d_render_colors,    0, num_pixels * 3 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_n_isects,    0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(d_tile_ranges,   0, numTiles * sizeof(int2)));
+    CUDA_CHECK(cudaMemset(d_tile_offsets,   0, numTiles * sizeof(int2)));
 
     // Tile assign
     {
@@ -640,25 +640,25 @@ void GsplatRasterizeLayer::forward()
             in->pos_x, in->pos_y, in->pos_z,
             in->cov_xx, in->cov_xy, in->cov_yy,
             in->count,
-            d_keys, d_values, d_pair_count,
+            d_isect_ids, d_gauss_ids, d_n_isects,
             d_visible_count,
-            max_pairs, num_tiles_x, num_tiles_y,
+            max_isects, num_tiles_x, num_tiles_y,
             screen_width, screen_height);
         CUDA_SYNC_CHECK();
     }
 
-    uint32_t pair_count = 0;
-    CUDA_CHECK(cudaMemcpy(&pair_count, d_pair_count, sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    if (pair_count == 0) return;
+    uint32_t n_isects = 0;
+    CUDA_CHECK(cudaMemcpy(&n_isects, d_n_isects, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    if (n_isects == 0) return;
 
     // Radix sort (tile_id | depth, splat_id)
     {
         size_t required = 0;
         CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
             nullptr, required,
-            d_keys.ptr, d_keys_sorted.ptr,
-            d_values.ptr, d_values_sorted.ptr,
-            (int)pair_count));
+            d_isect_ids.ptr, d_isect_ids_sorted.ptr,
+            d_gauss_ids.ptr, d_flatten_ids.ptr,
+            (int)n_isects));
 
         if (required > sort_temp_bytes)
         {
@@ -668,16 +668,16 @@ void GsplatRasterizeLayer::forward()
 
         CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
             (void *)d_sort_temp.ptr, required,
-            d_keys.ptr, d_keys_sorted.ptr,
-            d_values.ptr, d_values_sorted.ptr,
-            (int)pair_count));
+            d_isect_ids.ptr, d_isect_ids_sorted.ptr,
+            d_gauss_ids.ptr, d_flatten_ids.ptr,
+            (int)n_isects));
     }
 
     // Build per-tile {start, end} ranges in the sorted list
     {
-        int blocks = ((int)pair_count + TILE_PIXELS - 1) / TILE_PIXELS;
+        int blocks = ((int)n_isects + TILE_PIXELS - 1) / TILE_PIXELS;
         gsBuildTileRangesKernel<<<blocks, TILE_PIXELS>>>(
-            d_keys_sorted, d_tile_ranges, pair_count, numTiles);
+            d_isect_ids_sorted, d_tile_offsets, n_isects, numTiles);
         CUDA_SYNC_CHECK();
     }
 
@@ -690,8 +690,8 @@ void GsplatRasterizeLayer::forward()
             in->cov_xx, in->cov_xy, in->cov_yy,
             in->color_r, in->color_g, in->color_b,
             in->opacity,
-            d_values_sorted, d_tile_ranges,
-            d_out_pixels, d_render_alpha, d_last_ids,
+            d_flatten_ids, d_tile_offsets,
+            d_render_colors, d_render_alphas, d_last_ids,
             screen_width, screen_height, num_tiles_x);
         CUDA_SYNC_CHECK();
     }
@@ -706,9 +706,9 @@ void GsplatRasterizeLayer::backward()
         in->cov_xx, in->cov_xy, in->cov_yy,
         in->color_r, in->color_g, in->color_b,
         in->opacity,
-        d_values_sorted, d_tile_ranges,
-        d_render_alpha, d_last_ids,
-        grad_pixels,
+        d_flatten_ids, d_tile_offsets,
+        d_render_alphas, d_last_ids,
+        v_render_colors,
         grad_in.grad_pos_x,   grad_in.grad_pos_y,
         grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_yy,
         grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,

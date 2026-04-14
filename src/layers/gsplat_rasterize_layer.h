@@ -37,8 +37,8 @@ public:
 
     // wiring
     void setInput(const Splat2DParams *params) { in = params; }
-    float        *getOutput()                  { return d_out_pixels; }
-    void setGradOutput(const float *grad)      { grad_pixels = grad; }
+    float        *getOutput()                  { return d_render_colors; }
+    void setGradOutput(const float *grad)      { v_render_colors = grad; }
     Splat2DGrads &getGradInput()               { return grad_in; }
 
     uint32_t getVisibleCount();
@@ -48,26 +48,26 @@ private:
     const Splat2DParams *in = nullptr;
 
     /* ---- forward output (owned) ---- */
-    CudaBuffer<float> d_out_pixels; // rendered RGB image [H*W*3]
+    CudaBuffer<float> d_render_colors; // rendered RGB image [H*W*3]
 
     /* ---- backward input (not owned) ---- */
-    const float *grad_pixels = nullptr; // dL/d_pixels [H*W*3]
+    const float *v_render_colors = nullptr; // dL/d_render_colors [H*W*3]
 
     /* ---- backward output (owned) ---- */
     Splat2DGrads grad_in;
 
     /* ---- forward state saved for backward ---- */
-    CudaBuffer<float>   d_render_alpha; // accumulated alpha per pixel [H*W]
-    CudaBuffer<int32_t> d_last_ids;     // sorted-list index of last contributing Gaussian [H*W]
+    CudaBuffer<float>   d_render_alphas; // accumulated alpha per pixel [H*W]
+    CudaBuffer<int32_t> d_last_ids;      // sorted-list index of last contributing Gaussian [H*W]
 
     /* ---- tile sorting internals (owned) ---- */
-    CudaBuffer<uint64_t> d_keys;
-    CudaBuffer<uint32_t> d_values;
-    CudaBuffer<uint64_t> d_keys_sorted;
-    CudaBuffer<uint32_t> d_values_sorted;
-    CudaBuffer<uint32_t> d_pair_count;
+    CudaBuffer<uint64_t> d_isect_ids;
+    CudaBuffer<uint32_t> d_gauss_ids;
+    CudaBuffer<uint64_t> d_isect_ids_sorted;
+    CudaBuffer<uint32_t> d_flatten_ids;
+    CudaBuffer<uint32_t> d_n_isects;
     CudaBuffer<uint32_t> d_visible_count;
-    CudaBuffer<int2>     d_tile_ranges;
+    CudaBuffer<int2>     d_tile_offsets;
     CudaBuffer<uint8_t>  d_sort_temp;
     size_t sort_temp_bytes = 0;
 
@@ -77,5 +77,5 @@ private:
     int num_pixels    = 0;
     int num_tiles_x   = 0;
     int num_tiles_y   = 0;
-    int max_pairs     = 0;
+    int max_isects    = 0;
 };

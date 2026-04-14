@@ -6,11 +6,11 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 (Kerbl et al., SIGGRAPH 2023).
 
 ## TODO
-- [ ] SH colors for fitter so splats can finally have opinions about the lighting
-- [X] View-dependent SH colors (degrees 0-3) for viewer -- splats now have opinions about the lighting
-- [X] SH degree selector (0 to max) in viewer ImGui window
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
-- [ ] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
+- [X] View-dependent SH colors (degrees 0-3) for viewer -- splats now have opinions about the lighting
+- [ ] ~~SH colors for fitter so splats can finally have opinions about the lighting~~ yeah, no. Why would 2D image fitter need SH colors?
+- [X] SH degree selector (0 to max) in viewer ImGui window
+- [X] Maybe it's time to make the img fitter work in true 3D space with proper camera transforms(?)
 - [X] Hate command line args; integrate proper file open buttons in the ImGui window -- viewer now has an Open PLY button
 - [X] PLY file saving for fitter -- export fitted splats and view them in viewer
 - [X] `getopt.h` doesn't exist on Windows, FIX IT

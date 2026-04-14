@@ -90,7 +90,7 @@ void ViewerApp::onFrame()
 
     // ImGui
     ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
-    ImGui::SetNextWindowSize(ImVec2(260, 220), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(260, 260), ImGuiCond_Once);
     ImGui::Begin("Splat Viewer");
 
     if (ImGui::Button("Open PLY...")) {

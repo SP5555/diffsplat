@@ -61,7 +61,7 @@ void FitterApp::onFrame()
 
     // ImGui
     ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
-    ImGui::SetNextWindowSize(ImVec2(240, 280), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(260, 300), ImGuiCond_Once);
     ImGui::Begin("Image Fitter");
 
     ImGui::Text("FPS: %.2f\t| Frametime: %.2f ms", getFPS(), getFrametime());
