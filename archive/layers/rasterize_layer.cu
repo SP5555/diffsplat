@@ -76,7 +76,7 @@ __global__ void tileAssignKernel(
     float min_x = x - max_radius, max_x = x + max_radius;
     float min_y = y - max_radius, max_y = y + max_radius;
 
-    // Convert NDC → pixel → tile. Using screen_width/TILE_SIZE (float) rather
+    // Convert NDC -> pixel -> tile. Using screen_width/TILE_SIZE (float) rather
     // than num_tiles_x ensures tile boundaries align with the pixel blocks used
     // by the rasterize kernel even when the resolution isn't a multiple of TILE_SIZE.
     const float fx = (float)screen_width  / TILE_SIZE;

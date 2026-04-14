@@ -154,54 +154,66 @@ AppBase::~AppBase()
     glfwTerminate();
 }
 
+void AppBase::renderOneFrame()
+{
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureMouse || io.WantCaptureKeyboard)
+        input.flush();
+
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    onFrame();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    double current_time = glfwGetTime();
+    double delta_time   = current_time - last_frametime;
+    dt                  = static_cast<float>(delta_time);
+    last_frametime      = current_time;
+    time_since_update  += delta_time;
+    frame_since_update++;
+
+    if (time_since_update >= 0.1)
+    {
+        avg_fps = avg_fps * 0.4f + (frame_since_update / (float)time_since_update) * 0.6f;
+        time_since_update  = 0.0;
+        frame_since_update = 0;
+    }
+
+    glfwSwapBuffers(window);
+
+    bool f12Pressed = (glfwGetKey(window, GLFW_KEY_F12) == GLFW_PRESS);
+    if (f12Pressed && !f12_was_pressed)
+        saveScreenshot();
+    f12_was_pressed = f12Pressed;
+
+    // exit on ESC
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    input.flush();
+}
+
 void AppBase::start()
 {
+    // On Windows, dragging the resize handle blocks glfwPollEvents() inside a
+    // modal loop.  GLFW fires the window-refresh callback from within that loop,
+    // so rendering here keeps frames alive during the resize drag.
+    glfwSetWindowRefreshCallback(window, [](GLFWwindow *win) {
+        auto *app = static_cast<AppBase *>(glfwGetWindowUserPointer(win));
+        if (app) app->renderOneFrame();
+    });
+
     onStart();
     last_frametime = glfwGetTime();
 
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-
-        ImGuiIO &io = ImGui::GetIO();
-        if (io.WantCaptureMouse || io.WantCaptureKeyboard)
-            input.flush();
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        onFrame();
-
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        double current_time = glfwGetTime();
-        double delta_time   = current_time - last_frametime;
-        dt                  = static_cast<float>(delta_time);
-        last_frametime      = current_time;
-        time_since_update  += delta_time;
-        frame_since_update++;
-
-        if (time_since_update >= 0.1)
-        {
-            avg_fps = avg_fps * 0.4f + (frame_since_update / (float)time_since_update) * 0.6f;
-            time_since_update  = 0.0;
-            frame_since_update = 0;
-        }
-
-        glfwSwapBuffers(window);
-
-        bool f12Pressed = (glfwGetKey(window, GLFW_KEY_F12) == GLFW_PRESS);
-        if (f12Pressed && !f12_was_pressed)
-            saveScreenshot();
-        f12_was_pressed = f12Pressed;
-
-        // exit on ESC
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(window, true);
-
-        input.flush();
+        renderOneFrame();
     }
 }
 

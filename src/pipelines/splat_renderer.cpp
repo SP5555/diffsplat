@@ -18,11 +18,8 @@ void SplatRenderer::init(int w, int h)
     width       = w;
     height      = h;
 
-    int tiles_x = (w + 15) / 16;
-    int tiles_y = (h + 15) / 16;
     log_info("SplatRenderer",
-        "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
-        " Tiles=" + std::to_string(tiles_x) + "x" + std::to_string(tiles_y)
+        "WindowSize=" + std::to_string(w) + "x" + std::to_string(h)
     );
 }
 

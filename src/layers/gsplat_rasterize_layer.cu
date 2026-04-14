@@ -9,9 +9,13 @@
 
 /* ===== ===== Constants ===== ===== */
 
-// Tile is always 16x16 pixels; one CUDA thread per pixel.
+// Tile size is 16x16 pixels with one CUDA thread per pixel.
+// 16 is chosen so that TILE_PIXELS = 256, a multiple of the warp size (32)
+// that fills 8 warps per block -- a good occupancy sweet spot on all NVIDIA
+// architectures.  All shared-memory arrays and 1D kernel block sizes derive
+// from TILE_SIZE so that changing it stays consistent.
 static constexpr int TILE_SIZE   = 16;
-static constexpr int TILE_PIXELS = TILE_SIZE * TILE_SIZE; // 256
+static constexpr int TILE_PIXELS = TILE_SIZE * TILE_SIZE; // 256 = 8 warps
 
 #define GSPLAT_MAX_ALPHA   0.99f
 #define GSPLAT_ALPHA_THRES (1.0f / 255.0f)
@@ -90,8 +94,8 @@ __global__ void gsTileAssignKernel(
     float min_y = y - max_radius, max_y = y + max_radius;
 
     // Convert NDC bounding box to tile indices via pixel coordinates.
-    // ndc → pixel: px = (ndc + 1) / 2 * W,  py = (1 - ndc) / 2 * H
-    // pixel → tile: tx = floor(px / TILE_SIZE)
+    // ndc -> pixel: px = (ndc + 1) / 2 * W,  py = (1 - ndc) / 2 * H
+    // pixel -> tile: tx = floor(px / TILE_SIZE)
     // Combined:     tx = floor((ndc + 1) / 2 * W / TILE_SIZE)
     const float fx = (float)screen_width  / TILE_SIZE;
     const float fy = (float)screen_height / TILE_SIZE;
@@ -433,7 +437,7 @@ __global__ void gsplatBwdKernel(
         __syncthreads();
 
         // Skip Gaussians no thread in this warp contributed to.
-        // t=0 → Gaussian at batch_end (farthest); t increases toward front.
+        // t=0 -> Gaussian at batch_end (farthest); t increases toward front.
         int t_start = max(0, batch_end - warp_bin_final);
 
         for (int t = t_start; t < batch_size; ++t)
@@ -631,8 +635,8 @@ void GsplatRasterizeLayer::forward()
 
     // Tile assign
     {
-        int blocks = (in->count + BLOCK_THREADS - 1) / BLOCK_THREADS;
-        gsTileAssignKernel<<<blocks, BLOCK_THREADS>>>(
+        int blocks = (in->count + TILE_PIXELS - 1) / TILE_PIXELS;
+        gsTileAssignKernel<<<blocks, TILE_PIXELS>>>(
             in->pos_x, in->pos_y, in->pos_z,
             in->cov_xx, in->cov_xy, in->cov_yy,
             in->count,
@@ -671,8 +675,8 @@ void GsplatRasterizeLayer::forward()
 
     // Build per-tile {start, end} ranges in the sorted list
     {
-        int blocks = ((int)pair_count + BLOCK_THREADS - 1) / BLOCK_THREADS;
-        gsBuildTileRangesKernel<<<blocks, BLOCK_THREADS>>>(
+        int blocks = ((int)pair_count + TILE_PIXELS - 1) / TILE_PIXELS;
+        gsBuildTileRangesKernel<<<blocks, TILE_PIXELS>>>(
             d_keys_sorted, d_tile_ranges, pair_count, numTiles);
         CUDA_SYNC_CHECK();
     }

@@ -78,6 +78,8 @@ private:
     // used to update PBO/texture on window resize
     void onResize(int newWidth, int newHeight);
 
+    void renderOneFrame();
+
     static void glfwErrorCallback(int error, const char *description);
 
     /* ---- GL objects ---- */

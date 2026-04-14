@@ -28,11 +28,8 @@ void ImageFitter::init(int w, int h)
         glm::ortho(-half_w, half_w, -half_h, half_h, -z_range, z_range)
     );
 
-    int tiles_x = (w + 15) / 16;
-    int tiles_y = (h + 15) / 16;
     log_info("ImageFitter",
-        "WindowSize=" + std::to_string(w) + "x" + std::to_string(h) +
-        " Tiles=" + std::to_string(tiles_x) + "x" + std::to_string(tiles_y)
+        "WindowSize=" + std::to_string(w) + "x" + std::to_string(h)
     );
 }
 
