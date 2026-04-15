@@ -9,7 +9,7 @@
 #include "../layers/mse_loss_layer.h"
 #include "../layers/persp_project_layer.h"
 #include "../layers/gsplat_rasterize_layer.h"
-#include "../optimizers/adam.cuh"
+#include "../optimizers/adam.h"
 #include "../types/gaussian3d.h"
 
 /**

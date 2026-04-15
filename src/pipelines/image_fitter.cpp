@@ -9,7 +9,7 @@
 #include "../cuda/cuda_check.h"
 #include "../io/image_loader.h"
 #include "../io/ply_saver.h"
-#include "../optimizers/adam.cuh"
+#include "../optimizers/adam.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 

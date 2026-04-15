@@ -29,7 +29,7 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 ---
 
 ## Dependencies
-- CUDA Toolkit 11.0+ (tested on 13.0)
+- CUDA Toolkit 11.0+ (tested on 12.8, 13.0)
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
 - GLAD, stb_image, cxxopts, tinyfiledialogs (included in `include/` and `src/vendor/`)
 - GLFW3, GLM, Dear ImGui, ImPlot (included as submodules in `third_party/`)

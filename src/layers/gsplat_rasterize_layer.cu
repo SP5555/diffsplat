@@ -264,24 +264,22 @@ __global__ void gsplatFwdKernel(
         {
             float dx    = sh_x[t] - px_ndc;
             float dy    = sh_y[t] - py_ndc;
-            // dist2 = dx^2.icxx + 2.dx.dy.icxy + dy^2.icyy
-            // sigma = 1/2.dist2, alpha = opacity . exp(-sigma)
             float dist2 = dx*dx*sh_icxx[t] + 2.f*dx*dy*sh_icxy[t] + dy*dy*sh_icyy[t];
             float sigma = 0.5f * dist2;
-            if (sigma < 0.f) continue; // numerically degenerate
+            if (sigma < 0.f) continue;
 
             float alpha = fminf(GSPLAT_MAX_ALPHA, sh_a[t] * __expf(-sigma));
             if (alpha < GSPLAT_ALPHA_THRES) continue;
 
-            float next_T = T * (1.f - alpha);
-            if (next_T <= GSPLAT_T_THRES) { done = true; break; }
-
+            // Accumulate colour and update transmittance before the saturation check
             float vis = alpha * T;
-            C_r += sh_r[t] * vis;
-            C_g += sh_g[t] * vis;
-            C_b += sh_b[t] * vis;
-            cur_idx = batch_start + t; // sorted-list index of last contributor
-            T = next_T;
+            C_r     += sh_r[t] * vis;
+            C_g     += sh_g[t] * vis;
+            C_b     += sh_b[t] * vis;
+            cur_idx  = batch_start + t;
+            T        = T * (1.f - alpha);
+
+            if (T <= GSPLAT_T_THRES) done = true;
         }
         __syncthreads();
     }

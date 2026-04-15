@@ -1,4 +1,4 @@
-#include "adam.cuh"
+#include "adam.h"
 
 #include <cuda_runtime.h>
 #include <float.h>
