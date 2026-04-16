@@ -7,6 +7,7 @@
 #include <iostream>
 
 #include "../cuda/cuda_check.h"
+#include "../io/gaussian3d_io.h"
 #include "../io/ply_loader.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
@@ -31,7 +32,7 @@ void SplatRenderer::loadPLY(const std::string &path, const float sceneScale)
 
     SplatUtils::normalizeScene(result.splats, sceneScale);
     sh_degree = result.sh_degree;
-    gaussian_params.upload(result.splats, sh_degree);
+    uploadGaussians(gaussian_params, result.splats, sh_degree);
 }
 
 float *SplatRenderer::getOutput()

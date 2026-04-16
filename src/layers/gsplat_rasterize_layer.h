@@ -36,16 +36,16 @@ public:
     void resize(int new_width, int new_height);
 
     // wiring
-    void setInput(const Splat2DParams *params) { in = params; }
+    void setInput(const Splat2DParams *params) { input = params; }
     float        *getOutput()                  { return d_render_colors; }
     void setGradOutput(const float *grad)      { v_render_colors = grad; }
-    Splat2DGrads &getGradInput()               { return grad_in; }
+    Splat2DGrads &getGradInput()               { return grad_input; }
 
     uint32_t getVisibleCount();
 
 private:
     /* ---- forward input (not owned) ---- */
-    const Splat2DParams *in = nullptr;
+    const Splat2DParams *input = nullptr;
 
     /* ---- forward output (owned) ---- */
     CudaBuffer<float> d_render_colors; // rendered RGB image [H*W*3]
@@ -54,7 +54,7 @@ private:
     const float *v_render_colors = nullptr; // dL/d_render_colors [H*W*3]
 
     /* ---- backward output (owned) ---- */
-    Splat2DGrads grad_in;
+    Splat2DGrads grad_input;
 
     /* ---- forward state saved for backward ---- */
     CudaBuffer<float>   d_render_alphas; // accumulated alpha per pixel [H*W]

@@ -1,114 +1,72 @@
 #pragma once
-#include "../types/gaussian3d.h"
+#include <vector>
+#include "../cuda/cuda_buffer.h"
 
 #define EPSILON 1e-8f
 
-struct AdamConfig
-{
-    float lr_master     = 1e-3f;
-
-    // different parameters may require different learning rates
-    // because of different scalings. manually tune them!
-    float lr_pos        = lr_master * 16.f;
-    float lr_scale      = lr_master * 1.0f;
-    float lr_rot        = lr_master * 0.6f;
-    float lr_color      = lr_master * 6.f;
-    float lr_sh_rest    = lr_master * 6.f;
-    float lr_opacity    = lr_master * 6.f;
-
-    float beta1         = 0.9f;
-    float beta2         = 0.999f;
-    float epsilon       = EPSILON;
+struct AdamParams {
+    float beta1   = 0.9f;
+    float beta2   = 0.999f;
+    float epsilon = EPSILON;
 };
 
-
 /**
- * @brief GPU-side optimization state: gradient buffers and Adam moments.
+ * @brief One parameter group: a (param, grad) pair with its own lr and moment buffers.
+ *
+ * The raw GPU pointers are borrowed from the caller's CudaBuffers and must
+ * remain valid for the optimizer's lifetime. Moment buffers are owned here.
  */
-struct AdamState
-{
-    int count = 0;
+struct AdamGroup {
+    float*            param;
+    const float*      grad;
+    int               n;
+    float             lr;
+    CudaBuffer<float> m, v;
 
-    // Adam first moments
-    CudaBuffer<float> m_pos_x,   m_pos_y,   m_pos_z;
-    CudaBuffer<float> m_scale_x, m_scale_y, m_scale_z;
-    CudaBuffer<float> m_rot_w,   m_rot_x,   m_rot_y,   m_rot_z;
-    CudaBuffer<float> m_color_r, m_color_g, m_color_b;
-    CudaBuffer<float> m_sh_rest_r, m_sh_rest_g, m_sh_rest_b;
-    CudaBuffer<float> m_opacity;
-
-    // Adam second moments
-    CudaBuffer<float> v_pos_x,   v_pos_y,   v_pos_z;
-    CudaBuffer<float> v_scale_x, v_scale_y, v_scale_z;
-    CudaBuffer<float> v_rot_w,   v_rot_x,   v_rot_y,   v_rot_z;
-    CudaBuffer<float> v_color_r, v_color_g, v_color_b;
-    CudaBuffer<float> v_sh_rest_r, v_sh_rest_g, v_sh_rest_b;
-    CudaBuffer<float> v_opacity;
-
-    int sh_num_bands = 0;
-
-    void allocate(int n, int sh_degree = 0)
+    AdamGroup(float* p, const float* g, int n_, float lr_)
+        : param(p), grad(g), n(n_), lr(lr_)
     {
-        m_pos_x.allocate(n);   v_pos_x.allocate(n);
-        m_pos_y.allocate(n);   v_pos_y.allocate(n);
-        m_pos_z.allocate(n);   v_pos_z.allocate(n);
-        m_scale_x.allocate(n); v_scale_x.allocate(n);
-        m_scale_y.allocate(n); v_scale_y.allocate(n);
-        m_scale_z.allocate(n); v_scale_z.allocate(n);
-        m_rot_w.allocate(n);   v_rot_w.allocate(n);
-        m_rot_x.allocate(n);   v_rot_x.allocate(n);
-        m_rot_y.allocate(n);   v_rot_y.allocate(n);
-        m_rot_z.allocate(n);   v_rot_z.allocate(n);
-        m_color_r.allocate(n); v_color_r.allocate(n);
-        m_color_g.allocate(n); v_color_g.allocate(n);
-        m_color_b.allocate(n); v_color_b.allocate(n);
-        m_opacity.allocate(n); v_opacity.allocate(n);
-
-        sh_num_bands = sh_degree_to_bands(sh_degree);
-        if (sh_num_bands > 0) {
-            m_sh_rest_r.allocate(n * sh_num_bands); v_sh_rest_r.allocate(n * sh_num_bands);
-            m_sh_rest_g.allocate(n * sh_num_bands); v_sh_rest_g.allocate(n * sh_num_bands);
-            m_sh_rest_b.allocate(n * sh_num_bands); v_sh_rest_b.allocate(n * sh_num_bands);
-        }
-
-        count = n;
+        m.allocate(n_); m.zero();
+        v.allocate(n_); v.zero();
     }
+    AdamGroup(AdamGroup&&)            = default;
+    AdamGroup& operator=(AdamGroup&&) = default;
+    AdamGroup(const AdamGroup&)            = delete;
+    AdamGroup& operator=(const AdamGroup&) = delete;
 };
 
 /**
- * @brief Performs the Adam optimization step.
- * 
- * @param[in] gaussians         Current Gaussian parameters
- * @param[in] grads             Gradients for all Gaussian parameters
- * @param[out] opt_state        Output gradients for all Gaussian parameters
- * @param[in] config            Adam optimization configuration
- * @param[in] step              Current optimization step number (starting from 1)
+ * @brief Generic Adam optimizer that operates over a list of parameter groups.
+ *
+ * Knows nothing about what the parameters represent -- callers register groups
+ * via addGroup() before the first step. Each group carries its own learning rate.
+ *
+ * Usage:
+ * ```
+ *  Adam adam;
+ *  adam.init({.beta1=0.9f, .beta2=0.999f});
+ *  adam.addGroup(param_buf, grad_buf, n, lr);   // repeat for each param
+ *  adam.step();  // call every iteration
+ * ```
  */
-void launchAdam(
-    Gaussian3DParams &gaussians,
-    Gaussian3DGrads  &grads,
-    AdamState        &opt_state,
-    const AdamConfig &config,
-    int step
-);
-
-class Adam
-{
+class Adam {
 public:
-    void init(int count, int sh_degree = 0, const AdamConfig &cfg = {})
+    void init(const AdamParams& p = {}) { hp = p; }
+
+    void addGroup(CudaBuffer<float>& param, const CudaBuffer<float>& grad, int n, float lr)
     {
-        config = cfg;
-        state.allocate(count, sh_degree);
+        groups.emplace_back(param.ptr, grad.ptr, n, lr);
     }
-    void step(Gaussian3DParams &gaussians, Gaussian3DGrads  &grads)
-    {
-        launchAdam(gaussians, grads, state, config, ++step_count);
-    }
-    int getStepCount()            const { return step_count; }
-    const AdamConfig &getConfig() const { return config; }
+
+    void setLr(int idx, float lr) { groups[idx].lr = lr; }
+
+    void step();
+
+    int               getStepCount() const { return step_count; }
+    const AdamParams& getParams()    const { return hp; }
 
 private:
-    AdamConfig config;
-    AdamState  state;
-    int        step_count = 0;
+    AdamParams             hp;
+    std::vector<AdamGroup> groups;
+    int                    step_count = 0;
 };

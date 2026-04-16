@@ -7,9 +7,9 @@
 #include <iostream>
 
 #include "../cuda/cuda_check.h"
+#include "../io/gaussian3d_io.h"
 #include "../io/image_loader.h"
 #include "../io/ply_saver.h"
-#include "../optimizers/adam.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 
@@ -50,7 +50,7 @@ void ImageFitter::randomInitGaussians(int count, int seed)
         seed = (int)std::chrono::system_clock::now().time_since_epoch().count();
 
     auto splats = SplatUtils::randomInit(count, width, height, seed);
-    gaussian_params.upload(splats);
+    uploadGaussians(gaussian_params, splats);
 }
 
 float *ImageFitter::getOutput()
@@ -88,7 +88,8 @@ void ImageFitter::initLayers()
     atv_layer.setGradOutput(&psp_layer.getGradInput());
 
     // optimizer state
-    optimizer.init(count);
+    optimizer.init();
+    registerGaussian3DGroups(optimizer, gaussian_params, atv_layer.getGradInput());
 
     // register in pipeline
     pipeline.add(&atv_layer);
@@ -107,11 +108,11 @@ void ImageFitter::step()
     if (!is_optimization_running) return;
 
     pipeline.backward();
-    optimizer.step(gaussian_params, atv_layer.getGradInput());
+    optimizer.step();
 }
 
 void ImageFitter::savePLY(const std::string &path)
 {
-    auto splats = gaussian_params.download();
+    auto splats = downloadGaussians(gaussian_params);
     PLYSaver::save(path, splats, gaussian_params.sh_num_bands);
 }

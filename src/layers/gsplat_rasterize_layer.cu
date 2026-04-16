@@ -597,12 +597,12 @@ void GsplatRasterizeLayer::allocate(int width, int height, int count)
 
 void GsplatRasterizeLayer::allocateGrad(int count)
 {
-    grad_in.allocate(count);
+    grad_input.allocate(count);
 }
 
 void GsplatRasterizeLayer::zero_grad()
 {
-    grad_in.zero_grad();
+    grad_input.zero();
 }
 
 void GsplatRasterizeLayer::resize(int new_width, int new_height)
@@ -633,11 +633,11 @@ void GsplatRasterizeLayer::forward()
 
     // Tile assign
     {
-        int blocks = (in->count + TILE_PIXELS - 1) / TILE_PIXELS;
+        int blocks = (input->count + TILE_PIXELS - 1) / TILE_PIXELS;
         gsTileAssignKernel<<<blocks, TILE_PIXELS>>>(
-            in->pos_x, in->pos_y, in->pos_z,
-            in->cov_xx, in->cov_xy, in->cov_yy,
-            in->count,
+            input->pos_x, input->pos_y, input->pos_z,
+            input->cov_xx, input->cov_xy, input->cov_yy,
+            input->count,
             d_isect_ids, d_gauss_ids, d_n_isects,
             d_visible_count,
             max_isects, num_tiles_x, num_tiles_y,
@@ -684,10 +684,10 @@ void GsplatRasterizeLayer::forward()
         dim3 threads(TILE_SIZE, TILE_SIZE);
         dim3 grid(num_tiles_y, num_tiles_x);
         gsplatFwdKernel<<<grid, threads>>>(
-            in->pos_x, in->pos_y,
-            in->cov_xx, in->cov_xy, in->cov_yy,
-            in->color_r, in->color_g, in->color_b,
-            in->opacity,
+            input->pos_x, input->pos_y,
+            input->cov_xx, input->cov_xy, input->cov_yy,
+            input->color_r, input->color_g, input->color_b,
+            input->opacity,
             d_flatten_ids, d_tile_offsets,
             d_render_colors, d_render_alphas, d_last_ids,
             screen_width, screen_height, num_tiles_x);
@@ -700,17 +700,17 @@ void GsplatRasterizeLayer::backward()
     dim3 threads(TILE_SIZE, TILE_SIZE);
     dim3 grid(num_tiles_y, num_tiles_x);
     gsplatBwdKernel<<<grid, threads>>>(
-        in->pos_x, in->pos_y,
-        in->cov_xx, in->cov_xy, in->cov_yy,
-        in->color_r, in->color_g, in->color_b,
-        in->opacity,
+        input->pos_x, input->pos_y,
+        input->cov_xx, input->cov_xy, input->cov_yy,
+        input->color_r, input->color_g, input->color_b,
+        input->opacity,
         d_flatten_ids, d_tile_offsets,
         d_render_alphas, d_last_ids,
         v_render_colors,
-        grad_in.grad_pos_x,   grad_in.grad_pos_y,
-        grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_yy,
-        grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,
-        grad_in.grad_opacity,
+        grad_input.grad_pos_x,   grad_input.grad_pos_y,
+        grad_input.grad_cov_xx,  grad_input.grad_cov_xy,  grad_input.grad_cov_yy,
+        grad_input.grad_color_r, grad_input.grad_color_g, grad_input.grad_color_b,
+        grad_input.grad_opacity,
         screen_width, screen_height, num_tiles_x);
     CUDA_SYNC_CHECK();
 }

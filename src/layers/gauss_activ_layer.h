@@ -23,16 +23,14 @@
  * Backward pass: Gradients flow back through covariance, SH color, and opacity.
  *   View direction is treated as constant (not differentiated).
  */
-class GaussActivLayer : public Layer
+class GaussActivLayer
+    : public TypedLayer<Gaussian3DParams, Splat3DParams, Gaussian3DGrads, Splat3DGrads>
 {
 public:
     ~GaussActivLayer() {}
 
-    void allocate(int count);
-    void allocateGrad(int count);
-    void forward()      override;
-    void backward()     override;
-    void zero_grad()    override;
+    void forward()  override;
+    void backward() override;
 
     // SH degree: 0 (DC only, default) through 3. Call once after loading.
     void setSHDegree(int degree) { sh_degree = degree; }
@@ -40,26 +38,10 @@ public:
     // Camera world position for view-dependent SH. Call each frame before forward().
     void setCameraPosition(const glm::vec3 &pos) { cam_x = pos.x; cam_y = pos.y; cam_z = pos.z; }
 
-    // wiring
-    void setInput(const Gaussian3DParams *params) { in = params; }
-    Splat3DParams &getOutput()                    { return out; }
-    void setGradOutput(const Splat3DGrads *grads) { grad_out = grads; }
-    Gaussian3DGrads &getGradInput()               { return grad_in; }
+    // grad_input needs (n, sh_degree) so we override the default
+    void allocateGrad(int n) override { grad_input.allocate(n, sh_degree); }
 
 private:
-    /* ---- forward input (not owned) ---- */
-    const Gaussian3DParams *in = nullptr;
-
-    /* ---- forward output (owned) ---- */
-    Splat3DParams out;
-
-    /* ---- backward input (not owned) ---- */
-    const Splat3DGrads *grad_out = nullptr;
-
-    /* ---- backward output (owned) ---- */
-    Gaussian3DGrads grad_in;
-
-    /* ---- config ---- */
     int   sh_degree = 0;
     float cam_x = 0.f, cam_y = 0.f, cam_z = 0.f;
 };

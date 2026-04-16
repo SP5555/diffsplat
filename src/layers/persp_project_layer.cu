@@ -263,23 +263,6 @@ __global__ void perspProjectBackwardKernel(
     grad_i_A[i] = grad_o_A[i];
 }
 
-/* ===== ===== Lifecycle ===== ===== */
-
-void PerspProjectLayer::allocate(int count)
-{
-    out.allocate(count);
-}
-
-void PerspProjectLayer::allocateGrad(int count)
-{
-    grad_in.allocate(count);
-}
-
-void PerspProjectLayer::zero_grad()
-{
-    grad_in.zero_grad();
-}
-
 void PerspProjectLayer::setCamera(const glm::mat4 &view, const glm::mat4 &proj)
 {
     glm::mat4 pv = proj * view;
@@ -291,19 +274,19 @@ void PerspProjectLayer::setCamera(const glm::mat4 &view, const glm::mat4 &proj)
 
 void PerspProjectLayer::forward()
 {
-    int count   = in->count;
+    int count   = input->count;
     int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     perspProjectForwardKernel<<<blocks, BLOCK_SIZE>>>(
-        in->pos_x,   in->pos_y,   in->pos_z,
-        in->cov_xx,  in->cov_xy,  in->cov_xz,
-        in->cov_yy,  in->cov_yz,  in->cov_zz,
-        in->color_r, in->color_g, in->color_b,
-        in->opacity,
-        out.pos_x,   out.pos_y,   out.pos_z,
-        out.cov_xx,  out.cov_xy,  out.cov_yy,
-        out.color_r, out.color_g, out.color_b,
-        out.opacity,
+        input->pos_x,   input->pos_y,   input->pos_z,
+        input->cov_xx,  input->cov_xy,  input->cov_xz,
+        input->cov_yy,  input->cov_yz,  input->cov_zz,
+        input->color_r, input->color_g, input->color_b,
+        input->opacity,
+        output.pos_x,   output.pos_y,   output.pos_z,
+        output.cov_xx,  output.cov_xy,  output.cov_yy,
+        output.color_r, output.color_g, output.color_b,
+        output.opacity,
         count
     );
     CUDA_SYNC_CHECK();
@@ -311,22 +294,22 @@ void PerspProjectLayer::forward()
 
 void PerspProjectLayer::backward()
 {
-    int count   = in->count;
+    int count   = input->count;
     int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     perspProjectBackwardKernel<<<blocks, BLOCK_SIZE>>>(
-        in->pos_x,  in->pos_y,  in->pos_z,
-        in->cov_xx, in->cov_xy, in->cov_xz,
-        in->cov_yy, in->cov_yz, in->cov_zz,
-        grad_out->grad_pos_x,   grad_out->grad_pos_y,
-        grad_out->grad_cov_xx,  grad_out->grad_cov_xy,  grad_out->grad_cov_yy,
-        grad_out->grad_color_r, grad_out->grad_color_g, grad_out->grad_color_b,
-        grad_out->grad_opacity,
-        grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
-        grad_in.grad_cov_xx,  grad_in.grad_cov_xy,  grad_in.grad_cov_xz,
-        grad_in.grad_cov_yy,  grad_in.grad_cov_yz,  grad_in.grad_cov_zz,
-        grad_in.grad_color_r, grad_in.grad_color_g, grad_in.grad_color_b,
-        grad_in.grad_opacity,
+        input->pos_x,  input->pos_y,  input->pos_z,
+        input->cov_xx, input->cov_xy, input->cov_xz,
+        input->cov_yy, input->cov_yz, input->cov_zz,
+        grad_output->grad_pos_x,   grad_output->grad_pos_y,
+        grad_output->grad_cov_xx,  grad_output->grad_cov_xy,  grad_output->grad_cov_yy,
+        grad_output->grad_color_r, grad_output->grad_color_g, grad_output->grad_color_b,
+        grad_output->grad_opacity,
+        grad_input.grad_pos_x,   grad_input.grad_pos_y,   grad_input.grad_pos_z,
+        grad_input.grad_cov_xx,  grad_input.grad_cov_xy,  grad_input.grad_cov_xz,
+        grad_input.grad_cov_yy,  grad_input.grad_cov_yz,  grad_input.grad_cov_zz,
+        grad_input.grad_color_r, grad_input.grad_color_g, grad_input.grad_color_b,
+        grad_input.grad_opacity,
         count
     );
     CUDA_SYNC_CHECK();

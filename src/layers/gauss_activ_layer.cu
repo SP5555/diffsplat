@@ -192,7 +192,7 @@ __global__ void covForwardKernel(
  * View direction is treated as constant (not differentiated w.r.t. splat position).
  * This is the standard 3DGS approximation.
  *
- * Gradient through clamp [0,1]: zero when output is at boundary (read from out.color).
+ * Gradient through clamp [0,1]: zero when output is at boundary (read from output.color).
  *
  * One thread is launched per splat.
  */
@@ -428,51 +428,34 @@ __global__ void covBackwardKernel(
     grad_i_logit_A[i] = grad_o_A[i] * s * (1.f - s);
 }
 
-/* ===== ===== Lifecycle ===== ===== */
-
-void GaussActivLayer::allocate(int count)
-{
-    out.allocate(count);
-}
-
-void GaussActivLayer::allocateGrad(int count)
-{
-    grad_in.allocate(count, sh_degree);
-}
-
-void GaussActivLayer::zero_grad()
-{
-    grad_in.zero_grad();
-}
-
 /* ===== ===== Forward / Backward ===== ===== */
 
 void GaussActivLayer::forward()
 {
-    int count = in->count;
-    out.count = count;
+    int count = input->count;
+    output.count = count;
 
     int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
     covForwardKernel<<<blocks, BLOCK_SIZE>>>(
-        in->pos_x,   in->pos_y,   in->pos_z,
-        in->scale_x, in->scale_y, in->scale_z,
-        in->rot_w,   in->rot_x,   in->rot_y,   in->rot_z,
-        in->color_sh_r,
-        in->color_sh_g,
-        in->color_sh_b,
-        in->logit_opacity,
-        in->sh_num_bands > 0 ? (const float *)in->sh_rest_r : nullptr,
-        in->sh_num_bands > 0 ? (const float *)in->sh_rest_g : nullptr,
-        in->sh_num_bands > 0 ? (const float *)in->sh_rest_b : nullptr,
+        input->pos_x,   input->pos_y,   input->pos_z,
+        input->scale_x, input->scale_y, input->scale_z,
+        input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
+        input->color_sh_r,
+        input->color_sh_g,
+        input->color_sh_b,
+        input->logit_opacity,
+        input->sh_num_bands > 0 ? (const float *)input->sh_rest_r : nullptr,
+        input->sh_num_bands > 0 ? (const float *)input->sh_rest_g : nullptr,
+        input->sh_num_bands > 0 ? (const float *)input->sh_rest_b : nullptr,
         sh_degree,
         cam_x, cam_y, cam_z,
-        out.pos_x,  out.pos_y,  out.pos_z,
-        out.cov_xx, out.cov_xy, out.cov_xz,
-        out.cov_yy, out.cov_yz, out.cov_zz,
-        out.color_r,
-        out.color_g,
-        out.color_b,
-        out.opacity,
+        output.pos_x,  output.pos_y,  output.pos_z,
+        output.cov_xx, output.cov_xy, output.cov_xz,
+        output.cov_yy, output.cov_yz, output.cov_zz,
+        output.color_r,
+        output.color_g,
+        output.color_b,
+        output.opacity,
         count
     );
     CUDA_SYNC_CHECK();
@@ -480,38 +463,38 @@ void GaussActivLayer::forward()
 
 void GaussActivLayer::backward()
 {
-    int count = in->count;
+    int count = input->count;
 
     int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
     covBackwardKernel<<<blocks, BLOCK_SIZE>>>(
-        in->scale_x, in->scale_y, in->scale_z,
-        in->rot_w,   in->rot_x,   in->rot_y,   in->rot_z,
-        in->pos_x,   in->pos_y,   in->pos_z,
-        out.opacity,
-        out.color_r, out.color_g, out.color_b,   // saved forward outputs for clamp check
-        in->sh_num_bands > 0 ? (const float *)in->sh_rest_r : nullptr,
-        in->sh_num_bands > 0 ? (const float *)in->sh_rest_g : nullptr,
-        in->sh_num_bands > 0 ? (const float *)in->sh_rest_b : nullptr,
+        input->scale_x, input->scale_y, input->scale_z,
+        input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
+        input->pos_x,   input->pos_y,   input->pos_z,
+        output.opacity,
+        output.color_r, output.color_g, output.color_b,   // saved forward outputs for clamp check
+        input->sh_num_bands > 0 ? (const float *)input->sh_rest_r : nullptr,
+        input->sh_num_bands > 0 ? (const float *)input->sh_rest_g : nullptr,
+        input->sh_num_bands > 0 ? (const float *)input->sh_rest_b : nullptr,
         sh_degree,
         cam_x, cam_y, cam_z,
-        grad_out->grad_pos_x,  grad_out->grad_pos_y,  grad_out->grad_pos_z,
-        grad_out->grad_cov_xx, grad_out->grad_cov_xy, grad_out->grad_cov_xz,
-        grad_out->grad_cov_yy, grad_out->grad_cov_yz, grad_out->grad_cov_zz,
-        grad_out->grad_color_r,
-        grad_out->grad_color_g,
-        grad_out->grad_color_b,
-        grad_out->grad_opacity,
-        grad_in.grad_pos_x,   grad_in.grad_pos_y,   grad_in.grad_pos_z,
-        grad_in.grad_scale_x, grad_in.grad_scale_y, grad_in.grad_scale_z,
-        grad_in.grad_rot_w,   grad_in.grad_rot_x,
-        grad_in.grad_rot_y,   grad_in.grad_rot_z,
-        grad_in.grad_color_sh_r,
-        grad_in.grad_color_sh_g,
-        grad_in.grad_color_sh_b,
-        grad_in.grad_logit_opacity,
-        grad_in.sh_num_bands > 0 ? (float *)grad_in.grad_sh_rest_r : nullptr,
-        grad_in.sh_num_bands > 0 ? (float *)grad_in.grad_sh_rest_g : nullptr,
-        grad_in.sh_num_bands > 0 ? (float *)grad_in.grad_sh_rest_b : nullptr,
+        grad_output->grad_pos_x,  grad_output->grad_pos_y,  grad_output->grad_pos_z,
+        grad_output->grad_cov_xx, grad_output->grad_cov_xy, grad_output->grad_cov_xz,
+        grad_output->grad_cov_yy, grad_output->grad_cov_yz, grad_output->grad_cov_zz,
+        grad_output->grad_color_r,
+        grad_output->grad_color_g,
+        grad_output->grad_color_b,
+        grad_output->grad_opacity,
+        grad_input.grad_pos_x,   grad_input.grad_pos_y,   grad_input.grad_pos_z,
+        grad_input.grad_scale_x, grad_input.grad_scale_y, grad_input.grad_scale_z,
+        grad_input.grad_rot_w,   grad_input.grad_rot_x,
+        grad_input.grad_rot_y,   grad_input.grad_rot_z,
+        grad_input.grad_color_sh_r,
+        grad_input.grad_color_sh_g,
+        grad_input.grad_color_sh_b,
+        grad_input.grad_logit_opacity,
+        grad_input.sh_num_bands > 0 ? (float *)grad_input.grad_sh_rest_r : nullptr,
+        grad_input.sh_num_bands > 0 ? (float *)grad_input.grad_sh_rest_g : nullptr,
+        grad_input.sh_num_bands > 0 ? (float *)grad_input.grad_sh_rest_b : nullptr,
         count
     );
     CUDA_SYNC_CHECK();

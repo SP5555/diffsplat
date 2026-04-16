@@ -145,6 +145,7 @@ endfunction()
 add_executable(fitter
     src/main_fitter.cpp
     src/app/fitter_app.cpp
+    src/io/gaussian3d_io.cpp
     src/io/image_loader.cpp
     src/io/ply_saver.cpp
     src/pipelines/image_fitter.cpp
@@ -157,6 +158,7 @@ diffsplat_target_setup(fitter)
 add_executable(viewer
     src/main_viewer.cpp
     src/app/viewer_app.cpp
+    src/io/gaussian3d_io.cpp
     src/io/ply_loader.cpp
     src/camera/arcball_camera.cpp
     src/camera/fly_camera.cpp
