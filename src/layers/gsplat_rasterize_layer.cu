@@ -558,41 +558,29 @@ uint32_t GsplatRasterizeLayer::getVisibleCount()
 
 void GsplatRasterizeLayer::allocate(int width, int height, int count)
 {
-    screen_width  = width;
-    screen_height = height;
-    num_pixels    = width * height;
-    // Tile counts are always derived from the resolution and TILE_SIZE so that
-    // tile boundaries align exactly with the 16x16 pixel blocks in the kernels.
-    num_tiles_x   = (width  + TILE_SIZE - 1) / TILE_SIZE;
-    num_tiles_y   = (height + TILE_SIZE - 1) / TILE_SIZE;
+    // Splat-count buffers: sized once at startup.
     // The tile-assign kernel degrades gracefully (drops excess pairs) if exceeded.
-    max_isects     = (1 << 25);
-    int numTiles  = num_tiles_x * num_tiles_y;
+    max_isects = (1 << 25);
+    d_isect_ids.allocate        (max_isects);
+    d_gauss_ids.allocate        (max_isects);
+    d_isect_ids_sorted.allocate (max_isects);
+    d_flatten_ids.allocate      (max_isects);
+    d_n_isects.allocate         (1);
+    d_visible_count.allocate    (1);
 
-    d_render_colors.allocate  (num_pixels * 3);
-    d_render_alphas.allocate(num_pixels);
-    d_last_ids.allocate    (num_pixels);
+    size_t required = 0;
+    uint64_t *dummy_keys = nullptr;
+    uint32_t *dummy_vals = nullptr;
+    CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
+        nullptr, required,
+        dummy_keys, dummy_keys,
+        dummy_vals, dummy_vals,
+        max_isects));
+    d_sort_temp.allocate(required);
+    sort_temp_bytes = required;
 
-    d_isect_ids.allocate         (max_isects);
-    d_gauss_ids.allocate       (max_isects);
-    d_isect_ids_sorted.allocate  (max_isects);
-    d_flatten_ids.allocate(max_isects);
-    d_n_isects.allocate   (1);
-    d_visible_count.allocate(1);
-    d_tile_offsets.allocate  (numTiles);
-
-    {
-        size_t required = 0;
-        uint64_t *dummy_keys = nullptr;
-        uint32_t *dummy_vals = nullptr;
-        CUDA_CHECK(cub::DeviceRadixSort::SortPairs(
-            nullptr, required,
-            dummy_keys, dummy_keys,
-            dummy_vals, dummy_vals,
-            max_isects));
-        d_sort_temp.allocate(required);
-        sort_temp_bytes = required;
-    }
+    // Pixel-size buffers: delegate to resize.
+    resize(width, height);
 }
 
 void GsplatRasterizeLayer::allocateGrad(int count)
@@ -612,12 +600,13 @@ void GsplatRasterizeLayer::resize(int new_width, int new_height)
     screen_width  = new_width;
     screen_height = new_height;
     num_pixels    = screen_width * screen_height;
+    // Tile counts derived from resolution so tile boundaries align with 16x16 blocks.
     num_tiles_x   = (screen_width  + TILE_SIZE - 1) / TILE_SIZE;
     num_tiles_y   = (screen_height + TILE_SIZE - 1) / TILE_SIZE;
-    d_render_colors.allocate  (num_pixels * 3);
-    d_render_alphas.allocate(num_pixels);
-    d_last_ids.allocate    (num_pixels);
-    d_tile_offsets.allocate (num_tiles_x * num_tiles_y);
+    d_render_colors.allocate (num_pixels * 3);
+    d_render_alphas.allocate (num_pixels);
+    d_last_ids.allocate      (num_pixels);
+    d_tile_offsets.allocate  (num_tiles_x * num_tiles_y);
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -626,10 +615,10 @@ void GsplatRasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
-    CUDA_CHECK(cudaMemset(d_render_colors,    0, num_pixels * 3 * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_n_isects,    0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(d_render_colors, 0, num_pixels * 3 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_n_isects,      0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(d_tile_offsets,   0, numTiles * sizeof(int2)));
+    CUDA_CHECK(cudaMemset(d_tile_offsets,  0, numTiles * sizeof(int2)));
 
     // Tile assign
     {

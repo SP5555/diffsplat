@@ -37,12 +37,11 @@ struct Gaussian3DParams : GpuSoA
     CudaBuffer<float> scale_x, scale_y, scale_z;
     CudaBuffer<float> rot_w,   rot_x,   rot_y,   rot_z;
     CudaBuffer<float> sh_dc_r, sh_dc_g, sh_dc_b;
-    CudaBuffer<float> logit_opacity;
-
     // Higher-order SH: flat buffers of size n * sh_num_bands each.
     // Layout within each buffer: [band0_splat0..splat(n-1) | band1_splat0.. | ...]
     // Access in kernels: sh_rest_r[band * count + i]
     CudaBuffer<float> sh_rest_r, sh_rest_g, sh_rest_b;
+    CudaBuffer<float> logit_opacity;
     int sh_num_bands = 0;
 
     std::vector<CudaBuffer<float>*> fields() override {
@@ -50,8 +49,8 @@ struct Gaussian3DParams : GpuSoA
                 &scale_x, &scale_y, &scale_z,
                 &rot_w,   &rot_x,   &rot_y,   &rot_z,
                 &sh_dc_r, &sh_dc_g, &sh_dc_b,
-                &logit_opacity,
-                &sh_rest_r,  &sh_rest_g,  &sh_rest_b};
+                &sh_rest_r,  &sh_rest_g,  &sh_rest_b,
+                &logit_opacity};
     }
 
     void allocate(int n) override { allocate(n, 0); }
@@ -60,10 +59,7 @@ struct Gaussian3DParams : GpuSoA
         pos_x.allocate(n);   pos_y.allocate(n);   pos_z.allocate(n);
         scale_x.allocate(n); scale_y.allocate(n); scale_z.allocate(n);
         rot_w.allocate(n);   rot_x.allocate(n);   rot_y.allocate(n);   rot_z.allocate(n);
-        sh_dc_r.allocate(n);
-        sh_dc_g.allocate(n);
-        sh_dc_b.allocate(n);
-        logit_opacity.allocate(n);
+        sh_dc_r.allocate(n); sh_dc_g.allocate(n); sh_dc_b.allocate(n);
 
         sh_num_bands = sh_degree_to_bands(sh_degree);
         if (sh_num_bands > 0) {
@@ -71,6 +67,8 @@ struct Gaussian3DParams : GpuSoA
             sh_rest_g.allocate(n * sh_num_bands);
             sh_rest_b.allocate(n * sh_num_bands);
         }
+        logit_opacity.allocate(n);
+
         count = n;
     }
 };
@@ -87,17 +85,17 @@ struct Gaussian3DGrads : GpuSoA
     CudaBuffer<float> grad_scale_x, grad_scale_y, grad_scale_z;
     CudaBuffer<float> grad_rot_w,   grad_rot_x,   grad_rot_y,   grad_rot_z;
     CudaBuffer<float> grad_sh_dc_r, grad_sh_dc_g, grad_sh_dc_b;
-    CudaBuffer<float> grad_logit_opacity;
     CudaBuffer<float> grad_sh_rest_r, grad_sh_rest_g, grad_sh_rest_b;
+    CudaBuffer<float> grad_logit_opacity;
     int sh_num_bands = 0;
 
     std::vector<CudaBuffer<float>*> fields() override {
-        return {&grad_pos_x,      &grad_pos_y,      &grad_pos_z,
-                &grad_scale_x,    &grad_scale_y,    &grad_scale_z,
-                &grad_rot_w,      &grad_rot_x,      &grad_rot_y,      &grad_rot_z,
+        return {&grad_pos_x,   &grad_pos_y,   &grad_pos_z,
+                &grad_scale_x, &grad_scale_y, &grad_scale_z,
+                &grad_rot_w,   &grad_rot_x,   &grad_rot_y,   &grad_rot_z,
                 &grad_sh_dc_r, &grad_sh_dc_g, &grad_sh_dc_b,
-                &grad_logit_opacity,
-                &grad_sh_rest_r,  &grad_sh_rest_g,  &grad_sh_rest_b};
+                &grad_sh_rest_r,  &grad_sh_rest_g,  &grad_sh_rest_b,
+                &grad_logit_opacity};
     }
 
     // Proper override so the base virtual is satisfied.
@@ -107,12 +105,8 @@ struct Gaussian3DGrads : GpuSoA
     {
         grad_pos_x.allocate(n);   grad_pos_y.allocate(n);   grad_pos_z.allocate(n);
         grad_scale_x.allocate(n); grad_scale_y.allocate(n); grad_scale_z.allocate(n);
-        grad_rot_w.allocate(n);   grad_rot_x.allocate(n);
-        grad_rot_y.allocate(n);   grad_rot_z.allocate(n);
-        grad_sh_dc_r.allocate(n);
-        grad_sh_dc_g.allocate(n);
-        grad_sh_dc_b.allocate(n);
-        grad_logit_opacity.allocate(n);
+        grad_rot_w.allocate(n);   grad_rot_x.allocate(n);   grad_rot_y.allocate(n);   grad_rot_z.allocate(n);
+        grad_sh_dc_r.allocate(n); grad_sh_dc_g.allocate(n); grad_sh_dc_b.allocate(n);
 
         sh_num_bands = sh_degree_to_bands(sh_degree);
         if (sh_num_bands > 0) {
@@ -120,6 +114,8 @@ struct Gaussian3DGrads : GpuSoA
             grad_sh_rest_g.allocate(n * sh_num_bands);
             grad_sh_rest_b.allocate(n * sh_num_bands);
         }
+        grad_logit_opacity.allocate(n);
+        
         count = n;
     }
 };
