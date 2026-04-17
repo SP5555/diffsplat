@@ -23,9 +23,9 @@ namespace SplatUtils
         {
             memset(g.sh_rest, 0, sizeof(g.sh_rest));  // higher-order SH starts at zero
 
-            g.x = rnd() * half_w;
-            g.y = rnd() * half_h;
-            g.z = rnd() * std::min(half_w, half_h) * 0.25f;
+            g.pos_x = rnd() * half_w;
+            g.pos_y = rnd() * half_h;
+            g.pos_z = rnd() * std::min(half_w, half_h) * 0.25f;
 
             float s = rnd() * 0.5;
             g.scale_x = log_sigma + s;
@@ -38,12 +38,12 @@ namespace SplatUtils
             g.rot_z = 0.f;
 
             // initialize DC SH coefficients to random colors in [0, 1]
-            g.r = (rndu() - 0.5f) / SH_C0;
-            g.g = (rndu() - 0.5f) / SH_C0;
-            g.b = (rndu() - 0.5f) / SH_C0;
+            g.sh_dc_r = (rndu() - 0.5f) / SH_C0;
+            g.sh_dc_g = (rndu() - 0.5f) / SH_C0;
+            g.sh_dc_b = (rndu() - 0.5f) / SH_C0;
 
             float o_raw = 0.6f + 0.4f * rndu();
-            g.opacity = logf(o_raw / (1.f - o_raw));
+            g.logit_opacity = logf(o_raw / (1.f - o_raw));
         }
 
         return splats;
@@ -55,9 +55,9 @@ namespace SplatUtils
         float cx = 0.f, cy = 0.f, cz = 0.f;
         for (const auto &g : splats)
         {
-            cx += g.x;
-            cy += g.y;
-            cz += g.z;
+            cx += g.pos_x;
+            cy += g.pos_y;
+            cz += g.pos_z;
         }
         float inv = 1.f / (float)splats.size();
         cx *= inv; cy *= inv; cz *= inv;
@@ -66,11 +66,11 @@ namespace SplatUtils
         float max_ext = 0.f;
         for (auto &g : splats)
         {
-            g.x -= cx; g.y -= cy; g.z -= cz;
+            g.pos_x -= cx; g.pos_y -= cy; g.pos_z -= cz;
 
-            max_ext = std::max(max_ext, std::abs(g.x));
-            max_ext = std::max(max_ext, std::abs(g.y));
-            max_ext = std::max(max_ext, std::abs(g.z));
+            max_ext = std::max(max_ext, std::abs(g.pos_x));
+            max_ext = std::max(max_ext, std::abs(g.pos_y));
+            max_ext = std::max(max_ext, std::abs(g.pos_z));
         }
 
         // scale to [-1, 1]
@@ -80,9 +80,9 @@ namespace SplatUtils
             float log_scale = logf(linear_scale);
             for (auto &g : splats)
             {
-                g.x *= linear_scale;
-                g.y *= linear_scale;
-                g.z *= linear_scale;
+                g.pos_x *= linear_scale;
+                g.pos_y *= linear_scale;
+                g.pos_z *= linear_scale;
 
                 g.scale_x += log_scale;
                 g.scale_y += log_scale;

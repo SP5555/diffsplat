@@ -12,7 +12,7 @@ struct Gaussian3DAdamConfig {
     float lr_pos     = 1.6e-2f;
     float lr_scale   = 1.0e-3f;
     float lr_rot     = 6.0e-4f;
-    float lr_color   = 6.0e-3f;
+    float lr_sh_dc   = 6.0e-3f;
     float lr_sh_rest = 6.0e-3f;
     float lr_opacity = 6.0e-3f;
     AdamParams adam  = {};
@@ -41,9 +41,9 @@ inline void registerGaussian3DGroups(
     adam.addGroup(params.rot_x,         grads.grad_rot_x,         n, cfg.lr_rot);
     adam.addGroup(params.rot_y,         grads.grad_rot_y,         n, cfg.lr_rot);
     adam.addGroup(params.rot_z,         grads.grad_rot_z,         n, cfg.lr_rot);
-    adam.addGroup(params.color_sh_r,    grads.grad_color_sh_r,    n, cfg.lr_color);
-    adam.addGroup(params.color_sh_g,    grads.grad_color_sh_g,    n, cfg.lr_color);
-    adam.addGroup(params.color_sh_b,    grads.grad_color_sh_b,    n, cfg.lr_color);
+    adam.addGroup(params.sh_dc_r,       grads.grad_sh_dc_r,       n, cfg.lr_sh_dc);
+    adam.addGroup(params.sh_dc_g,       grads.grad_sh_dc_g,       n, cfg.lr_sh_dc);
+    adam.addGroup(params.sh_dc_b,       grads.grad_sh_dc_b,       n, cfg.lr_sh_dc);
     adam.addGroup(params.logit_opacity, grads.grad_logit_opacity, n, cfg.lr_opacity);
 
     if (params.sh_num_bands > 0) {

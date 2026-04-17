@@ -41,9 +41,9 @@ void PLYSaver::save(const std::string &path, const std::vector<Gaussian3D> &spla
         // Convert OpenGL (Y up, Z backward) back to OpenCV (Y down, Z forward)
         // by flipping Y and Z. Quaternion: negate rot_y and rot_z
         // (rot_w double-negation from Y and Z flips cancels out).
-        float x     =  g.x;
-        float y     = -g.y;
-        float z     = -g.z;
+        float pos_x =  g.pos_x;
+        float pos_y = -g.pos_y;
+        float pos_z = -g.pos_z;
         float rot_w =  g.rot_w;
         float rot_x =  g.rot_x;
         float rot_y = -g.rot_y;
@@ -51,10 +51,10 @@ void PLYSaver::save(const std::string &path, const std::vector<Gaussian3D> &spla
 
         auto wf = [&](float v) { file.write(reinterpret_cast<const char *>(&v), sizeof(float)); };
 
-        wf(x); wf(y); wf(z);
-        wf(g.r); wf(g.g); wf(g.b);
+        wf(pos_x); wf(pos_y); wf(pos_z);
+        wf(g.sh_dc_r); wf(g.sh_dc_g); wf(g.sh_dc_b);
         for (int i = 0; i < n_rest; i++) wf(g.sh_rest[i]);
-        wf(g.opacity);
+        wf(g.logit_opacity);
         wf(g.scale_x); wf(g.scale_y); wf(g.scale_z);
         // PLY convention: rot_0=w, rot_1=x, rot_2=y, rot_3=z
         wf(rot_w); wf(rot_x); wf(rot_y); wf(rot_z);

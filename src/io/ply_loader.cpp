@@ -71,9 +71,9 @@ PLYLoadResult PLYLoader::load(const std::string &path)
         return idx[name];
     };
 
-    const int i_x       = require("x");
-    const int i_y       = require("y");
-    const int i_z       = require("z");
+    const int i_posx    = require("x");
+    const int i_posy    = require("y");
+    const int i_posz    = require("z");
     const int i_scale0  = require("scale_0");
     const int i_scale1  = require("scale_1");
     const int i_scale2  = require("scale_2");
@@ -124,9 +124,9 @@ PLYLoadResult PLYLoader::load(const std::string &path)
 
         Gaussian3D g;
 
-        g.x = row[i_x];
-        g.y = row[i_y];
-        g.z = row[i_z];
+        g.pos_x = row[i_posx];
+        g.pos_y = row[i_posy];
+        g.pos_z = row[i_posz];
 
         g.scale_x = row[i_scale0];
         g.scale_y = row[i_scale1];
@@ -141,15 +141,15 @@ PLYLoadResult PLYLoader::load(const std::string &path)
         // PLY files from 3DGS training are in OpenCV convention (X right, Y down, Z forward).
         // Convert to OpenGL convention (X right, Y up, Z backward) by flipping both Y and Z.
         // Quaternion for combined Y+Z flip: negate y and z components (w cancels from double negation).
-        g.y     = -g.y;
-        g.z     = -g.z;
+        g.pos_y = -g.pos_y;
+        g.pos_z = -g.pos_z;
         g.rot_y = -g.rot_y;
         g.rot_z = -g.rot_z;
 
         // DC SH coefficients
-        g.r = row[i_dc0];
-        g.g = row[i_dc1];
-        g.b = row[i_dc2];
+        g.sh_dc_r = row[i_dc0];
+        g.sh_dc_g = row[i_dc1];
+        g.sh_dc_b = row[i_dc2];
 
         // higher-order SH: sh_rest layout is channel-first
         // [0..K-1] = R bands, [K..2K-1] = G bands, [2K..3K-1] = B bands
@@ -158,7 +158,7 @@ PLYLoadResult PLYLoader::load(const std::string &path)
             if (i_rest[b] >= 0) g.sh_rest[b] = row[i_rest[b]];
 
         // logit-opacity stored as-is, sigmoid applied in GaussActivLayer
-        g.opacity = row[i_opacity];
+        g.logit_opacity = row[i_opacity];
 
         splats.push_back(g);
     }

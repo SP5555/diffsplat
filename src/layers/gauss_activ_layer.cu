@@ -32,9 +32,9 @@
 __global__ void covForwardKernel(
     // inputs: pos, log-scale, raw quaternion,
     //         SH coefficient RGB, logit-opacity
-    const float *__restrict__ i_x,
-    const float *__restrict__ i_y,
-    const float *__restrict__ i_z,
+    const float *__restrict__ i_px,
+    const float *__restrict__ i_py,
+    const float *__restrict__ i_pz,
     const float *__restrict__ i_sx,
     const float *__restrict__ i_sy,
     const float *__restrict__ i_sz,
@@ -42,15 +42,15 @@ __global__ void covForwardKernel(
     const float *__restrict__ i_rx,
     const float *__restrict__ i_ry,
     const float *__restrict__ i_rz,
-    const float *__restrict__ i_DC_SH_R,
-    const float *__restrict__ i_DC_SH_G,
-    const float *__restrict__ i_DC_SH_B,
-    const float *__restrict__ i_logit_A,
+    const float *__restrict__ i_sh_dc_r,
+    const float *__restrict__ i_sh_dc_g,
+    const float *__restrict__ i_sh_dc_b,
     // higher-order SH (may be nullptr if sh_degree == 0)
     // layout: sh_rest_r[band * count + i]
     const float *__restrict__ sh_rest_r,
     const float *__restrict__ sh_rest_g,
     const float *__restrict__ sh_rest_b,
+    const float *__restrict__ i_logit_a,
     int sh_degree,
     // camera position for view direction
     float cam_x, float cam_y, float cam_z,
@@ -68,9 +68,9 @@ __global__ void covForwardKernel(
     if (i >= count) return;
 
     // pass-through position
-    o_x[i] = i_x[i];
-    o_y[i] = i_y[i];
-    o_z[i] = i_z[i];
+    o_x[i] = i_px[i];
+    o_y[i] = i_py[i];
+    o_z[i] = i_pz[i];
 
     // normalize quaternion (fmaxf guards against all-zero input -> rsqrtf(0) = inf)
     float qw = i_rw[i], qx = i_rx[i], qy = i_ry[i], qz = i_rz[i];
@@ -110,17 +110,17 @@ __global__ void covForwardKernel(
 
     // ===== SH color evaluation =====
     // view direction: splat -> camera, normalized (standard 3DGS convention)
-    float dx = cam_x - i_x[i];
-    float dy = cam_y - i_y[i];
-    float dz = cam_z - i_z[i];
+    float dx = cam_x - i_px[i];
+    float dy = cam_y - i_py[i];
+    float dz = cam_z - i_pz[i];
     float inv_len = rsqrtf(fmaxf(dx*dx + dy*dy + dz*dz, 1e-12f));
     float nx = dx * inv_len;
     float ny = dy * inv_len;
     float nz = dz * inv_len;
 
-    float cr = i_DC_SH_R[i] * SH_C0;
-    float cg = i_DC_SH_G[i] * SH_C0;
-    float cb = i_DC_SH_B[i] * SH_C0;
+    float cr = i_sh_dc_r[i] * SH_C0;
+    float cg = i_sh_dc_g[i] * SH_C0;
+    float cb = i_sh_dc_b[i] * SH_C0;
 
     // branches are uniform across the warp (same sh_degree for all threads)
     if (sh_degree >= 1)
@@ -181,7 +181,7 @@ __global__ void covForwardKernel(
     o_lin_B[i] = fminf(fmaxf(cb + 0.5f, 0.f), 1.f);
 
     // sigmoid activation on opacity
-    o_A[i] = 1.f / (1.f + expf(-i_logit_A[i]));
+    o_A[i] = 1.f / (1.f + expf(-i_logit_a[i]));
 }
 
 /**
@@ -197,7 +197,10 @@ __global__ void covForwardKernel(
  * One thread is launched per splat.
  */
 __global__ void covBackwardKernel(
-    // inputs: log-scale and raw quaternion
+    // saved forward inputs (needed to recompute intermediates)
+    const float *__restrict__ pos_x,
+    const float *__restrict__ pos_y,
+    const float *__restrict__ pos_z,
     const float *__restrict__ scale_x,
     const float *__restrict__ scale_y,
     const float *__restrict__ scale_z,
@@ -205,24 +208,17 @@ __global__ void covBackwardKernel(
     const float *__restrict__ rot_x,
     const float *__restrict__ rot_y,
     const float *__restrict__ rot_z,
-    const float *__restrict__ pos_x,
-    const float *__restrict__ pos_y,
-    const float *__restrict__ pos_z,
+    // saved forward outputs (for gradient gating)
+    const float *__restrict__ color_r,
+    const float *__restrict__ color_g,
+    const float *__restrict__ color_b,
     const float *__restrict__ opacity,
-    // forward outputs (for clamp check)
-    const float *__restrict__ fwd_lin_R,
-    const float *__restrict__ fwd_lin_G,
-    const float *__restrict__ fwd_lin_B,
-    // higher-order SH (may be nullptr if sh_degree == 0)
-    const float *__restrict__ sh_rest_r,
-    const float *__restrict__ sh_rest_g,
-    const float *__restrict__ sh_rest_b,
     int sh_degree,
     float cam_x, float cam_y, float cam_z,
-    // gradient output (from next layer)
-    const float *__restrict__ grad_o_x,
-    const float *__restrict__ grad_o_y,
-    const float *__restrict__ grad_o_z,
+    // gradient output (from downstream layer)
+    const float *__restrict__ grad_o_px,
+    const float *__restrict__ grad_o_py,
+    const float *__restrict__ grad_o_pz,
     const float *__restrict__ grad_o_cxx,
     const float *__restrict__ grad_o_cxy,
     const float *__restrict__ grad_o_cxz,
@@ -233,10 +229,10 @@ __global__ void covBackwardKernel(
     const float *__restrict__ grad_o_lin_g,
     const float *__restrict__ grad_o_lin_b,
     const float *__restrict__ grad_o_A,
-    // gradient input (to this layer's parameters)
-    float *grad_i_x,
-    float *grad_i_y,
-    float *grad_i_z,
+    // gradient input (to upstream parameters)
+    float *grad_i_px,
+    float *grad_i_py,
+    float *grad_i_pz,
     float *grad_i_sx,
     float *grad_i_sy,
     float *grad_i_sz,
@@ -244,22 +240,22 @@ __global__ void covBackwardKernel(
     float *grad_i_rx,
     float *grad_i_ry,
     float *grad_i_rz,
-    float *grad_i_DC_SH_r,
-    float *grad_i_DC_SH_g,
-    float *grad_i_DC_SH_b,
-    float *grad_i_logit_A,
+    float *grad_i_sh_dc_r,
+    float *grad_i_sh_dc_g,
+    float *grad_i_sh_dc_b,
     float *grad_i_sh_rest_r,
     float *grad_i_sh_rest_g,
     float *grad_i_sh_rest_b,
+    float *grad_i_logit_a,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
     // pass-through position gradients
-    grad_i_x[i] = grad_o_x[i];
-    grad_i_y[i] = grad_o_y[i];
-    grad_i_z[i] = grad_o_z[i];
+    grad_i_px[i] = grad_o_px[i];
+    grad_i_py[i] = grad_o_py[i];
+    grad_i_pz[i] = grad_o_pz[i];
 
     // --- recompute forward values ---
     float qw_raw = rot_w[i], qx_raw = rot_x[i], qy_raw = rot_y[i], qz_raw = rot_z[i];
@@ -350,14 +346,14 @@ __global__ void covBackwardKernel(
 
     // --- SH color gradients ---
     // Gradient through clamp: zero if output was clamped (at 0 or 1 boundary)
-    float dR = (fwd_lin_R[i] > 0.f && fwd_lin_R[i] < 1.f) ? grad_o_lin_r[i] : 0.f;
-    float dG = (fwd_lin_G[i] > 0.f && fwd_lin_G[i] < 1.f) ? grad_o_lin_g[i] : 0.f;
-    float dB = (fwd_lin_B[i] > 0.f && fwd_lin_B[i] < 1.f) ? grad_o_lin_b[i] : 0.f;
+    float dR = (color_r[i] > 0.f && color_r[i] < 1.f) ? grad_o_lin_r[i] : 0.f;
+    float dG = (color_g[i] > 0.f && color_g[i] < 1.f) ? grad_o_lin_g[i] : 0.f;
+    float dB = (color_b[i] > 0.f && color_b[i] < 1.f) ? grad_o_lin_b[i] : 0.f;
 
     // DC
-    grad_i_DC_SH_r[i] = dR * SH_C0;
-    grad_i_DC_SH_g[i] = dG * SH_C0;
-    grad_i_DC_SH_b[i] = dB * SH_C0;
+    grad_i_sh_dc_r[i] = dR * SH_C0;
+    grad_i_sh_dc_g[i] = dG * SH_C0;
+    grad_i_sh_dc_b[i] = dB * SH_C0;
 
     if (sh_degree >= 1)
     {
@@ -425,7 +421,7 @@ __global__ void covBackwardKernel(
 
     // --- sigmoid backward: dL/dlogit = dL/dopacity * s * (1 - s) ---
     float s = opacity[i];
-    grad_i_logit_A[i] = grad_o_A[i] * s * (1.f - s);
+    grad_i_logit_a[i] = grad_o_A[i] * s * (1.f - s);
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
@@ -440,13 +436,13 @@ void GaussActivLayer::forward()
         input->pos_x,   input->pos_y,   input->pos_z,
         input->scale_x, input->scale_y, input->scale_z,
         input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
-        input->color_sh_r,
-        input->color_sh_g,
-        input->color_sh_b,
-        input->logit_opacity,
+        input->sh_dc_r,
+        input->sh_dc_g,
+        input->sh_dc_b,
         input->sh_num_bands > 0 ? (const float *)input->sh_rest_r : nullptr,
         input->sh_num_bands > 0 ? (const float *)input->sh_rest_g : nullptr,
         input->sh_num_bands > 0 ? (const float *)input->sh_rest_b : nullptr,
+        input->logit_opacity,
         sh_degree,
         cam_x, cam_y, cam_z,
         output.pos_x,  output.pos_y,  output.pos_z,
@@ -467,14 +463,11 @@ void GaussActivLayer::backward()
 
     int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
     covBackwardKernel<<<blocks, BLOCK_SIZE>>>(
+        input->pos_x,   input->pos_y,   input->pos_z,
         input->scale_x, input->scale_y, input->scale_z,
         input->rot_w,   input->rot_x,   input->rot_y,   input->rot_z,
-        input->pos_x,   input->pos_y,   input->pos_z,
+        output.color_r, output.color_g, output.color_b,
         output.opacity,
-        output.color_r, output.color_g, output.color_b,   // saved forward outputs for clamp check
-        input->sh_num_bands > 0 ? (const float *)input->sh_rest_r : nullptr,
-        input->sh_num_bands > 0 ? (const float *)input->sh_rest_g : nullptr,
-        input->sh_num_bands > 0 ? (const float *)input->sh_rest_b : nullptr,
         sh_degree,
         cam_x, cam_y, cam_z,
         grad_output->grad_pos_x,  grad_output->grad_pos_y,  grad_output->grad_pos_z,
@@ -488,13 +481,13 @@ void GaussActivLayer::backward()
         grad_input.grad_scale_x, grad_input.grad_scale_y, grad_input.grad_scale_z,
         grad_input.grad_rot_w,   grad_input.grad_rot_x,
         grad_input.grad_rot_y,   grad_input.grad_rot_z,
-        grad_input.grad_color_sh_r,
-        grad_input.grad_color_sh_g,
-        grad_input.grad_color_sh_b,
-        grad_input.grad_logit_opacity,
+        grad_input.grad_sh_dc_r,
+        grad_input.grad_sh_dc_g,
+        grad_input.grad_sh_dc_b,
         grad_input.sh_num_bands > 0 ? (float *)grad_input.grad_sh_rest_r : nullptr,
         grad_input.sh_num_bands > 0 ? (float *)grad_input.grad_sh_rest_g : nullptr,
         grad_input.sh_num_bands > 0 ? (float *)grad_input.grad_sh_rest_b : nullptr,
+        grad_input.grad_logit_opacity,
         count
     );
     CUDA_SYNC_CHECK();
