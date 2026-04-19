@@ -1,4 +1,5 @@
 #pragma once
+#include <cstring>
 #include <random>
 #include <vector>
 #include "../types/gaussian3d.h"
