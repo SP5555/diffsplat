@@ -6,6 +6,7 @@
 
 #include "../cuda/cuda_check.h"
 #include "../cuda/cuda_defs.h"
+#include "../cuda/warp_ops.cuh"
 
 /* ===== ===== Constants ===== ===== */
 
@@ -38,7 +39,7 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
  *
  * Tile boundaries are derived from pixel coordinates, not NDC fractions:
  *   tile_x = floor(pixel_x / TILE_SIZE)
- *           = floor((ndc_x + 1) / 2 * screen_width / TILE_SIZE)
+ *           = floor((pos_x + 1) / 2 * screen_width / TILE_SIZE)
  *
  * This ensures tile boundaries align precisely with the 16x16 pixel blocks
  * used by the rasterize kernel, regardless of whether the resolution is a
@@ -46,12 +47,12 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
  * tile boundaries whenever (num_tiles_x * TILE_SIZE != screen_width).
  */
 __global__ void gsTileAssignKernel(
-    const float *__restrict__ ndc_x,
-    const float *__restrict__ ndc_y,
-    const float *__restrict__ ndc_z,
-    const float *__restrict__ ndc_cxx,
-    const float *__restrict__ ndc_cxy,
-    const float *__restrict__ ndc_cyy,
+    const float *__restrict__ pos_x,
+    const float *__restrict__ pos_y,
+    const float *__restrict__ pos_z,
+    const float *__restrict__ cov_xx,
+    const float *__restrict__ cov_xy,
+    const float *__restrict__ cov_yy,
     int splat_count,
     uint64_t *isect_ids,
     uint32_t *gauss_ids,
@@ -66,16 +67,16 @@ __global__ void gsTileAssignKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= splat_count) return;
 
-    float x = ndc_x[i];
-    float y = ndc_y[i];
-    float z = ndc_z[i];
+    float x = pos_x[i];
+    float y = pos_y[i];
+    float z = pos_z[i];
 
     if (fabsf(x) > 1.0f || fabsf(y) > 1.0f || fabsf(z) > 1.0f)
         return;
 
-    float cxx = ndc_cxx[i];
-    float cxy = ndc_cxy[i];
-    float cyy = ndc_cyy[i];
+    float cxx = cov_xx[i];
+    float cxy = cov_xy[i];
+    float cyy = cov_yy[i];
 
     float det = cxx * cyy - cxy * cxy;
     if (!(det > 0.f)) return;
@@ -137,47 +138,37 @@ __global__ void gsBuildTileRangesKernel(
         tile_offsets[tile_id].y = i + 1;
 }
 
-/* ===== ===== Warp Utilities ===== ===== */
-
-// Warp-level sum reduction: lane 0 gets the sum. Sufficient for the atomicAdd
-// pattern where only lane 0 writes.
-__device__ __forceinline__ float warpReduceSum(float val)
-{
-    for (int offset = 16; offset > 0; offset >>= 1)
-        val += __shfl_down_sync(0xffffffffu, val, offset);
-    return val;
-}
-
-// Warp-level max all-reduce: every lane gets the same maximum value.
-// Used to compute warp_bin_final for the batch-skip optimization in the
-// backward pass.
-__device__ __forceinline__ int warpAllReduceMax(int val)
-{
-    for (int mask = 16; mask > 0; mask >>= 1)
-        val = max(val, __shfl_xor_sync(0xffffffffu, val, mask));
-    return val;
-}
-
 /* ===== ===== Forward Kernel ===== ===== */
 
 /**
- * Adapted from gsplat RasterizeToPixels3DGSFwd.cu.
+ * @brief Forward rasterization: tile-based front-to-back alpha compositing of 2D Gaussians.
  *
- * One 16x16 CUDA block per tile; one thread per pixel. Gaussians are
- * streamed front-to-back in chunks of TILE_PIXELS (=256), loaded
- * cooperatively into shared memory. Alpha compositing terminates early
- * per-pixel via T < T_THRES.
+ * Adapted from gsplat RasterizeToPixels3DGSFwd.cu. One 16x16 CUDA block per tile;
+ * one thread per pixel. Gaussians are streamed front-to-back in batches of TILE_PIXELS
+ * (=256), loaded cooperatively into shared memory. Compositing terminates early
+ * per-pixel when transmittance T drops below T_THRES.
  *
- * Inputs use the same NDC + SoA layout as Splat2DParams (no AoS conversion).
- * Covariance inverse is computed during the shared-memory load, not stored
- * separately.
+ * @note Covariance inverse is computed during the shared-memory load, not stored
+ *       separately, avoiding an extra buffer at splat-count scale.
+ * @note Saves last_ids (sorted-list index of the last contributing Gaussian per pixel)
+ *       for the backward pass, replacing the n_contrib stack approach.
  *
- * Saves last_ids (sorted-list index of the last contributing Gaussian per
- * pixel) for the backward pass - replaces the n_contrib approach.
+ * @param[in]  pos_x/y          2D Gaussian centers in NDC (SoA).
+ * @param[in]  cov_xx/xy/yy     Upper-triangle 2D covariance in NDC.
+ * @param[in]  color_r/g/b      Linear RGB colors.
+ * @param[in]  opacity          Per-Gaussian opacity.
+ * @param[in]  flatten_ids      Sorted splat indices (output of radix sort).
+ * @param[in]  tile_offsets     Per-tile {start, end} ranges into flatten_ids.
+ * @param[out] render_colors    Output pixel colors [H*W*3].
+ * @param[out] render_alphas    Output accumulated alpha per pixel [H*W].
+ * @param[out] last_ids         Sorted-list index of the last contributing Gaussian [H*W].
+ * @param[in]  image_width      Image width in pixels.
+ * @param[in]  image_height     Image height in pixels.
+ * @param[in]  num_tiles_x      Tile count along x, for tile_id = row*num_tiles_x + col.
  */
 __global__ void gsplatFwdKernel(
-    const float    *__restrict__ ndc_x,
-    const float    *__restrict__ ndc_y,
+    const float    *__restrict__ pos_x,
+    const float    *__restrict__ pos_y,
     const float    *__restrict__ cov_xx,
     const float    *__restrict__ cov_xy,
     const float    *__restrict__ cov_yy,
@@ -247,8 +238,8 @@ __global__ void gsplatFwdKernel(
             float det   = cxx * cyy - cxy * cxy;
             // tileAssignKernel already filtered det <= 0, so det > 0 here.
             float idet  = 1.f / det;
-            sh_x   [tr] = ndc_x  [g];
-            sh_y   [tr] = ndc_y  [g];
+            sh_x   [tr] = pos_x  [g];
+            sh_y   [tr] = pos_y  [g];
             sh_icxx[tr] =  cyy * idet;
             sh_icxy[tr] = -cxy * idet;
             sh_icyy[tr] =  cxx * idet;
@@ -297,34 +288,52 @@ __global__ void gsplatFwdKernel(
 /* ===== ===== Backward Kernel ===== ===== */
 
 /**
- * Adapted from gsplat RasterizeToPixels3DGSBwd.cu.
+ * @brief Backward rasterization: accumulates per-Gaussian gradients from pixel loss.
  *
- * Key improvements over RasterizeLayer's backwardKernel:
+ * Adapted from gsplat RasterizeToPixels3DGSBwd.cu. Traverses Gaussians back-to-front,
+ * recovering T_before from T_after via the compositing identity:
+ *   T_before = T_after / (1 - alpha)
  *
- *  1. Warp-level gradient reduction (warpReduceSum via __shfl_down_sync):
- *     All 32 lanes sum their local gradient for each Gaussian, then only
- *     lane 0 does the global atomicAdd. Reduces atomic pressure ~32x.
+ * Key optimizations over a naive backward:
  *
- *  2. last_ids-based traversal:
- *     Uses the sorted-list index of each pixel's last contributing Gaussian
- *     (saved in the forward) instead of a contrib_pos[] stack. No stack
- *     overflow risk, no MAX_CONTRIB limit.
+ *  @par Warp-level gradient reduction
+ *  All 32 lanes accumulate local per-Gaussian gradients, then warpReduceSum
+ *  collapses them to lane 0 for a single atomicAdd. Reduces atomic pressure ~32x.
  *
- *  3. Warp-level batch skipping:
- *     warp_bin_final = max(last_ids) across the warp. Gaussians with sorted
- *     index > warp_bin_final are skipped entirely (no thread in the warp
- *     needs them), saving the inner loop for early-terminated pixels.
+ *  @par last_ids-based traversal
+ *  Uses the sorted-list index of each pixel's last contributing Gaussian (saved in
+ *  the forward) instead of a contrib_pos[] stack. No stack overflow, no MAX_CONTRIB.
  *
- * Gradient formulas use the same NDC-space covariance identities as
- * RasterizeLayer::backwardKernel (reformulated to avoid storing raw cxx/cyy):
- *   ddist2/dcxx = -(dx.icyy - dy.icxy)^2 . det   = -1/4.ddist2_dx^2
- *   ddist2/dcyy = -(dy.icxx - dx.icxy)^2 . det   = -1/4.ddist2_dy^2
- *   ddist2/dcxy = -2.icxy.dist2 - 2.dx.dy.idet
+ *  @par Warp-level batch skipping
+ *  warp_bin_final = warpAllReduceMax(last_ids). Gaussians with sorted index beyond
+ *  warp_bin_final are skipped entirely - no thread in the warp needs them.
+ *
+ * Covariance gradient formulas (reformulated to avoid storing inv_cov from forward):
+ *   ddist2/dcxx = -1/4 * ddist2_dx^2
+ *   ddist2/dcyy = -1/4 * ddist2_dy^2
+ *   ddist2/dcxy = -2*icxy*dist2 - 2*dx*dy*idet
+ *
+ * @param[in]  pos_x/y          2D Gaussian centers in NDC.
+ * @param[in]  cov_xx/xy/yy     Upper-triangle 2D covariance.
+ * @param[in]  color_r/g/b      Linear RGB colors.
+ * @param[in]  opacity          Per-Gaussian opacity.
+ * @param[in]  flatten_ids      Sorted splat indices.
+ * @param[in]  tile_offsets     Per-tile {start, end} ranges into flatten_ids.
+ * @param[in]  render_alphas    Forward output accumulated alpha [H*W].
+ * @param[in]  last_ids         Forward output last-contributing-Gaussian index [H*W].
+ * @param[in]  v_render_colors  dL/d(render_colors) [H*W*3].
+ * @param[out] v_pos_x/y        dL/d(ndc center).
+ * @param[out] v_cov_xx/xy/yy   dL/d(2D covariance).
+ * @param[out] v_color_r/g/b    dL/d(color).
+ * @param[out] v_opacities      dL/d(opacity).
+ * @param[in]  image_width      Image width in pixels.
+ * @param[in]  image_height     Image height in pixels.
+ * @param[in]  num_tiles_x      Tile count along x.
  */
 __global__ void gsplatBwdKernel(
     // forward inputs
-    const float    *__restrict__ ndc_x,
-    const float    *__restrict__ ndc_y,
+    const float    *__restrict__ pos_x,
+    const float    *__restrict__ pos_y,
     const float    *__restrict__ cov_xx,
     const float    *__restrict__ cov_xy,
     const float    *__restrict__ cov_yy,
@@ -340,8 +349,8 @@ __global__ void gsplatBwdKernel(
     // incoming gradient
     const float    *__restrict__ v_render_colors, // dL/d_render_colors [H*W*3]
     // gradient outputs (accumulated)
-    float *v_ndc_x,
-    float *v_ndc_y,
+    float *v_pos_x,
+    float *v_pos_y,
     float *v_cov_xx,
     float *v_cov_xy,
     float *v_cov_yy,
@@ -421,8 +430,8 @@ __global__ void gsplatBwdKernel(
             float det   = cxx * cyy - cxy * cxy;
             float idet  = 1.f / det;
             sh_id  [tr] = g;
-            sh_x   [tr] = ndc_x  [g];
-            sh_y   [tr] = ndc_y  [g];
+            sh_x   [tr] = pos_x  [g];
+            sh_y   [tr] = pos_y  [g];
             sh_icxx[tr] =  cyy * idet;
             sh_icxy[tr] = -cxy * idet;
             sh_icyy[tr] =  cxx * idet;
@@ -496,7 +505,7 @@ __global__ void gsplatBwdKernel(
                     float v_sigma = -opac * g_exp * v_alpha;
                     float v_dist2 = 0.5f * v_sigma;   // dL/d(dist2)
 
-                    // dL/d(ndc_x[g]) and dL/d(ndc_y[g])
+                    // dL/d(pos_x[g]) and dL/d(pos_y[g])
                     float ddist2_dx = 2.f * (dx*sh_icxx[t] + dy*sh_icxy[t]);
                     float ddist2_dy = 2.f * (dx*sh_icxy[t] + dy*sh_icyy[t]);
                     v_x_l = v_dist2 * ddist2_dx;
@@ -534,8 +543,8 @@ __global__ void gsplatBwdKernel(
                 atomicAdd(&v_color_r[g], v_r_l);
                 atomicAdd(&v_color_g[g], v_g_l);
                 atomicAdd(&v_color_b[g], v_b_l);
-                atomicAdd(&v_ndc_x  [g], v_x_l);
-                atomicAdd(&v_ndc_y  [g], v_y_l);
+                atomicAdd(&v_pos_x  [g], v_x_l);
+                atomicAdd(&v_pos_y  [g], v_y_l);
                 atomicAdd(&v_cov_xx [g], v_cxx_l);
                 atomicAdd(&v_cov_xy [g], v_cxy_l);
                 atomicAdd(&v_cov_yy [g], v_cyy_l);

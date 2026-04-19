@@ -176,7 +176,7 @@ cmake .. -DCMAKE_CUDA_ARCHITECTURES=86   # Ampere    (RTX 30xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=89   # Ada       (RTX 40xx)
 cmake .. -DCMAKE_CUDA_ARCHITECTURES=120  # Blackwell (RTX 50xx)
 
-make # and compile
+cmake --build . # and compile
 ```
 Not sure which architecture you need? Check https://developer.nvidia.com/cuda/gpus
 

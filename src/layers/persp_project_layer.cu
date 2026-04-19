@@ -11,55 +11,64 @@ __constant__ float d_pv[16]; // device copy of PV matrix (column-major, GLM layo
 /* ===== ===== Kernels ===== ===== */
 
 /**
- * Forward kernel: projects Splat3D in world space to Splat2D in NDC space.
+ * @brief Forward pass: world-space Splat3D -> NDC-space Splat2D via perspective projection.
  *
- * PV matrix is column-major (GLM layout), indexed as pv[col*4 + row].
+ * PV matrix is column-major (GLM layout), stored in constant memory as d_pv[col*4+row].
  *
- * Position:
+ * Position (perspective divide):
  *   clip    = PV * [x y z 1]^T
  *   ndc.xyz = clip.xyz / clip.w
  *
- * Covariance (2x3 Jacobian of NDC w.r.t. world pos):
- *   JR0[k] = (pv[k*4+0] * c_w - pv[3*4+0] * c_x) / c_w^2   (d(ndc_x)/d[x,y,z])
- *   JR1[k] = (pv[k*4+1] * c_w - pv[3*4+1] * c_y) / c_w^2   (d(ndc_y)/d[x,y,z])
+ * 2D covariance via 2x3 Jacobian of NDC w.r.t. world position:
+ *   J[0,k] = (pv[k*4+0]*c_w - pv[3*4+0]*c_x) / c_w^2   (d(ndc_x)/d(world_k))
+ *   J[1,k] = (pv[k*4+1]*c_w - pv[3*4+1]*c_y) / c_w^2   (d(ndc_y)/d(world_k))
  *   Cov_2D = J * Cov_3D * J^T
  *
- * Culled splats (c_w <= 0) are flagged with pos_z = FLT_MAX for the rasterizer to skip.
+ * @note The Jacobian is 2x3, not 3x3: ndc_z is used only for depth-sorting in the
+ *       rasterizer and is not differentiated through the covariance projection.
+ * @note Splats with c_w <= 0 (behind the camera) are culled: ndc_z is set to
+ *       FLT_MAX and the rasterizer skips them in tile assignment.
  *
- * One thread is launched per splat.
+ * @param[in]  i_px/y/z                 World-space position (SoA).
+ * @param[in]  i_cxx/cxy/cxz/cyy/cyz/czz  Upper-triangle 3D covariance.
+ * @param[in]  i_colr/g/b/a              Color and opacity (passed through unchanged).
+ * @param[out] o_px/y/z                 NDC position.
+ * @param[out] o_cxx/cxy/cyy            Upper-triangle 2D projected covariance.
+ * @param[out] o_colr/g/b/a              Pass-through color and opacity.
+ * @param[in]  count                    Number of splats; one thread per splat.
  */
 __global__ void perspProjectForwardKernel(
     // inputs (world space)
-    const float *__restrict__ i_w_x,
-    const float *__restrict__ i_w_y,
-    const float *__restrict__ i_w_z,
-    const float *__restrict__ i_w_cxx,
-    const float *__restrict__ i_w_cxy,
-    const float *__restrict__ i_w_cxz,
-    const float *__restrict__ i_w_cyy,
-    const float *__restrict__ i_w_cyz,
-    const float *__restrict__ i_w_czz,
-    const float *__restrict__ i_R,
-    const float *__restrict__ i_G,
-    const float *__restrict__ i_B,
-    const float *__restrict__ i_A,
+    const float *__restrict__ i_px,
+    const float *__restrict__ i_py,
+    const float *__restrict__ i_pz,
+    const float *__restrict__ i_cxx,
+    const float *__restrict__ i_cxy,
+    const float *__restrict__ i_cxz,
+    const float *__restrict__ i_cyy,
+    const float *__restrict__ i_cyz,
+    const float *__restrict__ i_czz,
+    const float *__restrict__ i_colr,
+    const float *__restrict__ i_colg,
+    const float *__restrict__ i_colb,
+    const float *__restrict__ i_cola,
     // outputs (NDC space)
-    float *o_ndc_x,
-    float *o_ndc_y,
-    float *o_ndc_z,
-    float *o_ndc_cxx,
-    float *o_ndc_cxy,
-    float *o_ndc_cyy,
-    float *o_R,
-    float *o_G,
-    float *o_B,
-    float *o_A,
+    float *o_px,
+    float *o_py,
+    float *o_pz,
+    float *o_cxx,
+    float *o_cxy,
+    float *o_cyy,
+    float *o_colr,
+    float *o_colg,
+    float *o_colb,
+    float *o_cola,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    float x = i_w_x[i], y = i_w_y[i], z = i_w_z[i];
+    float x = i_px[i], y = i_py[i], z = i_pz[i];
 
     /*
         PV is column major
@@ -79,7 +88,7 @@ __global__ void perspProjectForwardKernel(
     // cull splats behind camera
     if (c_w <= 0.f)
     {
-        o_ndc_z[i] = FLT_MAX; // rasterizer will skip this
+        o_pz[i] = FLT_MAX; // rasterizer will skip this
         return;
     }
     float inv_w  = 1.f / c_w;
@@ -90,9 +99,9 @@ __global__ void perspProjectForwardKernel(
 
         ndc_pos = [ c_x/c_w  c_y/c_w  c_z/c_w ]^T
     */
-    o_ndc_x[i] = c_x * inv_w;
-    o_ndc_y[i] = c_y * inv_w;
-    o_ndc_z[i] = c_z * inv_w;
+    o_px[i] = c_x * inv_w;
+    o_py[i] = c_y * inv_w;
+    o_pz[i] = c_z * inv_w;
 
     /*
         Jacobian of perspective projection (d(ndc)/d(world)) is 2x3:
@@ -103,7 +112,7 @@ __global__ void perspProjectForwardKernel(
             [ d(c_y/c_w)/dx  d(c_y/c_w)/dy  d(c_y/c_w)/dz ]
           = [ (pv[0]*c_w-cx*pv[3])/c_w^2  (pv[4]*c_w-cx*pv[7])/c_w^2  (pv[8]*c_w-cx*pv[11])/c_w^2 ]
             [ (pv[1]*c_w-cy*pv[3])/c_w^2  (pv[5]*c_w-cy*pv[7])/c_w^2  (pv[9]*c_w-cy*pv[11])/c_w^2 ]
-            
+
     */
     float j00 = (d_pv[0] * c_w - c_x * d_pv[ 3]) * inv_w2;
     float j01 = (d_pv[4] * c_w - c_x * d_pv[ 7]) * inv_w2;
@@ -113,10 +122,10 @@ __global__ void perspProjectForwardKernel(
     float j11 = (d_pv[5] * c_w - c_y * d_pv[ 7]) * inv_w2;
     float j12 = (d_pv[9] * c_w - c_y * d_pv[11]) * inv_w2;
 
-    // 3D covariance (symmetric)
-    float sxx = i_w_cxx[i], sxy = i_w_cxy[i], sxz = i_w_cxz[i];
-    float                   syy = i_w_cyy[i], syz = i_w_cyz[i];
-    float                                     szz = i_w_czz[i];
+    // 3D covariance (symmetric, upper triangle)
+    float sxx = i_cxx[i], sxy = i_cxy[i], sxz = i_cxz[i];
+    float                 syy = i_cyy[i], syz = i_cyz[i];
+    float                                 szz = i_czz[i];
 
     // J * Cov3D
     float js00 = j00*sxx + j01*sxy + j02*sxz;
@@ -127,69 +136,80 @@ __global__ void perspProjectForwardKernel(
     float js11 = j10*sxy + j11*syy + j12*syz;
     float js12 = j10*sxz + j11*syz + j12*szz;
 
-    // Cov2D = J * Cov3D * J^T
-    o_ndc_cxx[i] = j00*js00 + j01*js01 + j02*js02;
-    o_ndc_cxy[i] = j00*js10 + j01*js11 + j02*js12;
-    o_ndc_cyy[i] = j10*js10 + j11*js11 + j12*js12;
+    // Cov2D = J * Cov3D * J^T  (symmetric, upper triangle; cyy = J[1]*JS[1])
+    o_cxx[i] = j00*js00 + j01*js01 + j02*js02;
+    o_cxy[i] = j00*js10 + j01*js11 + j02*js12;
+    o_cyy[i] = j10*js10 + j11*js11 + j12*js12;
 
     // pass-throughs
-    o_R[i] = i_R[i];
-    o_G[i] = i_G[i];
-    o_B[i] = i_B[i];
-    o_A[i] = i_A[i];
+    o_colr[i] = i_colr[i];
+    o_colg[i] = i_colg[i];
+    o_colb[i] = i_colb[i];
+    o_cola[i] = i_cola[i];
 }
 
 /**
- * Backward kernel: chains dL/dSplat2D -> dL/dSplat3D.
+ * @brief Backward pass: dL/dSplat2D -> dL/dSplat3D via the perspective Jacobian.
  *
- * Position backward: dL/d(world) = J^T * dL/d(ndc)
- * Covariance backward: dL/dCov_3D = J^T * dL/dCov_2D_sym * J
+ * Recomputes the 2x3 Jacobian J from the stored world positions rather than saving
+ * it from the forward pass; trades a small extra compute cost for avoided memory traffic.
  *
- * Camera matrices are treated as constants (no grad w.r.t. camera).
+ * Position gradient:    dL/d(world) = J^T * dL/d(ndc)
+ * Covariance gradient:  dL/dCov_3D = J^T * dL/dCov_2D_sym * J
+ *   entry (p,q): 2*v_xx*(J[0,p]*JS[0,q]) + v_xy*(J[0,p]*JS[1,q] + J[1,p]*JS[0,q])
+ *              + 2*v_yy*(J[1,p]*JS[1,q]),  where JS = J * Cov_3D.
  *
- * One thread per splat.
+ * @note No gradient flows through ndc_z - depth is used only for sorting, not compositing.
+ * @note Camera matrices (PV) are treated as constants; no grad flows to the camera.
+ * @note Culled splats (c_w <= 0) receive zero on all gradient outputs.
+ *
+ * @param[in]  i_px/y/z                   World-space position (recomputed; not saved from forward).
+ * @param[in]  i_cxx/cxy/cxz/cyy/cyz/czz  Upper-triangle 3D covariance.
+ * @param[in]  grad_o_*                   Upstream gradients (from rasterizer).
+ * @param[out] grad_i_*                 Downstream gradients to GaussActivLayer.
+ * @param[in]  count                      Number of splats; one thread per splat.
  */
 __global__ void perspProjectBackwardKernel(
     // splat3d inputs (recomputed, not saved)
-    const float *__restrict__ w_x,
-    const float *__restrict__ w_y,
-    const float *__restrict__ w_z,
-    const float *__restrict__ w_cxx,
-    const float *__restrict__ w_cxy,
-    const float *__restrict__ w_cxz,
-    const float *__restrict__ w_cyy,
-    const float *__restrict__ w_cyz,
-    const float *__restrict__ w_czz,
+    const float *__restrict__ i_px,
+    const float *__restrict__ i_py,
+    const float *__restrict__ i_pz,
+    const float *__restrict__ i_cxx,
+    const float *__restrict__ i_cxy,
+    const float *__restrict__ i_cxz,
+    const float *__restrict__ i_cyy,
+    const float *__restrict__ i_cyz,
+    const float *__restrict__ i_czz,
     // gradient output
-    const float *__restrict__ grad_o_ndc_x,
-    const float *__restrict__ grad_o_ndc_y,
-    const float *__restrict__ grad_o_ndc_cxx,
-    const float *__restrict__ grad_o_ndc_cxy,
-    const float *__restrict__ grad_o_ndc_cyy,
-    const float *__restrict__ grad_o_R,
-    const float *__restrict__ grad_o_G,
-    const float *__restrict__ grad_o_B,
-    const float *__restrict__ grad_o_A,
+    const float *__restrict__ grad_o_px,
+    const float *__restrict__ grad_o_py,
+    const float *__restrict__ grad_o_cxx,
+    const float *__restrict__ grad_o_cxy,
+    const float *__restrict__ grad_o_cyy,
+    const float *__restrict__ grad_o_colr,
+    const float *__restrict__ grad_o_colg,
+    const float *__restrict__ grad_o_colb,
+    const float *__restrict__ grad_o_cola,
     // gradient input
-    float *grad_i_w_x,
-    float *grad_i_w_y,
-    float *grad_i_w_z,
-    float *grad_i_w_cxx,
-    float *grad_i_w_cxy,
-    float *grad_i_w_cxz,
-    float *grad_i_w_cyy,
-    float *grad_i_w_cyz,
-    float *grad_i_w_czz,
-    float *grad_i_R,
-    float *grad_i_G,
-    float *grad_i_B,
-    float *grad_i_A,
+    float *grad_i_px,
+    float *grad_i_py,
+    float *grad_i_pz,
+    float *grad_i_cxx,
+    float *grad_i_cxy,
+    float *grad_i_cxz,
+    float *grad_i_cyy,
+    float *grad_i_cyz,
+    float *grad_i_czz,
+    float *grad_i_colr,
+    float *grad_i_colg,
+    float *grad_i_colb,
+    float *grad_i_cola,
     int count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= count) return;
 
-    float x = w_x[i], y = w_y[i], z = w_z[i];
+    float x = i_px[i], y = i_py[i], z = i_pz[i];
 
     // recompute clip coords
     float c_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
@@ -199,11 +219,11 @@ __global__ void perspProjectBackwardKernel(
     // skip culled splats
     if (c_w <= 0.f)
     {
-        grad_i_w_x[i] = 0.f;   grad_i_w_y[i] = 0.f;   grad_i_w_z[i] = 0.f;
-        grad_i_w_cxx[i] = 0.f; grad_i_w_cxy[i] = 0.f; grad_i_w_cxz[i] = 0.f;
-        grad_i_w_cyy[i] = 0.f; grad_i_w_cyz[i] = 0.f; grad_i_w_czz[i] = 0.f;
-        grad_i_R[i] = 0.f;     grad_i_G[i] = 0.f;     grad_i_B[i] = 0.f;
-        grad_i_A[i] = 0.f;
+        grad_i_px[i] = 0.f;  grad_i_py[i] = 0.f;  grad_i_pz[i] = 0.f;
+        grad_i_cxx[i] = 0.f; grad_i_cxy[i] = 0.f; grad_i_cxz[i] = 0.f;
+        grad_i_cyy[i] = 0.f; grad_i_cyz[i] = 0.f; grad_i_czz[i] = 0.f;
+        grad_i_colr[i] = 0.f; grad_i_colg[i] = 0.f;
+        grad_i_colb[i] = 0.f; grad_i_cola[i] = 0.f;
         return;
     }
 
@@ -219,9 +239,9 @@ __global__ void perspProjectBackwardKernel(
     float j11 = (d_pv[5] * c_w - c_y * d_pv[ 7]) * inv_w2;
     float j12 = (d_pv[9] * c_w - c_y * d_pv[11]) * inv_w2;
 
-    float sxx = w_cxx[i], sxy = w_cxy[i], sxz = w_cxz[i];
-    float                 syy = w_cyy[i], syz = w_cyz[i];
-    float                                 szz = w_czz[i];
+    float sxx = i_cxx[i], sxy = i_cxy[i], sxz = i_cxz[i];
+    float                 syy = i_cyy[i], syz = i_cyz[i];
+    float                                 szz = i_czz[i];
 
     // J * Cov3D
     float js00 = j00*sxx + j01*sxy + j02*sxz;
@@ -232,35 +252,35 @@ __global__ void perspProjectBackwardKernel(
     float js11 = j10*sxy + j11*syy + j12*syz;
     float js12 = j10*sxz + j11*syz + j12*szz;
 
-    float sxx_2D = grad_o_ndc_cxx[i];
-    float sxy_2D = grad_o_ndc_cxy[i];
-    float syy_2D = grad_o_ndc_cyy[i];
+    float sxx_2D = grad_o_cxx[i];
+    float sxy_2D = grad_o_cxy[i];
+    float syy_2D = grad_o_cyy[i];
 
     // dL/dCov_3D = J^T * dL/dCov_2D_sym * J
     // entry (p,q): 2*sxx_2D*(J[0,p]*js[0,q]) + sxy_2D*(J[0,p]*js[1,q] + J[1,p]*js[0,q]) + 2*syy_2D*(J[1,p]*js[1,q])
     // where js = J * Cov_3D (rows js0x and js1x precomputed above)
-    grad_i_w_cxx[i] = 2.f*sxx_2D*j00*js00 + sxy_2D*(j00*js10 + j10*js00) + 2.f*syy_2D*j10*js10;
-    grad_i_w_cxy[i] = 2.f*sxx_2D*j00*js01 + sxy_2D*(j00*js11 + j10*js01) + 2.f*syy_2D*j10*js11;
-    grad_i_w_cxz[i] = 2.f*sxx_2D*j00*js02 + sxy_2D*(j00*js12 + j10*js02) + 2.f*syy_2D*j10*js12;
-    grad_i_w_cyy[i] = 2.f*sxx_2D*j01*js01 + sxy_2D*(j01*js11 + j11*js01) + 2.f*syy_2D*j11*js11;
-    grad_i_w_cyz[i] = 2.f*sxx_2D*j01*js02 + sxy_2D*(j01*js12 + j11*js02) + 2.f*syy_2D*j11*js12;
-    grad_i_w_czz[i] = 2.f*sxx_2D*j02*js02 + sxy_2D*(j02*js12 + j12*js02) + 2.f*syy_2D*j12*js12;
+    grad_i_cxx[i] = 2.f*sxx_2D*j00*js00 + sxy_2D*(j00*js10 + j10*js00) + 2.f*syy_2D*j10*js10;
+    grad_i_cxy[i] = 2.f*sxx_2D*j00*js01 + sxy_2D*(j00*js11 + j10*js01) + 2.f*syy_2D*j10*js11;
+    grad_i_cxz[i] = 2.f*sxx_2D*j00*js02 + sxy_2D*(j00*js12 + j10*js02) + 2.f*syy_2D*j10*js12;
+    grad_i_cyy[i] = 2.f*sxx_2D*j01*js01 + sxy_2D*(j01*js11 + j11*js01) + 2.f*syy_2D*j11*js11;
+    grad_i_cyz[i] = 2.f*sxx_2D*j01*js02 + sxy_2D*(j01*js12 + j11*js02) + 2.f*syy_2D*j11*js12;
+    grad_i_czz[i] = 2.f*sxx_2D*j02*js02 + sxy_2D*(j02*js12 + j12*js02) + 2.f*syy_2D*j12*js12;
 
     // ===== position backward =====
     // ndc = clip / c_w, so d(ndc)/d(world) = J (already computed above)
     // dL/d(world) = J^T * dL/d(ndc)
-    float ndc_x = grad_o_ndc_x[i];
-    float ndc_y = grad_o_ndc_y[i];
+    float ndc_x = grad_o_px[i];
+    float ndc_y = grad_o_py[i];
 
-    grad_i_w_x[i] = ndc_x * j00 + ndc_y * j10;
-    grad_i_w_y[i] = ndc_x * j01 + ndc_y * j11;
-    grad_i_w_z[i] = ndc_x * j02 + ndc_y * j12;
+    grad_i_px[i] = ndc_x * j00 + ndc_y * j10;
+    grad_i_py[i] = ndc_x * j01 + ndc_y * j11;
+    grad_i_pz[i] = ndc_x * j02 + ndc_y * j12;
 
     // pass-through gradients
-    grad_i_R[i] = grad_o_R[i];
-    grad_i_G[i] = grad_o_G[i];
-    grad_i_B[i] = grad_o_B[i];
-    grad_i_A[i] = grad_o_A[i];
+    grad_i_colr[i] = grad_o_colr[i];
+    grad_i_colg[i] = grad_o_colg[i];
+    grad_i_colb[i] = grad_o_colb[i];
+    grad_i_cola[i] = grad_o_cola[i];
 }
 
 void PerspProjectLayer::setCamera(const glm::mat4 &view, const glm::mat4 &proj)

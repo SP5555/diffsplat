@@ -4,6 +4,7 @@
 
 #include "../cuda/cuda_check.h"
 #include "../cuda/cuda_defs.h"
+#include "../cuda/warp_ops.cuh"
 
 /* ===== ===== Kernels ===== ===== */
 
@@ -24,12 +25,8 @@ __global__ void mseLossKernel(
     float *loss,
     size_t num_pixels)
 {
-    __shared__ float sdata[BLOCK_SIZE];
-
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    int tid = threadIdx.x;
 
-    // each thread accumulates its own partial sum
     float sum = 0.f;
     float scale = 1.f / (float)num_pixels;
     if (i < num_pixels) {
@@ -38,19 +35,10 @@ __global__ void mseLossKernel(
         float dB = pixels[i * 3 + 2] - target[i * 3 + 2];
         sum = (dR*dR + dG*dG + dB*dB) * scale;
     }
-    sdata[tid] = sum;
-    __syncthreads();
 
-    // reduce within the block using shared memory
-    for (int stride = BLOCK_SIZE / 2; stride > 0; stride >>= 1) {
-        if (tid < stride)
-            sdata[tid] += sdata[tid + stride];
-        __syncthreads();
-    }
-
-    // only one atomicAdd per block instead of per thread
-    if (tid == 0)
-        atomicAdd(loss, sdata[0]);
+    sum = blockReduceSum<BLOCK_SIZE>(sum);
+    if (threadIdx.x == 0)
+        atomicAdd(loss, sum);
 }
 
 /**
