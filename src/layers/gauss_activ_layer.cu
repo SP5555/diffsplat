@@ -4,6 +4,7 @@
 
 #include "../cuda/cuda_check.h"
 #include "../cuda/cuda_defs.h"
+#include "../cuda/math_ops.cuh"
 #include "../utils/sh_consts.h"
 
 /* ===== ===== Kernels ===== ===== */
@@ -12,20 +13,11 @@
  * @brief Forward pass: 3D covariance Cov = M*M^T (M = R*S) and SH color evaluation.
  *
  * Scale is exponentiated (s_actual = exp(s_log)); opacity through sigmoid.
- *
- * R from unit quaternion q = (w, x, y, z):
- *   R = | 1-2(yy+zz)   2(xy-wz)   2(xz+wy) |
- *       |   2(xy+wz) 1-2(xx+zz)   2(yz-wx) |
- *       |   2(xz-wy)   2(yz+wx) 1-2(xx+yy) |
- *
  * Cov = R * S * S^T * R^T  (symmetric, stored as upper triangle)
  *
  * SH color evaluation (degrees 0-3, Condon-Shortley convention):
  *   view dir = normalize(cam_pos - splat_pos)
  *   color = sum_over_bands(SH_coeff * Y(dir)) + 0.5, clamped to [0,1]
- *
- * @note Quaternion is normalized in-kernel; rsqrtf(max(..., 1e-12)) guards against
- *       zero-norm input producing inf.
  *
  * @param[in]  i_px/y/z             World-space position (SoA).
  * @param[in]  i_sx/y/z             Log-scale; exponentiated in kernel.
@@ -85,33 +77,19 @@ __global__ void covForwardKernel(
     o_y[i] = i_py[i];
     o_z[i] = i_pz[i];
 
-    // normalize quaternion (fmaxf guards against all-zero input -> rsqrtf(0) = inf)
-    float qw = i_rw[i], qx = i_rx[i], qy = i_ry[i], qz = i_rz[i];
-    float norm = rsqrtf(fmaxf(qw*qw + qx*qx + qy*qy + qz*qz, 1e-12f));
-    qw *= norm; qx *= norm; qy *= norm; qz *= norm;
+    // normalize quaternion and build rotation matrix
+    NormQuat nq = normalizeQuat(i_rw[i], i_rx[i], i_ry[i], i_rz[i]);
+    RotMat3  R  = quatToRotMat(nq.w, nq.x, nq.y, nq.z);
 
     // actual scale
     float sx = expf(i_sx[i]);
     float sy = expf(i_sy[i]);
     float sz = expf(i_sz[i]);
 
-    // rotation matrix columns (R[:,0], R[:,1], R[:,2])
-    float r00 = 1.f - 2.f*(qy*qy + qz*qz);
-    float r10 =       2.f*(qx*qy + qw*qz);
-    float r20 =       2.f*(qx*qz - qw*qy);
-
-    float r01 =       2.f*(qx*qy - qw*qz);
-    float r11 = 1.f - 2.f*(qx*qx + qz*qz);
-    float r21 =       2.f*(qy*qz + qw*qx);
-
-    float r02 =       2.f*(qx*qz + qw*qy);
-    float r12 =       2.f*(qy*qz - qw*qx);
-    float r22 = 1.f - 2.f*(qx*qx + qy*qy);
-
     // M = R * S
-    float m00 = r00 * sx,  m01 = r01 * sy,  m02 = r02 * sz;
-    float m10 = r10 * sx,  m11 = r11 * sy,  m12 = r12 * sz;
-    float m20 = r20 * sx,  m21 = r21 * sy,  m22 = r22 * sz;
+    float m00 = R.r00*sx, m01 = R.r01*sy, m02 = R.r02*sz;
+    float m10 = R.r10*sx, m11 = R.r11*sy, m12 = R.r12*sz;
+    float m20 = R.r20*sx, m21 = R.r21*sy, m22 = R.r22*sz;
 
     // Cov = M * M^T
     o_cxx[i] = m00*m00 + m01*m01 + m02*m02;
@@ -123,13 +101,7 @@ __global__ void covForwardKernel(
 
     // ===== SH color evaluation =====
     // view direction: splat -> camera, normalized (standard 3DGS convention)
-    float dx = cam_x - i_px[i];
-    float dy = cam_y - i_py[i];
-    float dz = cam_z - i_pz[i];
-    float inv_len = rsqrtf(fmaxf(dx*dx + dy*dy + dz*dz, 1e-12f));
-    float nx = dx * inv_len;
-    float ny = dy * inv_len;
-    float nz = dz * inv_len;
+    float3 v = viewDir(cam_x, cam_y, cam_z, i_px[i], i_py[i], i_pz[i]);
 
     float cr = i_sh_dc_r[i] * SH_C0;
     float cg = i_sh_dc_g[i] * SH_C0;
@@ -138,14 +110,14 @@ __global__ void covForwardKernel(
     // branches are uniform across the warp (same sh_degree for all threads)
     if (sh_degree >= 1)
     {
-        cr += SH_C1 * (-ny * i_sh_rest_r[0*count+i] + nz * i_sh_rest_r[1*count+i] - nx * i_sh_rest_r[2*count+i]);
-        cg += SH_C1 * (-ny * i_sh_rest_g[0*count+i] + nz * i_sh_rest_g[1*count+i] - nx * i_sh_rest_g[2*count+i]);
-        cb += SH_C1 * (-ny * i_sh_rest_b[0*count+i] + nz * i_sh_rest_b[1*count+i] - nx * i_sh_rest_b[2*count+i]);
+        cr += SH_C1 * (-v.y * i_sh_rest_r[0*count+i] + v.z * i_sh_rest_r[1*count+i] - v.x * i_sh_rest_r[2*count+i]);
+        cg += SH_C1 * (-v.y * i_sh_rest_g[0*count+i] + v.z * i_sh_rest_g[1*count+i] - v.x * i_sh_rest_g[2*count+i]);
+        cb += SH_C1 * (-v.y * i_sh_rest_b[0*count+i] + v.z * i_sh_rest_b[1*count+i] - v.x * i_sh_rest_b[2*count+i]);
     }
     if (sh_degree >= 2)
     {
-        float xx = nx*nx, yy = ny*ny, zz = nz*nz;
-        float xy = nx*ny, yz = ny*nz, xz = nx*nz;
+        float xx = v.x*v.x, yy = v.y*v.y, zz = v.z*v.z;
+        float xy = v.x*v.y, yz = v.y*v.z, xz = v.x*v.z;
         cr += SH_C2_0 * xy           * i_sh_rest_r[3*count+i]
             + SH_C2_1 * yz           * i_sh_rest_r[4*count+i]
             + SH_C2_2 * (2*zz-xx-yy) * i_sh_rest_r[5*count+i]
@@ -164,29 +136,29 @@ __global__ void covForwardKernel(
     }
     if (sh_degree >= 3)
     {
-        float xx = nx*nx, yy = ny*ny, zz = nz*nz;
-        float xy = nx*ny;
-        cr += SH_C3_0 * ny*(3*xx-yy)        * i_sh_rest_r[ 8*count+i]
-            + SH_C3_1 * xy*nz               * i_sh_rest_r[ 9*count+i]
-            + SH_C3_2 * ny*(4*zz-xx-yy)     * i_sh_rest_r[10*count+i]
-            + SH_C3_3 * nz*(2*zz-3*xx-3*yy) * i_sh_rest_r[11*count+i]
-            + SH_C3_4 * nx*(4*zz-xx-yy)     * i_sh_rest_r[12*count+i]
-            + SH_C3_5 * nz*(xx-yy)          * i_sh_rest_r[13*count+i]
-            + SH_C3_6 * nx*(xx-3*yy)        * i_sh_rest_r[14*count+i];
-        cg += SH_C3_0 * ny*(3*xx-yy)        * i_sh_rest_g[ 8*count+i]
-            + SH_C3_1 * xy*nz               * i_sh_rest_g[ 9*count+i]
-            + SH_C3_2 * ny*(4*zz-xx-yy)     * i_sh_rest_g[10*count+i]
-            + SH_C3_3 * nz*(2*zz-3*xx-3*yy) * i_sh_rest_g[11*count+i]
-            + SH_C3_4 * nx*(4*zz-xx-yy)     * i_sh_rest_g[12*count+i]
-            + SH_C3_5 * nz*(xx-yy)          * i_sh_rest_g[13*count+i]
-            + SH_C3_6 * nx*(xx-3*yy)        * i_sh_rest_g[14*count+i];
-        cb += SH_C3_0 * ny*(3*xx-yy)        * i_sh_rest_b[ 8*count+i]
-            + SH_C3_1 * xy*nz               * i_sh_rest_b[ 9*count+i]
-            + SH_C3_2 * ny*(4*zz-xx-yy)     * i_sh_rest_b[10*count+i]
-            + SH_C3_3 * nz*(2*zz-3*xx-3*yy) * i_sh_rest_b[11*count+i]
-            + SH_C3_4 * nx*(4*zz-xx-yy)     * i_sh_rest_b[12*count+i]
-            + SH_C3_5 * nz*(xx-yy)          * i_sh_rest_b[13*count+i]
-            + SH_C3_6 * nx*(xx-3*yy)        * i_sh_rest_b[14*count+i];
+        float xx = v.x*v.x, yy = v.y*v.y, zz = v.z*v.z;
+        float xy = v.x*v.y;
+        cr += SH_C3_0 * v.y*(3*xx-yy)        * i_sh_rest_r[ 8*count+i]
+            + SH_C3_1 * xy*v.z               * i_sh_rest_r[ 9*count+i]
+            + SH_C3_2 * v.y*(4*zz-xx-yy)     * i_sh_rest_r[10*count+i]
+            + SH_C3_3 * v.z*(2*zz-3*xx-3*yy) * i_sh_rest_r[11*count+i]
+            + SH_C3_4 * v.x*(4*zz-xx-yy)     * i_sh_rest_r[12*count+i]
+            + SH_C3_5 * v.z*(xx-yy)          * i_sh_rest_r[13*count+i]
+            + SH_C3_6 * v.x*(xx-3*yy)        * i_sh_rest_r[14*count+i];
+        cg += SH_C3_0 * v.y*(3*xx-yy)        * i_sh_rest_g[ 8*count+i]
+            + SH_C3_1 * xy*v.z               * i_sh_rest_g[ 9*count+i]
+            + SH_C3_2 * v.y*(4*zz-xx-yy)     * i_sh_rest_g[10*count+i]
+            + SH_C3_3 * v.z*(2*zz-3*xx-3*yy) * i_sh_rest_g[11*count+i]
+            + SH_C3_4 * v.x*(4*zz-xx-yy)     * i_sh_rest_g[12*count+i]
+            + SH_C3_5 * v.z*(xx-yy)          * i_sh_rest_g[13*count+i]
+            + SH_C3_6 * v.x*(xx-3*yy)        * i_sh_rest_g[14*count+i];
+        cb += SH_C3_0 * v.y*(3*xx-yy)        * i_sh_rest_b[ 8*count+i]
+            + SH_C3_1 * xy*v.z               * i_sh_rest_b[ 9*count+i]
+            + SH_C3_2 * v.y*(4*zz-xx-yy)     * i_sh_rest_b[10*count+i]
+            + SH_C3_3 * v.z*(2*zz-3*xx-3*yy) * i_sh_rest_b[11*count+i]
+            + SH_C3_4 * v.x*(4*zz-xx-yy)     * i_sh_rest_b[12*count+i]
+            + SH_C3_5 * v.z*(xx-yy)          * i_sh_rest_b[13*count+i]
+            + SH_C3_6 * v.x*(xx-3*yy)        * i_sh_rest_b[14*count+i];
     }
 
     o_lin_r[i] = fminf(fmaxf(cr + 0.5f, 0.f), 1.f);
@@ -200,14 +172,14 @@ __global__ void covForwardKernel(
 /**
  * @brief Backward pass: gradients from Splat3DParams through covariance, SH, and sigmoid.
  *
- * Recomputes all forward intermediates (quaternion norm, rotation matrix, M = R*S)
- * rather than storing them; trades extra compute for saved memory bandwidth.
+ * Recomputes all forward intermediates rather than storing them;
+ * trades extra compute for saved memory bandwidth.
  *
  * Gradient through clamp [0,1]: zero when the forward output was at the boundary
  * (read from the saved output color to detect saturation).
  *
  * Normalization Jacobian for q_norm = q_raw / ||q_raw||:
- *   dL/dq_raw = norm_inv * (dL/dq_norm - dot(dL/dq_norm, q_norm) * q_norm)
+ *   dL/dq_raw = inv_norm * (dL/dq_norm - dot(dL/dq_norm, q_norm) * q_norm)
  *
  * @note View direction is treated as constant (no grad w.r.t. splat position).
  *       This is the standard 3DGS approximation.
@@ -285,32 +257,17 @@ __global__ void covBackwardKernel(
     grad_i_pz[i] = grad_o_pz[i];
 
     // --- recompute forward values ---
-    float qw_raw = rot_w[i], qx_raw = rot_x[i], qy_raw = rot_y[i], qz_raw = rot_z[i];
-    float norm_inv = rsqrtf(fmaxf(qw_raw*qw_raw + qx_raw*qx_raw + qy_raw*qy_raw + qz_raw*qz_raw, 1e-12f));
-    float qw = qw_raw * norm_inv;
-    float qx = qx_raw * norm_inv;
-    float qy = qy_raw * norm_inv;
-    float qz = qz_raw * norm_inv;
+    NormQuat nq = normalizeQuat(rot_w[i], rot_x[i], rot_y[i], rot_z[i]);
+    RotMat3  R  = quatToRotMat(nq.w, nq.x, nq.y, nq.z);
 
     float sx = expf(scale_x[i]);
     float sy = expf(scale_y[i]);
     float sz = expf(scale_z[i]);
 
-    // rotation matrix
-    float r00 = 1.f - 2.f*(qy*qy + qz*qz);
-    float r10 =       2.f*(qx*qy + qw*qz);
-    float r20 =       2.f*(qx*qz - qw*qy);
-    float r01 =       2.f*(qx*qy - qw*qz);
-    float r11 = 1.f - 2.f*(qx*qx + qz*qz);
-    float r21 =       2.f*(qy*qz + qw*qx);
-    float r02 =       2.f*(qx*qz + qw*qy);
-    float r12 =       2.f*(qy*qz - qw*qx);
-    float r22 = 1.f - 2.f*(qx*qx + qy*qy);
-
     // M = R * S
-    float m00 = r00*sx, m01 = r01*sy, m02 = r02*sz;
-    float m10 = r10*sx, m11 = r11*sy, m12 = r12*sz;
-    float m20 = r20*sx, m21 = r21*sy, m22 = r22*sz;
+    float m00 = R.r00*sx, m01 = R.r01*sy, m02 = R.r02*sz;
+    float m10 = R.r10*sx, m11 = R.r11*sy, m12 = R.r12*sz;
+    float m20 = R.r20*sx, m21 = R.r21*sy, m22 = R.r22*sz;
 
     // --- dL/dCov ---
     float dxx = grad_o_cxx[i];
@@ -332,9 +289,9 @@ __global__ void covBackwardKernel(
     float dm22 = 2.f*(dxz*m02 + dyz*m12 + dzz*m22);
 
     // --- dL/ds_log ---
-    grad_i_sx[i] = (dm00*r00 + dm10*r10 + dm20*r20) * sx;
-    grad_i_sy[i] = (dm01*r01 + dm11*r11 + dm21*r21) * sy;
-    grad_i_sz[i] = (dm02*r02 + dm12*r12 + dm22*r22) * sz;
+    grad_i_sx[i] = (dm00*R.r00 + dm10*R.r10 + dm20*R.r20) * sx;
+    grad_i_sy[i] = (dm01*R.r01 + dm11*R.r11 + dm21*R.r21) * sy;
+    grad_i_sz[i] = (dm02*R.r02 + dm12*R.r12 + dm22*R.r22) * sz;
 
     // --- dL/dR = dL/dM * S ---
     float dr00 = dm00*sx, dr10 = dm10*sx, dr20 = dm20*sx;
@@ -342,34 +299,34 @@ __global__ void covBackwardKernel(
     float dr02 = dm02*sz, dr12 = dm12*sz, dr22 = dm22*sz;
 
     // --- dL/dq_norm: chain through R(q) ---
-    float dqw =  2.f*(
-        dr10*qz - dr20*qy +
-        dr01*(-qz) + dr21*qx +
-        dr02*qy + dr12*(-qx));
+    float dqw = 2.f*(
+        dr10*nq.z  - dr20*nq.y +
+        dr01*(-nq.z) + dr21*nq.x +
+        dr02*nq.y  + dr12*(-nq.x));
 
-    float dqx =  2.f*(
-        dr10*qy + dr20*qz +
-        dr01*qy + dr11*(-2.f*qx) + dr21*qw +
-        dr02*qz + dr12*(-qw) + dr22*(-2.f*qx));
+    float dqx = 2.f*(
+        dr10*nq.y  + dr20*nq.z +
+        dr01*nq.y  + dr11*(-2.f*nq.x) + dr21*nq.w +
+        dr02*nq.z  + dr12*(-nq.w)     + dr22*(-2.f*nq.x));
 
-    float dqy =  2.f*(
-        dr00*(-2.f*qy) + dr10*qx + dr20*(-qw) +
-        dr01*qx +
-        dr12*qz + dr21*qz + dr22*(-2.f*qy) +
-        dr02*qw);
+    float dqy = 2.f*(
+        dr00*(-2.f*nq.y) + dr10*nq.x + dr20*(-nq.w) +
+        dr01*nq.x +
+        dr12*nq.z  + dr21*nq.z + dr22*(-2.f*nq.y) +
+        dr02*nq.w);
 
-    float dqz =  2.f*(
-        dr00*(-2.f*qz) + dr10*qw + dr20*qx +
-        dr01*(-qw) + dr11*(-2.f*qz) +
-        dr12*qy + dr21*qy +
-        dr02*qx);
+    float dqz = 2.f*(
+        dr00*(-2.f*nq.z) + dr10*nq.w + dr20*nq.x +
+        dr01*(-nq.w) + dr11*(-2.f*nq.z) +
+        dr12*nq.y    + dr21*nq.y +
+        dr02*nq.x);
 
     // --- project through normalization Jacobian ---
-    float dot = dqw*qw + dqx*qx + dqy*qy + dqz*qz;
-    grad_i_rw[i] = norm_inv * (dqw - dot*qw);
-    grad_i_rx[i] = norm_inv * (dqx - dot*qx);
-    grad_i_ry[i] = norm_inv * (dqy - dot*qy);
-    grad_i_rz[i] = norm_inv * (dqz - dot*qz);
+    float dot = dqw*nq.w + dqx*nq.x + dqy*nq.y + dqz*nq.z;
+    grad_i_rw[i] = nq.inv_norm * (dqw - dot*nq.w);
+    grad_i_rx[i] = nq.inv_norm * (dqx - dot*nq.x);
+    grad_i_ry[i] = nq.inv_norm * (dqy - dot*nq.y);
+    grad_i_rz[i] = nq.inv_norm * (dqz - dot*nq.z);
 
     // --- SH color gradients ---
     // Gradient through clamp: zero if output was clamped (at 0 or 1 boundary)
@@ -385,15 +342,13 @@ __global__ void covBackwardKernel(
     if (sh_degree >= 1)
     {
         // recompute view direction
-        float ddx = cam_x - pos_x[i], ddy = cam_y - pos_y[i], ddz = cam_z - pos_z[i];
-        float il = rsqrtf(fmaxf(ddx*ddx + ddy*ddy + ddz*ddz, 1e-12f));
-        float nx = ddx*il, ny = ddy*il, nz = ddz*il;
+        float3 v = viewDir(cam_x, cam_y, cam_z, pos_x[i], pos_y[i], pos_z[i]);
 
         // dL/dSH_lm = dL/dcolor * Y_lm(dir)
         // degree 1
-        float y0 = SH_C1 * (-ny);
-        float y1 = SH_C1 * ( nz);
-        float y2 = SH_C1 * (-nx);
+        float y0 = SH_C1 * (-v.y);
+        float y1 = SH_C1 * ( v.z);
+        float y2 = SH_C1 * (-v.x);
         grad_i_sh_rest_r[0*count+i] = dR * y0;
         grad_i_sh_rest_r[1*count+i] = dR * y1;
         grad_i_sh_rest_r[2*count+i] = dR * y2;
@@ -406,8 +361,8 @@ __global__ void covBackwardKernel(
 
         if (sh_degree >= 2)
         {
-            float xx = nx*nx, yy = ny*ny, zz = nz*nz;
-            float xy = nx*ny, yz = ny*nz, xz = nx*nz;
+            float xx = v.x*v.x, yy = v.y*v.y, zz = v.z*v.z;
+            float xy = v.x*v.y, yz = v.y*v.z, xz = v.x*v.z;
             float b3 = SH_C2_0*xy,       b4 = SH_C2_1*yz;
             float b5 = SH_C2_2*(2*zz-xx-yy);
             float b6 = SH_C2_3*xz,       b7 = SH_C2_4*(xx-yy);
@@ -423,13 +378,13 @@ __global__ void covBackwardKernel(
 
             if (sh_degree >= 3)
             {
-                float c8  = SH_C3_0*ny*(3*xx-yy);
-                float c9  = SH_C3_1*xy*nz;
-                float c10 = SH_C3_2*ny*(4*zz-xx-yy);
-                float c11 = SH_C3_3*nz*(2*zz-3*xx-3*yy);
-                float c12 = SH_C3_4*nx*(4*zz-xx-yy);
-                float c13 = SH_C3_5*nz*(xx-yy);
-                float c14 = SH_C3_6*nx*(xx-3*yy);
+                float c8  = SH_C3_0*v.y*(3*xx-yy);
+                float c9  = SH_C3_1*xy*v.z;
+                float c10 = SH_C3_2*v.y*(4*zz-xx-yy);
+                float c11 = SH_C3_3*v.z*(2*zz-3*xx-3*yy);
+                float c12 = SH_C3_4*v.x*(4*zz-xx-yy);
+                float c13 = SH_C3_5*v.z*(xx-yy);
+                float c14 = SH_C3_6*v.x*(xx-3*yy);
                 grad_i_sh_rest_r[ 8*count+i] = dR*c8;  grad_i_sh_rest_r[ 9*count+i] = dR*c9;
                 grad_i_sh_rest_r[10*count+i] = dR*c10; grad_i_sh_rest_r[11*count+i] = dR*c11;
                 grad_i_sh_rest_r[12*count+i] = dR*c12; grad_i_sh_rest_r[13*count+i] = dR*c13;

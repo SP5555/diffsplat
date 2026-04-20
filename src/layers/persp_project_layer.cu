@@ -30,11 +30,11 @@ __constant__ float d_pv[16]; // device copy of PV matrix (column-major, GLM layo
  *       FLT_MAX and the rasterizer skips them in tile assignment.
  *
  * @param[in]  i_px/y/z                 World-space position (SoA).
- * @param[in]  i_cxx/cxy/cxz/cyy/cyz/czz  Upper-triangle 3D covariance.
- * @param[in]  i_colr/g/b/a              Color and opacity (passed through unchanged).
+ * @param[in]  i_cxx/cxy/cxz/cyy/cyz/czz    Upper-triangle 3D covariance.
+ * @param[in]  i_colr/g/b/a             Color and opacity (passed through unchanged).
  * @param[out] o_px/y/z                 NDC position.
  * @param[out] o_cxx/cxy/cyy            Upper-triangle 2D projected covariance.
- * @param[out] o_colr/g/b/a              Pass-through color and opacity.
+ * @param[out] o_colr/g/b/a             Pass-through color and opacity.
  * @param[in]  count                    Number of splats; one thread per splat.
  */
 __global__ void perspProjectForwardKernel(
@@ -78,63 +78,63 @@ __global__ void perspProjectForwardKernel(
              [ pv[3]  pv[7]  pv[11] pv[15] ]
 
         clip_pos = PV * [x y z 1]^T
-                 = [ c_x  c_y  c_z  c_w ]^T
+                 = [ clip_x  clip_y  clip_z  clip_w ]^T
     */
-    float c_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
-    float c_y = d_pv[1]*x + d_pv[5]*y + d_pv[9]*z  + d_pv[13];
-    float c_z = d_pv[2]*x + d_pv[6]*y + d_pv[10]*z + d_pv[14];
-    float c_w = d_pv[3]*x + d_pv[7]*y + d_pv[11]*z + d_pv[15];
+    float clip_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
+    float clip_y = d_pv[1]*x + d_pv[5]*y + d_pv[9]*z  + d_pv[13];
+    float clip_z = d_pv[2]*x + d_pv[6]*y + d_pv[10]*z + d_pv[14];
+    float clip_w = d_pv[3]*x + d_pv[7]*y + d_pv[11]*z + d_pv[15];
 
     // cull splats behind camera
-    if (c_w <= 0.f)
+    if (clip_w <= 0.f)
     {
         o_pz[i] = FLT_MAX; // rasterizer will skip this
         return;
     }
-    float inv_w  = 1.f / c_w;
+    float inv_w  = 1.f / clip_w;
     float inv_w2 = inv_w * inv_w;
 
     /*
         NDC position (perspective divide)
 
-        ndc_pos = [ c_x/c_w  c_y/c_w  c_z/c_w ]^T
+        ndc_pos = [ clip_x/clip_w  clip_y/clip_w  clip_z/clip_w ]^T
     */
-    o_px[i] = c_x * inv_w;
-    o_py[i] = c_y * inv_w;
-    o_pz[i] = c_z * inv_w;
+    o_px[i] = clip_x * inv_w;
+    o_py[i] = clip_y * inv_w;
+    o_pz[i] = clip_z * inv_w;
 
     /*
         Jacobian of perspective projection (d(ndc)/d(world)) is 2x3:
 
         J = [ d(ndc_x)/dx  d(ndc_x)/dy  d(ndc_x)/dz ]
             [ d(ndc_y)/dx  d(ndc_y)/dy  d(ndc_y)/dz ]
-          = [ d(c_x/c_w)/dx  d(c_x/c_w)/dy  d(c_x/c_w)/dz ]
-            [ d(c_y/c_w)/dx  d(c_y/c_w)/dy  d(c_y/c_w)/dz ]
-          = [ (pv[0]*c_w-cx*pv[3])/c_w^2  (pv[4]*c_w-cx*pv[7])/c_w^2  (pv[8]*c_w-cx*pv[11])/c_w^2 ]
-            [ (pv[1]*c_w-cy*pv[3])/c_w^2  (pv[5]*c_w-cy*pv[7])/c_w^2  (pv[9]*c_w-cy*pv[11])/c_w^2 ]
+          = [ d(clip_x/clip_w)/dx  d(clip_x/clip_w)/dy  d(clip_x/clip_w)/dz ]
+            [ d(clip_y/clip_w)/dx  d(clip_y/clip_w)/dy  d(clip_y/clip_w)/dz ]
+          = [ (pv[0]*clip_w-clip_x*pv[3])/clip_w^2  (pv[4]*clip_w-clip_x*pv[7])/clip_w^2  (pv[8]*clip_w-clip_x*pv[11])/clip_w^2 ]
+            [ (pv[1]*clip_w-clip_y*pv[3])/clip_w^2  (pv[5]*clip_w-clip_y*pv[7])/clip_w^2  (pv[9]*clip_w-clip_y*pv[11])/clip_w^2 ]
 
     */
-    float j00 = (d_pv[0] * c_w - c_x * d_pv[ 3]) * inv_w2;
-    float j01 = (d_pv[4] * c_w - c_x * d_pv[ 7]) * inv_w2;
-    float j02 = (d_pv[8] * c_w - c_x * d_pv[11]) * inv_w2;
+    float j00 = (d_pv[0] * clip_w - clip_x * d_pv[ 3]) * inv_w2;
+    float j01 = (d_pv[4] * clip_w - clip_x * d_pv[ 7]) * inv_w2;
+    float j02 = (d_pv[8] * clip_w - clip_x * d_pv[11]) * inv_w2;
 
-    float j10 = (d_pv[1] * c_w - c_y * d_pv[ 3]) * inv_w2;
-    float j11 = (d_pv[5] * c_w - c_y * d_pv[ 7]) * inv_w2;
-    float j12 = (d_pv[9] * c_w - c_y * d_pv[11]) * inv_w2;
+    float j10 = (d_pv[1] * clip_w - clip_y * d_pv[ 3]) * inv_w2;
+    float j11 = (d_pv[5] * clip_w - clip_y * d_pv[ 7]) * inv_w2;
+    float j12 = (d_pv[9] * clip_w - clip_y * d_pv[11]) * inv_w2;
 
     // 3D covariance (symmetric, upper triangle)
-    float sxx = i_cxx[i], sxy = i_cxy[i], sxz = i_cxz[i];
-    float                 syy = i_cyy[i], syz = i_cyz[i];
-    float                                 szz = i_czz[i];
+    float cxx = i_cxx[i], cxy = i_cxy[i], cxz = i_cxz[i];
+    float                 cyy = i_cyy[i], cyz = i_cyz[i];
+    float                                 czz = i_czz[i];
 
     // J * Cov3D
-    float js00 = j00*sxx + j01*sxy + j02*sxz;
-    float js01 = j00*sxy + j01*syy + j02*syz;
-    float js02 = j00*sxz + j01*syz + j02*szz;
+    float js00 = j00*cxx + j01*cxy + j02*cxz;
+    float js01 = j00*cxy + j01*cyy + j02*cyz;
+    float js02 = j00*cxz + j01*cyz + j02*czz;
 
-    float js10 = j10*sxx + j11*sxy + j12*sxz;
-    float js11 = j10*sxy + j11*syy + j12*syz;
-    float js12 = j10*sxz + j11*syz + j12*szz;
+    float js10 = j10*cxx + j11*cxy + j12*cxz;
+    float js11 = j10*cxy + j11*cyy + j12*cyz;
+    float js12 = j10*cxz + j11*cyz + j12*czz;
 
     // Cov2D = J * Cov3D * J^T  (symmetric, upper triangle; cyy = J[1]*JS[1])
     o_cxx[i] = j00*js00 + j01*js01 + j02*js02;
@@ -161,13 +161,13 @@ __global__ void perspProjectForwardKernel(
  *
  * @note No gradient flows through ndc_z - depth is used only for sorting, not compositing.
  * @note Camera matrices (PV) are treated as constants; no grad flows to the camera.
- * @note Culled splats (c_w <= 0) receive zero on all gradient outputs.
+ * @note Culled splats (clip_w <= 0) receive zero on all gradient outputs.
  *
- * @param[in]  i_px/y/z                   World-space position (recomputed; not saved from forward).
+ * @param[in]  i_px/y/z                 World-space position (recomputed; not saved from forward).
  * @param[in]  i_cxx/cxy/cxz/cyy/cyz/czz  Upper-triangle 3D covariance.
- * @param[in]  grad_o_*                   Upstream gradients (from rasterizer).
+ * @param[in]  grad_o_*                 Upstream gradients (from rasterizer).
  * @param[out] grad_i_*                 Downstream gradients to GaussActivLayer.
- * @param[in]  count                      Number of splats; one thread per splat.
+ * @param[in]  count                    Number of splats; one thread per splat.
  */
 __global__ void perspProjectBackwardKernel(
     // splat3d inputs (recomputed, not saved)
@@ -212,59 +212,59 @@ __global__ void perspProjectBackwardKernel(
     float x = i_px[i], y = i_py[i], z = i_pz[i];
 
     // recompute clip coords
-    float c_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
-    float c_y = d_pv[1]*x + d_pv[5]*y + d_pv[9]*z  + d_pv[13];
-    float c_w = d_pv[3]*x + d_pv[7]*y + d_pv[11]*z + d_pv[15];
+    float clip_x = d_pv[0]*x + d_pv[4]*y + d_pv[8]*z  + d_pv[12];
+    float clip_y = d_pv[1]*x + d_pv[5]*y + d_pv[9]*z  + d_pv[13];
+    float clip_w = d_pv[3]*x + d_pv[7]*y + d_pv[11]*z + d_pv[15];
 
     // skip culled splats
-    if (c_w <= 0.f)
+    if (clip_w <= 0.f)
     {
-        grad_i_px[i] = 0.f;  grad_i_py[i] = 0.f;  grad_i_pz[i] = 0.f;
-        grad_i_cxx[i] = 0.f; grad_i_cxy[i] = 0.f; grad_i_cxz[i] = 0.f;
-        grad_i_cyy[i] = 0.f; grad_i_cyz[i] = 0.f; grad_i_czz[i] = 0.f;
+        grad_i_px[i] = 0.f;   grad_i_py[i] = 0.f;   grad_i_pz[i] = 0.f;
+        grad_i_cxx[i] = 0.f;  grad_i_cxy[i] = 0.f;  grad_i_cxz[i] = 0.f;
+        grad_i_cyy[i] = 0.f;  grad_i_cyz[i] = 0.f;  grad_i_czz[i] = 0.f;
         grad_i_colr[i] = 0.f; grad_i_colg[i] = 0.f;
         grad_i_colb[i] = 0.f; grad_i_cola[i] = 0.f;
         return;
     }
 
-    float inv_w  = 1.f / c_w;
+    float inv_w  = 1.f / clip_w;
     float inv_w2 = inv_w * inv_w;
 
     // recompute Jacobian
-    float j00 = (d_pv[0] * c_w - c_x * d_pv[ 3]) * inv_w2;
-    float j01 = (d_pv[4] * c_w - c_x * d_pv[ 7]) * inv_w2;
-    float j02 = (d_pv[8] * c_w - c_x * d_pv[11]) * inv_w2;
+    float j00 = (d_pv[0] * clip_w - clip_x * d_pv[ 3]) * inv_w2;
+    float j01 = (d_pv[4] * clip_w - clip_x * d_pv[ 7]) * inv_w2;
+    float j02 = (d_pv[8] * clip_w - clip_x * d_pv[11]) * inv_w2;
 
-    float j10 = (d_pv[1] * c_w - c_y * d_pv[ 3]) * inv_w2;
-    float j11 = (d_pv[5] * c_w - c_y * d_pv[ 7]) * inv_w2;
-    float j12 = (d_pv[9] * c_w - c_y * d_pv[11]) * inv_w2;
+    float j10 = (d_pv[1] * clip_w - clip_y * d_pv[ 3]) * inv_w2;
+    float j11 = (d_pv[5] * clip_w - clip_y * d_pv[ 7]) * inv_w2;
+    float j12 = (d_pv[9] * clip_w - clip_y * d_pv[11]) * inv_w2;
 
-    float sxx = i_cxx[i], sxy = i_cxy[i], sxz = i_cxz[i];
-    float                 syy = i_cyy[i], syz = i_cyz[i];
-    float                                 szz = i_czz[i];
+    float cxx = i_cxx[i], cxy = i_cxy[i], cxz = i_cxz[i];
+    float                  cyy = i_cyy[i], cyz = i_cyz[i];
+    float                                  czz = i_czz[i];
 
     // J * Cov3D
-    float js00 = j00*sxx + j01*sxy + j02*sxz;
-    float js01 = j00*sxy + j01*syy + j02*syz;
-    float js02 = j00*sxz + j01*syz + j02*szz;
+    float js00 = j00*cxx + j01*cxy + j02*cxz;
+    float js01 = j00*cxy + j01*cyy + j02*cyz;
+    float js02 = j00*cxz + j01*cyz + j02*czz;
 
-    float js10 = j10*sxx + j11*sxy + j12*sxz;
-    float js11 = j10*sxy + j11*syy + j12*syz;
-    float js12 = j10*sxz + j11*syz + j12*szz;
+    float js10 = j10*cxx + j11*cxy + j12*cxz;
+    float js11 = j10*cxy + j11*cyy + j12*cyz;
+    float js12 = j10*cxz + j11*cyz + j12*czz;
 
-    float sxx_2D = grad_o_cxx[i];
-    float sxy_2D = grad_o_cxy[i];
-    float syy_2D = grad_o_cyy[i];
+    float dcxx_2D = grad_o_cxx[i];
+    float dcxy_2D = grad_o_cxy[i];
+    float dcyy_2D = grad_o_cyy[i];
 
     // dL/dCov_3D = J^T * dL/dCov_2D_sym * J
-    // entry (p,q): 2*sxx_2D*(J[0,p]*js[0,q]) + sxy_2D*(J[0,p]*js[1,q] + J[1,p]*js[0,q]) + 2*syy_2D*(J[1,p]*js[1,q])
+    // entry (p,q): 2*dcxx_2D*(J[0,p]*js[0,q]) + dcxy_2D*(J[0,p]*js[1,q] + J[1,p]*js[0,q]) + 2*dcyy_2D*(J[1,p]*js[1,q])
     // where js = J * Cov_3D (rows js0x and js1x precomputed above)
-    grad_i_cxx[i] = 2.f*sxx_2D*j00*js00 + sxy_2D*(j00*js10 + j10*js00) + 2.f*syy_2D*j10*js10;
-    grad_i_cxy[i] = 2.f*sxx_2D*j00*js01 + sxy_2D*(j00*js11 + j10*js01) + 2.f*syy_2D*j10*js11;
-    grad_i_cxz[i] = 2.f*sxx_2D*j00*js02 + sxy_2D*(j00*js12 + j10*js02) + 2.f*syy_2D*j10*js12;
-    grad_i_cyy[i] = 2.f*sxx_2D*j01*js01 + sxy_2D*(j01*js11 + j11*js01) + 2.f*syy_2D*j11*js11;
-    grad_i_cyz[i] = 2.f*sxx_2D*j01*js02 + sxy_2D*(j01*js12 + j11*js02) + 2.f*syy_2D*j11*js12;
-    grad_i_czz[i] = 2.f*sxx_2D*j02*js02 + sxy_2D*(j02*js12 + j12*js02) + 2.f*syy_2D*j12*js12;
+    grad_i_cxx[i] = 2.f*dcxx_2D*j00*js00 + dcxy_2D*(j00*js10 + j10*js00) + 2.f*dcyy_2D*j10*js10;
+    grad_i_cxy[i] = 2.f*dcxx_2D*j00*js01 + dcxy_2D*(j00*js11 + j10*js01) + 2.f*dcyy_2D*j10*js11;
+    grad_i_cxz[i] = 2.f*dcxx_2D*j00*js02 + dcxy_2D*(j00*js12 + j10*js02) + 2.f*dcyy_2D*j10*js12;
+    grad_i_cyy[i] = 2.f*dcxx_2D*j01*js01 + dcxy_2D*(j01*js11 + j11*js01) + 2.f*dcyy_2D*j11*js11;
+    grad_i_cyz[i] = 2.f*dcxx_2D*j01*js02 + dcxy_2D*(j01*js12 + j11*js02) + 2.f*dcyy_2D*j11*js12;
+    grad_i_czz[i] = 2.f*dcxx_2D*j02*js02 + dcxy_2D*(j02*js12 + j12*js02) + 2.f*dcyy_2D*j12*js12;
 
     // ===== position backward =====
     // ndc = clip / c_w, so d(ndc)/d(world) = J (already computed above)
