@@ -16,7 +16,7 @@ public:
     void allocate(int width, int height);
     void forward()      override;
     void backward()     override;
-    void zero_grad()    override;
+    void zeroGrad()    override;
 
     // wiring
     void setInput(const float *pixels)  { d_in_pixels = pixels; }

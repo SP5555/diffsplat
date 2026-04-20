@@ -31,7 +31,7 @@ public:
     void allocateGrad(int count);
     void forward()   override;
     void backward()  override;
-    void zero_grad() override;
+    void zeroGrad() override;
 
     void resize(int new_width, int new_height);
 

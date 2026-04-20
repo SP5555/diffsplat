@@ -22,7 +22,7 @@ public:
     virtual ~Layer() = default;
     virtual void forward()   = 0;
     virtual void backward()  = 0;
-    virtual void zero_grad() = 0;
+    virtual void zeroGrad() = 0;
 };
 
 /**
@@ -60,7 +60,7 @@ public:
 
     virtual void allocate(int n)     { output.allocate(n); }
     virtual void allocateGrad(int n) { grad_input.allocate(n); }
-    void zero_grad() override        { grad_input.zero(); }
+    void zeroGrad() override        { grad_input.zero(); }
 
 protected:
     const TIn*      input       = nullptr;

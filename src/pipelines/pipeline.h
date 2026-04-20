@@ -8,10 +8,10 @@ public:
     void add(Layer *layer) { layers.push_back(layer); }
     void clear() { layers.clear(); }
 
-    void zero_grad()
+    void zeroGrad()
     {
         for (auto *l : layers)
-            l->zero_grad();
+            l->zeroGrad();
     }
 
     void forward()

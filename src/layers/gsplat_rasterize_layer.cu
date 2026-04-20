@@ -597,7 +597,7 @@ void GsplatRasterizeLayer::allocateGrad(int count)
     grad_input.allocate(count);
 }
 
-void GsplatRasterizeLayer::zero_grad()
+void GsplatRasterizeLayer::zeroGrad()
 {
     grad_input.zero();
 }

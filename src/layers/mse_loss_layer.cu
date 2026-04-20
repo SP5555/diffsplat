@@ -75,7 +75,7 @@ void MSELossLayer::allocate(int width, int height)
     d_loss.allocate(1);
 }
 
-void MSELossLayer::zero_grad()
+void MSELossLayer::zeroGrad()
 {
     d_grad_pixels.zero();
 }

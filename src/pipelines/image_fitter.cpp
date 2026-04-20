@@ -102,7 +102,7 @@ void ImageFitter::initLayers()
 
 void ImageFitter::step()
 {
-    pipeline.zero_grad();
+    pipeline.zeroGrad();
     pipeline.forward();
 
     if (!is_optimization_running) return;
