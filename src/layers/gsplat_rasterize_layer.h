@@ -22,40 +22,21 @@
  * the declared type. num_tiles_x/y passed to allocate() are used for buffer
  * sizing; internally tiles are always TILE_SIZE-aligned.
  */
-class GsplatRasterizeLayer : public Layer
+class GsplatRasterizeLayer
+    : public TypedLayer<Splat2DParams, CudaBuffer<float>, Splat2DGrads, float>
 {
 public:
     ~GsplatRasterizeLayer() {}
 
+    using TypedLayer::allocate;
     void allocate(int width, int height, int count);
-    void allocateGrad(int count);
-    void forward()   override;
-    void backward()  override;
-    void zeroGrad() override;
+    void forward()  override;
+    void backward() override;
 
     void resize(int new_width, int new_height);
-
-    // wiring
-    void setInput(const Splat2DParams *params) { input = params; }
-    float        *getOutput()                  { return d_render_colors; }
-    void setGradOutput(const float *grad)      { v_render_colors = grad; }
-    Splat2DGrads &getGradInput()               { return grad_input; }
-
     uint32_t getVisibleCount();
 
 private:
-    /* ---- forward input (not owned) ---- */
-    const Splat2DParams *input = nullptr;
-
-    /* ---- forward output (owned) ---- */
-    CudaBuffer<float> d_render_colors; // rendered RGB image [H*W*3]
-
-    /* ---- backward input (not owned) ---- */
-    const float *v_render_colors = nullptr; // dL/d_render_colors [H*W*3]
-
-    /* ---- backward output (owned) ---- */
-    Splat2DGrads grad_input;
-
     /* ---- forward state saved for backward ---- */
     CudaBuffer<float>   d_render_alphas; // accumulated alpha per pixel [H*W]
     CudaBuffer<int32_t> d_last_ids;      // sorted-list index of last contributing Gaussian [H*W]

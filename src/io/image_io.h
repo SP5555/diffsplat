@@ -16,7 +16,7 @@ struct LoadedImage
 
 /**
  * @brief loads PNG/JPG, resizes to fit target dimensions while preserving aspect ratio.
- * 
+ *
  * The pixels outside the original image area are filled with black.
  */
 class ImageLoader
@@ -28,4 +28,13 @@ public:
         int target_h,
         int padding = 0
     );
+};
+
+/**
+ * @brief saves a float RGB buffer to a PNG file on disk.
+ */
+class ImageSaver
+{
+public:
+    static void saveAsPNG(const float *d_pixels, int width, int height, const std::string &path);
 };

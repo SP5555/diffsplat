@@ -1,15 +1,24 @@
-#include "image_loader.h"
+#include "image_io.h"
 
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <vector>
+
+#include <cuda_runtime.h>
+#include <stdint.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <stb_image_resize2.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
+#include "../cuda/cuda_check.h"
 #include "../utils/logs.h"
+
+/* ===== ===== Image Loader ===== ===== */
 
 LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_h, int padding)
 {
@@ -66,4 +75,19 @@ LoadedImage ImageLoader::load(const std::string &path, int target_w, int target_
     );
 
     return {pixels, target_w, target_h, src_w, src_h};
+}
+
+/* ===== ===== Image Saver ===== ===== */
+
+void ImageSaver::saveAsPNG(const float *d_pixels, int width, int height, const std::string &path)
+{
+    std::vector<float> h_pixels(width * height * 3);
+    CUDA_CHECK(cudaMemcpy(h_pixels.data(), d_pixels, width * height * 3 * sizeof(float), cudaMemcpyDeviceToHost));
+
+    // convert float [0.0, 1.0] to uint8 [0, 255]
+    std::vector<uint8_t> img_data(width * height * 3);
+    for (int i = 0; i < width * height * 3; i++)
+        img_data[i] = (uint8_t)(fminf(fmaxf(h_pixels[i] * 255.f, 0.f), 255.f));
+
+    stbi_write_png(path.c_str(), width, height, 3, img_data.data(), width * 3);
 }

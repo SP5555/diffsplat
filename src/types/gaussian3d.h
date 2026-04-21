@@ -29,7 +29,7 @@ struct Gaussian3D
  * sh_rest buffers are sized n * sh_num_bands and are safe to include in fields() since
  * CudaBuffer::zero() is a no-op on unallocated buffers.
  *
- * CPU <-> GPU transfer: see src/io/gaussian3d_io.h
+ * CPU <-> GPU transfer: see src/utils/gaussian3d_io.h
  */
 struct Gaussian3DParams : GpuSoA
 {

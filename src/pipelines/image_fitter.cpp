@@ -7,9 +7,9 @@
 #include <iostream>
 
 #include "../cuda/cuda_check.h"
-#include "../io/gaussian3d_io.h"
-#include "../io/image_loader.h"
-#include "../io/ply_saver.h"
+#include "../io/image_io.h"
+#include "../io/ply_io.h"
+#include "../utils/gaussian3d_io.h"
 #include "../utils/logs.h"
 #include "../utils/splat_utils.h"
 

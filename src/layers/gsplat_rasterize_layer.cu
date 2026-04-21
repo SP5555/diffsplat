@@ -321,7 +321,7 @@ __global__ void gsplatFwdKernel(
  * @param[in]  tile_offsets     Per-tile {start, end} ranges into flatten_ids.
  * @param[in]  render_alphas    Forward output accumulated alpha [H*W].
  * @param[in]  last_ids         Forward output last-contributing-Gaussian index [H*W].
- * @param[in]  v_render_colors  dL/d(render_colors) [H*W*3].
+ * @param[in]  grad_output  dL/d(render_colors) [H*W*3].
  * @param[out] v_pos_x/y        dL/d(ndc center).
  * @param[out] v_cov_xx/xy/yy   dL/d(2D covariance).
  * @param[out] v_color_r/g/b    dL/d(color).
@@ -347,7 +347,7 @@ __global__ void gsplatBwdKernel(
     const float    *__restrict__ render_alphas,
     const int32_t  *__restrict__ last_ids,
     // incoming gradient
-    const float    *__restrict__ v_render_colors, // dL/d_render_colors [H*W*3]
+    const float    *__restrict__ grad_output, // dL/output [H*W*3]
     // gradient outputs (accumulated)
     float *v_pos_x,
     float *v_pos_y,
@@ -408,9 +408,9 @@ __global__ void gsplatBwdKernel(
     int32_t bin_final     = inside ? last_ids[pix_id] : -1;
     int32_t warp_bin_final = warpAllReduceMax(bin_final);
 
-    float v_render_r = inside ? v_render_colors[pix_id * 3 + 0] : 0.f;
-    float v_render_g = inside ? v_render_colors[pix_id * 3 + 1] : 0.f;
-    float v_render_b = inside ? v_render_colors[pix_id * 3 + 2] : 0.f;
+    float v_render_r = inside ? grad_output[pix_id * 3 + 0] : 0.f;
+    float v_render_g = inside ? grad_output[pix_id * 3 + 1] : 0.f;
+    float v_render_b = inside ? grad_output[pix_id * 3 + 2] : 0.f;
 
     // Process batches back-to-front (b=0 covers the farthest Gaussians).
     for (uint32_t b = 0; b < num_batches; ++b)
@@ -592,16 +592,6 @@ void GsplatRasterizeLayer::allocate(int width, int height, int count)
     resize(width, height);
 }
 
-void GsplatRasterizeLayer::allocateGrad(int count)
-{
-    grad_input.allocate(count);
-}
-
-void GsplatRasterizeLayer::zeroGrad()
-{
-    grad_input.zero();
-}
-
 void GsplatRasterizeLayer::resize(int new_width, int new_height)
 {
     if (new_width == screen_width && new_height == screen_height)
@@ -612,7 +602,7 @@ void GsplatRasterizeLayer::resize(int new_width, int new_height)
     // Tile counts derived from resolution so tile boundaries align with 16x16 blocks.
     num_tiles_x   = (screen_width  + TILE_SIZE - 1) / TILE_SIZE;
     num_tiles_y   = (screen_height + TILE_SIZE - 1) / TILE_SIZE;
-    d_render_colors.allocate (num_pixels * 3);
+    output.allocate (num_pixels * 3);
     d_render_alphas.allocate (num_pixels);
     d_last_ids.allocate      (num_pixels);
     d_tile_offsets.allocate  (num_tiles_x * num_tiles_y);
@@ -624,7 +614,7 @@ void GsplatRasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
-    CUDA_CHECK(cudaMemset(d_render_colors, 0, num_pixels * 3 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(output, 0, num_pixels * 3 * sizeof(float)));
     CUDA_CHECK(cudaMemset(d_n_isects,      0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(d_tile_offsets,  0, numTiles * sizeof(int2)));
@@ -687,7 +677,7 @@ void GsplatRasterizeLayer::forward()
             input->color_r, input->color_g, input->color_b,
             input->opacity,
             d_flatten_ids, d_tile_offsets,
-            d_render_colors, d_render_alphas, d_last_ids,
+            output, d_render_alphas, d_last_ids,
             screen_width, screen_height, num_tiles_x);
         CUDA_SYNC_CHECK();
     }
@@ -704,7 +694,7 @@ void GsplatRasterizeLayer::backward()
         input->opacity,
         d_flatten_ids, d_tile_offsets,
         d_render_alphas, d_last_ids,
-        v_render_colors,
+        grad_output,
         grad_input.grad_pos_x,   grad_input.grad_pos_y,
         grad_input.grad_cov_xx,  grad_input.grad_cov_xy,  grad_input.grad_cov_yy,
         grad_input.grad_color_r, grad_input.grad_color_g, grad_input.grad_color_b,

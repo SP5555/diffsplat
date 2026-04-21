@@ -6,7 +6,7 @@
  * @brief CPU <-> GPU transfer for Gaussian3DParams.
  *
  * Separated from Gaussian3DParams so the GPU type stays a pure memory layout.
- * Future types follow the same pattern: add a companion *_io.h in src/io/.
+ * Future types follow the same pattern: add a companion *_io.h in src/utils/.
  */
 void uploadGaussians(Gaussian3DParams& params,
                      const std::vector<Gaussian3D>& host,

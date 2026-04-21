@@ -9,7 +9,7 @@
 #include "implot.h"
 
 #include "../cuda/cuda_check.h"
-#include "../io/image_saver.h"
+#include "../io/image_io.h"
 #include "../utils/ansi_colors.h"
 #include "../utils/logs.h"
 

@@ -83,11 +83,11 @@ endif()
 
 # ===== Shared sources =====
 set(CPP_SHARED_SOURCES
-    src/vendor/glad.c
-    src/vendor/tinyfiledialogs.c
+    third_party/glad/src/glad.c
+    third_party/tinyfiledialogs/tinyfiledialogs.c
     src/input/input.cpp
     src/app/app_base.cpp
-    src/io/image_saver.cpp
+    src/io/image_io.cpp
 )
 
 set(CUDA_SHARED_SOURCES
@@ -102,7 +102,10 @@ set(CUDA_SHARED_SOURCES
 function(diffsplat_target_setup TARGET)
     target_include_directories(${TARGET} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/third_party/glad/include
+        ${CMAKE_SOURCE_DIR}/third_party/stb
+        ${CMAKE_SOURCE_DIR}/third_party/tinyfiledialogs
+        ${CMAKE_SOURCE_DIR}/third_party/cxxopts
     )
     target_link_libraries(${TARGET} PRIVATE
         OpenGL::GL
@@ -145,9 +148,8 @@ endfunction()
 add_executable(fitter
     src/main_fitter.cpp
     src/app/fitter_app.cpp
-    src/io/gaussian3d_io.cpp
-    src/io/image_loader.cpp
-    src/io/ply_saver.cpp
+    src/utils/gaussian3d_io.cpp
+    src/io/ply_io.cpp
     src/pipelines/image_fitter.cpp
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
@@ -158,8 +160,8 @@ diffsplat_target_setup(fitter)
 add_executable(viewer
     src/main_viewer.cpp
     src/app/viewer_app.cpp
-    src/io/gaussian3d_io.cpp
-    src/io/ply_loader.cpp
+    src/utils/gaussian3d_io.cpp
+    src/io/ply_io.cpp
     src/camera/arcball_camera.cpp
     src/camera/fly_camera.cpp
     src/pipelines/splat_renderer.cpp
