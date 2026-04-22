@@ -117,14 +117,20 @@ Randomly initializes a cloud of 3D Gaussians and optimizes them toward a target 
 </p>
 
 <p align="center">
-  <table width="30%">
+  <table width="60%">
     <tr>
-      <th width="100%">Progress over 4000 iterations (frames every 100)</th>
+      <th width="50%">Ground Truth</th>
+      <th width="50%">Progress over 4000 iterations (frames every 100)</th>
     </tr>
     <tr>
       <td>
         <p align="center">
-          <img src="assets/fit_progress.gif" width="50%">
+          <img src="assets/window.jpg" width="80%">
+        </p>
+      </td>
+      <td>
+        <p align="center">
+          <img src="assets/fit_progress.gif" width="80%">
         </p>
       </td>
     </tr>
