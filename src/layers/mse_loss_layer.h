@@ -21,7 +21,7 @@ public:
     // wiring
     void setInput(const float *pixels)  { d_in_pixels = pixels; }
     void setTarget(const float *target) { d_target_pixels = target; }
-    float *getGradInput()               { return d_grad_pixels; }
+    CudaBuffer<float>& getGradInput()   { return d_grad_pixels; }
 
     float getLoss() const;
 

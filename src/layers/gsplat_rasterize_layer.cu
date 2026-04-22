@@ -714,7 +714,7 @@ void GsplatRasterizeLayer::backward()
         input->opacity,
         d_flatten_ids, d_tile_offsets,
         d_render_alphas, d_last_ids,
-        grad_output,
+        grad_output->ptr,
         grad_input.grad_pos_x,   grad_input.grad_pos_y,
         grad_input.grad_cov_xx,  grad_input.grad_cov_xy,  grad_input.grad_cov_yy,
         grad_input.grad_color_r, grad_input.grad_color_g, grad_input.grad_color_b,

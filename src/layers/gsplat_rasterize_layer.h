@@ -23,7 +23,7 @@
  * sizing; internally tiles are always TILE_SIZE-aligned.
  */
 class GsplatRasterizeLayer
-    : public TypedLayer<Splat2DParams, CudaBuffer<float>, Splat2DGrads, float>
+    : public TypedLayer<Splat2DParams, CudaBuffer<float>, Splat2DGrads, CudaBuffer<float>>
 {
 public:
     ~GsplatRasterizeLayer() {}

@@ -83,7 +83,7 @@ void ImageFitter::initLayers()
     mse_layer.setTarget(d_target_pixels);
 
     // wire backward
-    ras_layer.setGradOutput(mse_layer.getGradInput());
+    ras_layer.setGradOutput(&mse_layer.getGradInput());
     psp_layer.setGradOutput(&ras_layer.getGradInput());
     atv_layer.setGradOutput(&psp_layer.getGradInput());
 
