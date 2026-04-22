@@ -65,58 +65,78 @@ __global__ void gsTileAssignKernel(
     int screen_height)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= splat_count) return;
 
-    float x = pos_x[i];
-    float y = pos_y[i];
-    float z = pos_z[i];
+    // Culling results -- computed for all live threads so every thread reaches
+    // the block-level reduction below (blockReduceSum requires uniform execution).
+    bool     visible = false;
+    int      tx0 = 0, tx1 = -1, ty0 = 0, ty1 = -1;
+    float    z = 0.f;
 
-    if (fabsf(x) > 1.0f || fabsf(y) > 1.0f || fabsf(z) > 1.0f)
-        return;
-
-    float cxx = cov_xx[i];
-    float cxy = cov_xy[i];
-    float cyy = cov_yy[i];
-
-    float det = cxx * cyy - cxy * cxy;
-    if (!(det > 0.f)) return;
-
-    float trace   = cxx + cyy;
-    float temp    = fmaxf(0.f, trace * trace - 4.f * det);
-    float lambda2 = 0.5f * (trace + sqrtf(temp));
-
-    float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
-    if (3.f * sqrtf(lambda2 * 2.f) < pixel_ndc) return;
-
-    float lambda1    = 0.5f * (trace - sqrtf(temp));
-    float max_radius = 3.f * sqrtf(fmaxf(lambda1, lambda2));
-
-    float min_x = x - max_radius, max_x = x + max_radius;
-    float min_y = y - max_radius, max_y = y + max_radius;
-
-    // Convert NDC bounding box to tile indices via pixel coordinates.
-    // ndc -> pixel: px = (ndc + 1) / 2 * W,  py = (1 - ndc) / 2 * H
-    // pixel -> tile: tx = floor(px / TILE_SIZE)
-    // Combined:     tx = floor((ndc + 1) / 2 * W / TILE_SIZE)
-    const float fx = (float)screen_width  / TILE_SIZE;
-    const float fy = (float)screen_height / TILE_SIZE;
-    auto ndcToTileX = [&](float v) { return (int)floorf((v + 1.f) * 0.5f * fx); };
-    auto ndcToTileY = [&](float v) { return (int)floorf((1.f - v) * 0.5f * fy); };
-
-    int tx0 = max(ndcToTileX(min_x), 0), tx1 = min(ndcToTileX(max_x), num_tiles_x - 1);
-    int ty0 = max(ndcToTileY(max_y), 0), ty1 = min(ndcToTileY(min_y), num_tiles_y - 1);
-    if (tx0 > tx1 || ty0 > ty1) return;
-
-    atomicAdd(visible_count, 1u);
-    for (int ty = ty0; ty <= ty1; ty++)
-    for (int tx = tx0; tx <= tx1; tx++)
+    if (i < splat_count)
     {
-        uint32_t tile_id = (uint32_t)(ty * num_tiles_x + tx);
-        uint64_t key     = makeKey(tile_id, z);
-        uint32_t slot    = atomicAdd(n_isects, 1u);
-        if (slot >= (uint32_t)max_isects) { atomicSub(n_isects, 1u); return; }
-        isect_ids[slot] = key;
-        gauss_ids[slot] = (uint32_t)i;
+        float x = pos_x[i];
+        float y = pos_y[i];
+        z = pos_z[i];
+
+        if (fabsf(x) <= 1.0f && fabsf(y) <= 1.0f && fabsf(z) <= 1.0f)
+        {
+            float cxx = cov_xx[i];
+            float cxy = cov_xy[i];
+            float cyy = cov_yy[i];
+
+            float det = cxx * cyy - cxy * cxy;
+            if (det > 0.f)
+            {
+                float trace   = cxx + cyy;
+                float temp    = fmaxf(0.f, trace * trace - 4.f * det);
+                float lambda2 = 0.5f * (trace + sqrtf(temp));
+
+                float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
+                if (3.f * sqrtf(lambda2 * 2.f) >= pixel_ndc)
+                {
+                    float lambda1    = 0.5f * (trace - sqrtf(temp));
+                    float max_radius = 3.f * sqrtf(fmaxf(lambda1, lambda2));
+
+                    float min_x = x - max_radius, max_x = x + max_radius;
+                    float min_y = y - max_radius, max_y = y + max_radius;
+
+                    // Convert NDC bounding box to tile indices via pixel coordinates.
+                    // ndc -> pixel: px = (ndc + 1) / 2 * W,  py = (1 - ndc) / 2 * H
+                    // pixel -> tile: tx = floor(px / TILE_SIZE)
+                    // Combined:     tx = floor((ndc + 1) / 2 * W / TILE_SIZE)
+                    const float fx = (float)screen_width  / TILE_SIZE;
+                    const float fy = (float)screen_height / TILE_SIZE;
+                    auto ndcToTileX = [&](float v) { return (int)floorf((v + 1.f) * 0.5f * fx); };
+                    auto ndcToTileY = [&](float v) { return (int)floorf((1.f - v) * 0.5f * fy); };
+
+                    tx0 = max(ndcToTileX(min_x), 0);
+                    tx1 = min(ndcToTileX(max_x), num_tiles_x - 1);
+                    ty0 = max(ndcToTileY(max_y), 0);
+                    ty1 = min(ndcToTileY(min_y), num_tiles_y - 1);
+
+                    if (tx0 <= tx1 && ty0 <= ty1)
+                        visible = true;
+                }
+            }
+        }
+    }
+
+    uint32_t block_vis = (uint32_t)blockReduceSum<TILE_PIXELS>(visible ? 1.f : 0.f);
+    if (threadIdx.x == 0 && block_vis > 0)
+        atomicAdd(visible_count, block_vis);
+
+    if (visible)
+    {
+        for (int ty = ty0; ty <= ty1; ++ty)
+        for (int tx = tx0; tx <= tx1; ++tx)
+        {
+            uint32_t tile_id = (uint32_t)(ty * num_tiles_x + tx);
+            uint64_t key     = makeKey(tile_id, z);
+            uint32_t slot    = atomicAdd(n_isects, 1u);
+            if (slot >= (uint32_t)max_isects) { atomicSub(n_isects, 1u); return; }
+            isect_ids[slot] = key;
+            gauss_ids[slot] = (uint32_t)i;
+        }
     }
 }
 
