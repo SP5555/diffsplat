@@ -269,24 +269,24 @@ __global__ void covBackwardKernel(
     float m10 = R.r10*sx, m11 = R.r11*sy, m12 = R.r12*sz;
     float m20 = R.r20*sx, m21 = R.r21*sy, m22 = R.r22*sz;
 
-    // --- dL/dCov ---
-    float dxx = grad_o_cxx[i];
-    float dxy = grad_o_cxy[i];
-    float dxz = grad_o_cxz[i];
-    float dyy = grad_o_cyy[i];
-    float dyz = grad_o_cyz[i];
-    float dzz = grad_o_czz[i];
+    // --- G_full = dL/dCov3D, full-matrix convention (off-diagonals are already halved upstream) ---
+    float g_xx = grad_o_cxx[i];
+    float g_xy = grad_o_cxy[i];
+    float g_xz = grad_o_cxz[i];
+    float g_yy = grad_o_cyy[i];
+    float g_yz = grad_o_cyz[i];
+    float g_zz = grad_o_czz[i];
 
-    // --- dL/dM = 2 * dL/dCov_sym * M ---
-    float dm00 = 2.f*(dxx*m00 + dxy*m10 + dxz*m20);
-    float dm01 = 2.f*(dxx*m01 + dxy*m11 + dxz*m21);
-    float dm02 = 2.f*(dxx*m02 + dxy*m12 + dxz*m22);
-    float dm10 = 2.f*(dxy*m00 + dyy*m10 + dyz*m20);
-    float dm11 = 2.f*(dxy*m01 + dyy*m11 + dyz*m21);
-    float dm12 = 2.f*(dxy*m02 + dyy*m12 + dyz*m22);
-    float dm20 = 2.f*(dxz*m00 + dyz*m10 + dzz*m20);
-    float dm21 = 2.f*(dxz*m01 + dyz*m11 + dzz*m21);
-    float dm22 = 2.f*(dxz*m02 + dyz*m12 + dzz*m22);
+    // --- dL/dM = 2 * G_full * M ---
+    float dm00 = 2.f*(g_xx*m00 + g_xy*m10 + g_xz*m20);
+    float dm01 = 2.f*(g_xx*m01 + g_xy*m11 + g_xz*m21);
+    float dm02 = 2.f*(g_xx*m02 + g_xy*m12 + g_xz*m22);
+    float dm10 = 2.f*(g_xy*m00 + g_yy*m10 + g_yz*m20);
+    float dm11 = 2.f*(g_xy*m01 + g_yy*m11 + g_yz*m21);
+    float dm12 = 2.f*(g_xy*m02 + g_yy*m12 + g_yz*m22);
+    float dm20 = 2.f*(g_xz*m00 + g_yz*m10 + g_zz*m20);
+    float dm21 = 2.f*(g_xz*m01 + g_yz*m11 + g_zz*m21);
+    float dm22 = 2.f*(g_xz*m02 + g_yz*m12 + g_zz*m22);
 
     // --- dL/ds_log ---
     grad_i_sx[i] = (dm00*R.r00 + dm10*R.r10 + dm20*R.r20) * sx;
