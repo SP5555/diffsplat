@@ -18,9 +18,12 @@
 static constexpr int TILE_SIZE   = 16;
 static constexpr int TILE_PIXELS = TILE_SIZE * TILE_SIZE; // 256 = 8 warps
 
-#define GSPLAT_MAX_ALPHA   0.99f
-#define GSPLAT_ALPHA_THRES (1.0f / 255.0f)
-#define GSPLAT_T_THRES     0.0001f
+// Cap alpha so (1 - alpha) >= 0.01, keeping T_before = T_after / (1 - alpha) safe in the backward.
+static constexpr float GSPLAT_MAX_ALPHA = 0.99f;
+// Gaussians below 1/255 alpha are invisible at 8-bit precision; skipping them is free.
+static constexpr float GSPLAT_ALPHA_THRES = 1.0f / 255.0f;
+// Pixel is considered fully composited below 0.01% transmittance; no Gaussian contributes meaningfully past this.
+static constexpr float GSPLAT_T_THRES = 0.0001f;
 
 /* ===== ===== Tile Assign ===== ===== */
 
@@ -587,9 +590,10 @@ uint32_t GsplatRasterizeLayer::getVisibleCount()
 
 void GsplatRasterizeLayer::allocate(int width, int height, int count)
 {
-    // Splat-count buffers: sized once at startup.
-    // The tile-assign kernel degrades gracefully (drops excess pairs) if exceeded.
-    max_isects = (1 << 25);
+    // 2^25 = 33.5M (tile, splat) pairs.
+    // The tile-assign kernel drops excess pairs gracefully if this is exceeded.
+    static constexpr int DEFAULT_MAX_ISECTS = 1 << 25;
+    max_isects = DEFAULT_MAX_ISECTS;
     d_isect_ids.allocate        (max_isects);
     d_gauss_ids.allocate        (max_isects);
     d_isect_ids_sorted.allocate (max_isects);

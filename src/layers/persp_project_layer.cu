@@ -155,31 +155,26 @@ __global__ void perspProjectForwardKernel(
  * it from the forward pass; trades a small extra compute cost for avoided memory traffic.
  *
  * Position gradient:    dL/d(world) = J^T * dL/d(ndc)
- * Covariance gradient:  dL/dCov_3D = J^T * dL/dCov_2D_sym * J
- *   entry (p,q): 2*v_xx*(J[0,p]*JS[0,q]) + v_xy*(J[0,p]*JS[1,q] + J[1,p]*JS[0,q])
- *              + 2*v_yy*(J[1,p]*JS[1,q]),  where JS = J * Cov_3D.
+ * Covariance gradient:  dL/dCov_3D = J^T * H * J
+ *   where H = [[dcxx_2D, hdxy], [hdxy, dcyy_2D]], hdxy = dcxy_2D / 2.
+ *   Off-diagonal outputs use the full-matrix gradient convention (half the stored
+ *   upper-triangle value) to match GaussActivLayer backward: dL/dM = 2*G_full*M.
  *
  * @note No gradient flows through ndc_z - depth is used only for sorting, not compositing.
  * @note Camera matrices (PV) are treated as constants; no grad flows to the camera.
  * @note Culled splats (clip_w <= 0) receive zero on all gradient outputs.
  *
- * @param[in]  i_px/y/z                 World-space position (recomputed; not saved from forward).
- * @param[in]  i_cxx/cxy/cxz/cyy/cyz/czz  Upper-triangle 3D covariance.
- * @param[in]  grad_o_*                 Upstream gradients (from rasterizer).
- * @param[out] grad_i_*                 Downstream gradients to GaussActivLayer.
- * @param[in]  count                    Number of splats; one thread per splat.
+ * @param[in]  i_px/y/z World-space position; Jacobian is recomputed here rather than
+ *                      saved from the forward pass (small compute cost, avoids a buffer).
+ * @param[in]  grad_o_* Upstream gradients (from rasterizer).
+ * @param[out] grad_i_* Downstream gradients to GaussActivLayer.
+ * @param[in]  count    Number of splats; one thread per splat.
  */
 __global__ void perspProjectBackwardKernel(
-    // splat3d inputs (recomputed, not saved)
+    // splat3d inputs (position only; Cov3D not needed since J^T*H*J uses no Cov3D terms)
     const float *__restrict__ i_px,
     const float *__restrict__ i_py,
     const float *__restrict__ i_pz,
-    const float *__restrict__ i_cxx,
-    const float *__restrict__ i_cxy,
-    const float *__restrict__ i_cxz,
-    const float *__restrict__ i_cyy,
-    const float *__restrict__ i_cyz,
-    const float *__restrict__ i_czz,
     // gradient output
     const float *__restrict__ grad_o_px,
     const float *__restrict__ grad_o_py,
@@ -239,32 +234,20 @@ __global__ void perspProjectBackwardKernel(
     float j11 = (d_pv[5] * clip_w - clip_y * d_pv[ 7]) * inv_w2;
     float j12 = (d_pv[9] * clip_w - clip_y * d_pv[11]) * inv_w2;
 
-    float cxx = i_cxx[i], cxy = i_cxy[i], cxz = i_cxz[i];
-    float                  cyy = i_cyy[i], cyz = i_cyz[i];
-    float                                  czz = i_czz[i];
-
-    // J * Cov3D
-    float js00 = j00*cxx + j01*cxy + j02*cxz;
-    float js01 = j00*cxy + j01*cyy + j02*cyz;
-    float js02 = j00*cxz + j01*cyz + j02*czz;
-
-    float js10 = j10*cxx + j11*cxy + j12*cxz;
-    float js11 = j10*cxy + j11*cyy + j12*cyz;
-    float js12 = j10*cxz + j11*cyz + j12*czz;
-
     float dcxx_2D = grad_o_cxx[i];
     float dcxy_2D = grad_o_cxy[i];
     float dcyy_2D = grad_o_cyy[i];
 
-    // dL/dCov_3D = J^T * dL/dCov_2D_sym * J
-    // entry (p,q): 2*dcxx_2D*(J[0,p]*js[0,q]) + dcxy_2D*(J[0,p]*js[1,q] + J[1,p]*js[0,q]) + 2*dcyy_2D*(J[1,p]*js[1,q])
-    // where js = J * Cov_3D (rows js0x and js1x precomputed above)
-    grad_i_cxx[i] = 2.f*dcxx_2D*j00*js00 + dcxy_2D*(j00*js10 + j10*js00) + 2.f*dcyy_2D*j10*js10;
-    grad_i_cxy[i] = 2.f*dcxx_2D*j00*js01 + dcxy_2D*(j00*js11 + j10*js01) + 2.f*dcyy_2D*j10*js11;
-    grad_i_cxz[i] = 2.f*dcxx_2D*j00*js02 + dcxy_2D*(j00*js12 + j10*js02) + 2.f*dcyy_2D*j10*js12;
-    grad_i_cyy[i] = 2.f*dcxx_2D*j01*js01 + dcxy_2D*(j01*js11 + j11*js01) + 2.f*dcyy_2D*j11*js11;
-    grad_i_cyz[i] = 2.f*dcxx_2D*j01*js02 + dcxy_2D*(j01*js12 + j11*js02) + 2.f*dcyy_2D*j11*js12;
-    grad_i_czz[i] = 2.f*dcxx_2D*j02*js02 + dcxy_2D*(j02*js12 + j12*js02) + 2.f*dcyy_2D*j12*js12;
+    // dL/dCov3D = J^T * H * J, H = [[dcxx_2D, hdxy], [hdxy, dcyy_2D]], hdxy = dcxy_2D/2.
+    // Off-diagonal outputs use the "full matrix" gradient convention (= half the stored-element
+    // gradient) because GaussActivLayer backward implements dL/dM = 2 * G_full * M.
+    float hdxy = 0.5f * dcxy_2D;
+    grad_i_cxx[i] = j00*j00*dcxx_2D + j00*j10*dcxy_2D          + j10*j10*dcyy_2D;
+    grad_i_cxy[i] = j00*j01*dcxx_2D + hdxy*(j00*j11 + j10*j01) + j10*j11*dcyy_2D;
+    grad_i_cxz[i] = j00*j02*dcxx_2D + hdxy*(j00*j12 + j10*j02) + j10*j12*dcyy_2D;
+    grad_i_cyy[i] = j01*j01*dcxx_2D + j01*j11*dcxy_2D          + j11*j11*dcyy_2D;
+    grad_i_cyz[i] = j01*j02*dcxx_2D + hdxy*(j01*j12 + j11*j02) + j11*j12*dcyy_2D;
+    grad_i_czz[i] = j02*j02*dcxx_2D + j02*j12*dcxy_2D          + j12*j12*dcyy_2D;
 
     // ===== position backward =====
     // ndc = clip / c_w, so d(ndc)/d(world) = J (already computed above)
@@ -319,8 +302,6 @@ void PerspProjectLayer::backward()
 
     perspProjectBackwardKernel<<<blocks, BLOCK_SIZE>>>(
         input->pos_x,  input->pos_y,  input->pos_z,
-        input->cov_xx, input->cov_xy, input->cov_xz,
-        input->cov_yy, input->cov_yz, input->cov_zz,
         grad_output->grad_pos_x,   grad_output->grad_pos_y,
         grad_output->grad_cov_xx,  grad_output->grad_cov_xy,  grad_output->grad_cov_yy,
         grad_output->grad_color_r, grad_output->grad_color_g, grad_output->grad_color_b,

@@ -170,6 +170,30 @@ add_executable(viewer
 )
 diffsplat_target_setup(viewer)
 
+# ===== grad_check: numerical gradient checker (no display, no OpenGL) =====
+add_executable(grad_check
+    tests/grad_check.cu
+    src/utils/gaussian3d_io.cpp
+    ${CUDA_SHARED_SOURCES}
+)
+target_include_directories(grad_check PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/stb
+)
+target_link_libraries(grad_check PRIVATE
+    glm::glm
+    CUDA::cuda_driver
+)
+set_target_properties(grad_check PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+target_compile_options(grad_check PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:
+        --use_fast_math
+        -diag-suppress=20012
+        -diag-suppress=20013
+        $<$<CONFIG:Debug>:-lineinfo>
+    >
+)
+
 # ===== Status =====
 message(STATUS "CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 if (CMAKE_BUILD_TYPE)
