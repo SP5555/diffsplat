@@ -7,7 +7,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-for /f "tokens=*" %%i in ('where nvcc') do set NVCC_PATH=%%i
+for /f "tokens=*" %%i in ('where nvcc') do if not defined NVCC_PATH set NVCC_PATH=%%i
 echo Using nvcc: %NVCC_PATH%
 
 if not exist build mkdir build
