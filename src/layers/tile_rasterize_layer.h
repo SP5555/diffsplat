@@ -7,26 +7,24 @@
 #include "../types/splat2d.h"
 
 /**
- * Drop-in replacement for RasterizeLayer using gsplat's rasterize algorithm.
+ * Tile-based differentiable Gaussian rasterizer.
  *
- * Algorithm differences from RasterizeLayer:
- *  - 2D thread blocks (TILE_SIZE x TILE_SIZE = 16x16), one thread per pixel.
- *    No pixel batching - avoids replaying the splat stream for large tiles.
- *  - Backward uses warp-level gradient reduction (via shuffle) before global
- *    atomicAdd, reducing atomic contention by ~32x vs per-thread atomics.
- *  - Backward uses last_ids (index of last contributing Gaussian per pixel)
- *    instead of n_contrib, eliminating the forward-sweep contrib_pos[] stack
- *    and its MAX_CONTRIB limit.
+ * Forward: assigns splats to 16x16 pixel tiles, depth-sorts per tile with CUB
+ * radix sort, then streams sorted splats in 256-element shared-memory batches for
+ * front-to-back alpha compositing. Each pixel exits early when transmittance drops
+ * below T_THRES. last_ids[pixel] records the sorted-list index of the final
+ * contributing Gaussian for the backward pass.
  *
- * Interface is identical to RasterizeLayer - swap in pipelines by changing
- * the declared type. num_tiles_x/y passed to allocate() are used for buffer
- * sizing; internally tiles are always TILE_SIZE-aligned.
+ * Backward: walks last_ids in reverse without replaying the full splat stream.
+ * Warp-level shuffle reduction before global atomicAdd reduces atomic contention
+ * by ~32x. The last_ids strategy removes the MAX_CONTRIB limit of an earlier
+ * stack-based approach and avoids storing a per-pixel contributor list.
  */
-class GsplatRasterizeLayer
+class TileRasterizeLayer
     : public TypedLayer<Splat2DParams, CudaBuffer<float>, Splat2DGrads, CudaBuffer<float>>
 {
 public:
-    ~GsplatRasterizeLayer() {}
+    ~TileRasterizeLayer() {}
 
     using TypedLayer::allocate;
     void allocate(int width, int height, int count);

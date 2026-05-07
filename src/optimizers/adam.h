@@ -2,12 +2,10 @@
 #include <vector>
 #include "../cuda/cuda_buffer.h"
 
-#define EPSILON 1e-8f
-
 struct AdamParams {
     float beta1   = 0.9f;
     float beta2   = 0.999f;
-    float epsilon = EPSILON;
+    float epsilon = 1e-8f;
 };
 
 /**

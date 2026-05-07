@@ -1,4 +1,4 @@
-#include "gsplat_rasterize_layer.h"
+#include "tile_rasterize_layer.h"
 
 #include <cub/cub.cuh>
 #include <cuda_runtime.h>
@@ -579,7 +579,7 @@ __global__ void gsplatBwdKernel(
 
 /* ===== ===== Utils ===== ===== */
 
-uint32_t GsplatRasterizeLayer::getVisibleCount()
+uint32_t TileRasterizeLayer::getVisibleCount()
 {
     uint32_t c = 0;
     CUDA_CHECK(cudaMemcpy(&c, d_visible_count, sizeof(uint32_t), cudaMemcpyDeviceToHost));
@@ -588,7 +588,7 @@ uint32_t GsplatRasterizeLayer::getVisibleCount()
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void GsplatRasterizeLayer::allocate(int width, int height, int count)
+void TileRasterizeLayer::allocate(int width, int height, int count)
 {
     // 2^25 = 33.5M (tile, splat) pairs.
     // The tile-assign kernel drops excess pairs gracefully if this is exceeded.
@@ -616,7 +616,7 @@ void GsplatRasterizeLayer::allocate(int width, int height, int count)
     resize(width, height);
 }
 
-void GsplatRasterizeLayer::resize(int new_width, int new_height)
+void TileRasterizeLayer::resize(int new_width, int new_height)
 {
     if (new_width == screen_width && new_height == screen_height)
         return;
@@ -634,7 +634,7 @@ void GsplatRasterizeLayer::resize(int new_width, int new_height)
 
 /* ===== ===== Forward / Backward ===== ===== */
 
-void GsplatRasterizeLayer::forward()
+void TileRasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
@@ -707,7 +707,7 @@ void GsplatRasterizeLayer::forward()
     }
 }
 
-void GsplatRasterizeLayer::backward()
+void TileRasterizeLayer::backward()
 {
     dim3 threads(TILE_SIZE, TILE_SIZE);
     dim3 grid(num_tiles_y, num_tiles_x);

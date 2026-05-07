@@ -5,7 +5,7 @@
 #include "../types/gaussian3d.h"
 #include "../layers/gauss_activ_layer.h"
 #include "../layers/persp_project_layer.h"
-#include "../layers/gsplat_rasterize_layer.h"
+#include "../layers/tile_rasterize_layer.h"
 
 /**
  * @brief Forward-only Gaussian splatting pipeline for PLY scene viewing.
@@ -52,5 +52,5 @@ private:
     /* ---- layers ---- */
     GaussActivLayer   atv_layer;
     PerspProjectLayer psp_layer;
-    GsplatRasterizeLayer ras_layer;
+    TileRasterizeLayer ras_layer;
 };

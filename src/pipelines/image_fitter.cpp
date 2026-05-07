@@ -105,7 +105,7 @@ void ImageFitter::step()
     pipeline.zeroGrad();
     pipeline.forward();
 
-    if (!is_optimization_running) return;
+    if (!is_running) return;
 
     pipeline.backward();
     optimizer.step();

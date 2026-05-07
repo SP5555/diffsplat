@@ -21,7 +21,7 @@
 
 #include "cuda/cuda_check.h"
 #include "layers/gauss_activ_layer.h"
-#include "layers/gsplat_rasterize_layer.h"
+#include "layers/tile_rasterize_layer.h"
 #include "layers/mse_loss_layer.h"
 #include "layers/persp_project_layer.h"
 #include "pipelines/pipeline.h"
@@ -64,7 +64,7 @@ struct Scene {
     CudaBuffer<float>    d_target;
     GaussActivLayer      atv;
     PerspProjectLayer    psp;
-    GsplatRasterizeLayer ras;
+    TileRasterizeLayer ras;
     MSELossLayer         mse;
     Pipeline             pipeline;
 };

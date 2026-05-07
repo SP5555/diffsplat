@@ -3,7 +3,8 @@ A differentiable 3D Gaussian Splatting renderer written from scratch in CUDA, no
 
 Implements the full pipeline end-to-end on the GPU: tile-based forward rasterization, analytic backward pass with alpha-blending gradients, and Adam optimization. Inspired by
 [3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)
-(Kerbl et al., SIGGRAPH 2023).
+(Kerbl et al., SIGGRAPH 2023). The tile-based rasterizer's backward pass takes cues from
+[gsplat](https://github.com/nerfstudio-project/gsplat) (Ye et al., 2024).
 
 ## TODO
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients

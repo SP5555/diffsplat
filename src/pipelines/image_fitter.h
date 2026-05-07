@@ -8,7 +8,7 @@
 #include "../layers/gauss_activ_layer.h"
 #include "../layers/mse_loss_layer.h"
 #include "../layers/persp_project_layer.h"
-#include "../layers/gsplat_rasterize_layer.h"
+#include "../layers/tile_rasterize_layer.h"
 #include "../optimizers/gaussian3d_adam.h"
 #include "../types/gaussian3d.h"
 
@@ -34,15 +34,17 @@ public:
     void savePLY(const std::string &path);
 
     float *getOutput();
-    int    getIterCount() const { return optimizer.getStepCount(); }
-    float  getLoss() const      { return mse_layer.getLoss(); }
+    int    getIterCount() const  { return optimizer.getStepCount(); }
+    float  getLoss()      const  { return mse_layer.getLoss(); }
 
-    bool is_optimization_running = true;
+    bool   isRunning()    const  { return is_running; }
+    void   setRunning(bool val)  { is_running = val; }
+
 private:
     /* ---- config ---- */
-    int width  = 0;
-    int height = 0;
-
+    int  width    = 0;
+    int  height   = 0;
+    bool is_running = true;
 
     /* ---- Gaussian state ---- */
     Gaussian3DParams gaussian_params;
@@ -53,7 +55,7 @@ private:
     /* ---- layers ---- */
     GaussActivLayer   atv_layer;
     PerspProjectLayer psp_layer;
-    GsplatRasterizeLayer ras_layer;
+    TileRasterizeLayer ras_layer;
     MSELossLayer      mse_layer;
 
     /* ---- optimizer ---- */

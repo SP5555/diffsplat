@@ -36,12 +36,12 @@ public:
     void setSHDegree(int degree) { sh_degree = degree; }
 
     // Camera world position for view-dependent SH. Call each frame before forward().
-    void setCameraPosition(const glm::vec3 &pos) { cam_x = pos.x; cam_y = pos.y; cam_z = pos.z; }
+    void setCameraPosition(const glm::vec3 &pos) { cam_pos = pos; }
 
     // grad_input needs (n, sh_degree) so we override the default
     void allocateGrad(int n) override { grad_input.allocate(n, sh_degree); }
 
 private:
-    int   sh_degree = 0;
-    float cam_x = 0.f, cam_y = 0.f, cam_z = 0.f;
+    int       sh_degree = 0;
+    glm::vec3 cam_pos   = {};
 };
