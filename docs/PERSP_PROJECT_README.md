@@ -32,7 +32,7 @@ $p_z^{\text{ndc}}$ is retained for depth sorting only and carries no gradient th
 
 ### Jacobian of the perspective map
 
-The covariance projection requires $J = \partial\,\mathbf{p}^{\text{ndc}}_{xy} \,/\, \partial\,\mathbf{p}$. Applying the quotient rule to $p_x^{\text{ndc}} = c_x / c_w$:
+The covariance projection requires $J = \partial \mathbf{p}^{\text{ndc}}_{xy} / \partial \mathbf{p}$. Applying the quotient rule to $p_x^{\text{ndc}} = c_x / c_w$:
 
 ```math
 \frac{\partial\, p_x^{\text{ndc}}}{\partial\, p_k} = \frac{\partial c_x/\partial p_k \cdot c_w \;-\; c_x \cdot \partial c_w/\partial p_k}{c_w^2}
