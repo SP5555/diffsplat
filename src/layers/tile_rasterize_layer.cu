@@ -98,7 +98,7 @@ __global__ void tileAssignKernel(
 
                 // Cull if the largest axis diameter is smaller than one pixel.
                 float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
-                if (fmaxf(extent_x, extent_y) >= pixel_ndc * 0.5f)
+                if (fmaxf(extent_x, extent_y) * 2.f >= pixel_ndc)
                 {
                     float min_x = x - extent_x, max_x = x + extent_x;
                     float min_y = y - extent_y, max_y = y + extent_y;

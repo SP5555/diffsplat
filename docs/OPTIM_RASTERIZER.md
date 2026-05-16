@@ -1,4 +1,4 @@
-# Optimization Notes
+# Tile-Cooperative Rasterizer Optimization
 
 This document records the profiling-driven optimization process for the tile-based Gaussian splat rasterizer, including what was tried, what worked, what didn't, and why.
 
@@ -122,7 +122,7 @@ Three variants of the cooperative kernel were benchmarked against the original:
 
 ## Benchmark Results
 
-### FPS (forward + backward + Adam, uniform splat distribution, tested with `imgfitapp`)
+### FPS (forward + backward + Adam, uniform splat distribution, tested with `fitter`)
 
 | Splat Count | Naive | Full Cooperative | Hybrid  | Hybrid vs Naive |
 |-------------|-------|------------------|---------|-----------------|
@@ -139,7 +139,7 @@ Three variants of the cooperative kernel were benchmarked against the original:
 | `rasterizeKernel`   | 27.9ms | 19.4ms | hybrid -30.4% faster |
 | **total** | **95.4ms** | **89.2ms** | **hybrid -6.5% faster** |
 
-### Real clustered scene (forward-only, variable splat density, tested with `plyviewapp`)
+### Real clustered scene (forward-only, variable splat density, tested with `viewer`)
 
 | Kernel            | Naive  | Hybrid | Delta |
 |-------------------|--------|--------|-------|
