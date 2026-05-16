@@ -90,18 +90,18 @@ __global__ void gsTileAssignKernel(
             float det = cxx * cyy - cxy * cxy;
             if (det > 0.f)
             {
-                float trace   = cxx + cyy;
-                float temp    = fmaxf(0.f, trace * trace - 4.f * det);
-                float lambda2 = 0.5f * (trace + sqrtf(temp));
+                // Tight axis-aligned half-extents of the 3-sigma ellipse.
+                // The x-extent of the ellipse depends only on cxx (cxy drops out),
+                // and symmetrically the y-extent depends only on cyy.
+                float extent_x = 3.f * sqrtf(cxx);
+                float extent_y = 3.f * sqrtf(cyy);
 
+                // Cull if the largest axis diameter is smaller than one pixel.
                 float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
-                if (3.f * sqrtf(lambda2 * 2.f) >= pixel_ndc)
+                if (fmaxf(extent_x, extent_y) >= pixel_ndc * 0.5f)
                 {
-                    float lambda1    = 0.5f * (trace - sqrtf(temp));
-                    float max_radius = 3.f * sqrtf(fmaxf(lambda1, lambda2));
-
-                    float min_x = x - max_radius, max_x = x + max_radius;
-                    float min_y = y - max_radius, max_y = y + max_radius;
+                    float min_x = x - extent_x, max_x = x + extent_x;
+                    float min_y = y - extent_y, max_y = y + extent_y;
 
                     // Convert NDC bounding box to tile indices via pixel coordinates.
                     // ndc -> pixel: px = (ndc + 1) / 2 * W,  py = (1 - ndc) / 2 * H
