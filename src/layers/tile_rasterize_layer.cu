@@ -19,11 +19,11 @@ static constexpr int TILE_SIZE   = 16;
 static constexpr int TILE_PIXELS = TILE_SIZE * TILE_SIZE; // 256 = 8 warps
 
 // Cap alpha so (1 - alpha) >= 0.01, keeping T_before = T_after / (1 - alpha) safe in the backward.
-static constexpr float GSPLAT_MAX_ALPHA = 0.99f;
+static constexpr float DS_MAX_ALPHA = 0.99f;
 // Gaussians below 1/255 alpha are invisible at 8-bit precision; skipping them is free.
-static constexpr float GSPLAT_ALPHA_THRES = 1.0f / 255.0f;
+static constexpr float DS_ALPHA_THRES = 1.0f / 255.0f;
 // Pixel is considered fully composited below 0.01% transmittance; no Gaussian contributes meaningfully past this.
-static constexpr float GSPLAT_T_THRES = 0.0001f;
+static constexpr float DS_T_THRES = 0.0001f;
 
 /* ===== ===== Tile Assign ===== ===== */
 
@@ -38,7 +38,7 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
 }
 
 /**
- * Tile assignment following gsplat's convention exactly.
+ * Tile assignment kernel.
  *
  * Tile boundaries are derived from pixel coordinates, not NDC fractions:
  *   tile_x = floor(pixel_x / TILE_SIZE)
@@ -49,7 +49,7 @@ __device__ inline uint64_t makeKey(uint32_t tile_id, float depth)
  * multiple of TILE_SIZE.  Passing an external num_tiles_x would misalign
  * tile boundaries whenever (num_tiles_x * TILE_SIZE != screen_width).
  */
-__global__ void gsTileAssignKernel(
+__global__ void tileAssignKernel(
     const float *__restrict__ pos_x,
     const float *__restrict__ pos_y,
     const float *__restrict__ pos_z,
@@ -145,7 +145,7 @@ __global__ void gsTileAssignKernel(
 
 /* ===== ===== Build Tile Ranges (identical to RasterizeLayer) ===== ===== */
 
-__global__ void gsBuildTileRangesKernel(
+__global__ void buildTileRangesKernel(
     const uint64_t *keys_sorted,
     int2 *tile_offsets,
     uint32_t n_isects,
@@ -166,7 +166,7 @@ __global__ void gsBuildTileRangesKernel(
 /**
  * @brief Forward rasterization: tile-based front-to-back alpha compositing of 2D Gaussians.
  *
- * Adapted from gsplat RasterizeToPixels3DGSFwd.cu. One 16x16 CUDA block per tile;
+ * Forward composite: tile-based front-to-back alpha compositing. One 16x16 CUDA block per tile;
  * one thread per pixel. Gaussians are streamed front-to-back in batches of TILE_PIXELS
  * (=256), loaded cooperatively into shared memory. Compositing terminates early
  * per-pixel when transmittance T drops below T_THRES.
@@ -189,7 +189,7 @@ __global__ void gsBuildTileRangesKernel(
  * @param[in]  image_height     Image height in pixels.
  * @param[in]  num_tiles_x      Tile count along x, for tile_id = row*num_tiles_x + col.
  */
-__global__ void gsplatFwdKernel(
+__global__ void compositeFwdKernel(
     const float    *__restrict__ pos_x,
     const float    *__restrict__ pos_y,
     const float    *__restrict__ cov_xx,
@@ -282,8 +282,8 @@ __global__ void gsplatFwdKernel(
             float sigma = 0.5f * dist2;
             if (sigma < 0.f) continue;
 
-            float alpha = fminf(GSPLAT_MAX_ALPHA, sh_a[t] * __expf(-sigma));
-            if (alpha < GSPLAT_ALPHA_THRES) continue;
+            float alpha = fminf(DS_MAX_ALPHA, sh_a[t] * __expf(-sigma));
+            if (alpha < DS_ALPHA_THRES) continue;
 
             // Accumulate colour and update transmittance before the saturation check
             float vis = alpha * T;
@@ -293,7 +293,7 @@ __global__ void gsplatFwdKernel(
             cur_idx  = batch_start + t;
             T        = T * (1.f - alpha);
 
-            if (T <= GSPLAT_T_THRES) done = true;
+            if (T <= DS_T_THRES) done = true;
         }
         __syncthreads();
     }
@@ -313,7 +313,7 @@ __global__ void gsplatFwdKernel(
 /**
  * @brief Backward rasterization: accumulates per-Gaussian gradients from pixel loss.
  *
- * Adapted from gsplat RasterizeToPixels3DGSBwd.cu. Traverses Gaussians back-to-front,
+ * Backward composite: accumulates per-Gaussian gradients from pixel loss. Traverses Gaussians back-to-front,
  * recovering T_before from T_after via the compositing identity:
  *   T_before = T_after / (1 - alpha)
  *
@@ -353,7 +353,7 @@ __global__ void gsplatFwdKernel(
  * @param[in]  image_height     Image height in pixels.
  * @param[in]  num_tiles_x      Tile count along x.
  */
-__global__ void gsplatBwdKernel(
+__global__ void compositeBwdKernel(
     // forward inputs
     const float    *__restrict__ pos_x,
     const float    *__restrict__ pos_y,
@@ -490,8 +490,8 @@ __global__ void gsplatBwdKernel(
                 else {
                     opac  = sh_a[t];
                     g_exp = __expf(-sigma);
-                    alpha = fminf(GSPLAT_MAX_ALPHA, opac * g_exp);
-                    if (alpha < GSPLAT_ALPHA_THRES) valid = false;
+                    alpha = fminf(DS_MAX_ALPHA, opac * g_exp);
+                    if (alpha < DS_ALPHA_THRES) valid = false;
                 }
             }
 
@@ -522,7 +522,7 @@ __global__ void gsplatBwdKernel(
 
                 // dL / d(sigma) = -opac . exp(-sigma) . v_alpha
                 // (chain through alpha = min(MAX_ALPHA, opac.exp(-sigma)))
-                if (opac * g_exp <= GSPLAT_MAX_ALPHA)
+                if (opac * g_exp <= DS_MAX_ALPHA)
                 {
                     v_a_l = g_exp * v_alpha;           // dL/d(opacity)
                     float v_sigma = -opac * g_exp * v_alpha;
@@ -646,7 +646,7 @@ void TileRasterizeLayer::forward()
     // Tile assign
     {
         int blocks = (input->count + TILE_PIXELS - 1) / TILE_PIXELS;
-        gsTileAssignKernel<<<blocks, TILE_PIXELS>>>(
+        tileAssignKernel<<<blocks, TILE_PIXELS>>>(
             input->pos_x, input->pos_y, input->pos_z,
             input->cov_xx, input->cov_xy, input->cov_yy,
             input->count,
@@ -686,7 +686,7 @@ void TileRasterizeLayer::forward()
     // Build per-tile {start, end} ranges in the sorted list
     {
         int blocks = ((int)n_isects + TILE_PIXELS - 1) / TILE_PIXELS;
-        gsBuildTileRangesKernel<<<blocks, TILE_PIXELS>>>(
+        buildTileRangesKernel<<<blocks, TILE_PIXELS>>>(
             d_isect_ids_sorted, d_tile_offsets, n_isects, numTiles);
         CUDA_SYNC_CHECK();
     }
@@ -695,7 +695,7 @@ void TileRasterizeLayer::forward()
     {
         dim3 threads(TILE_SIZE, TILE_SIZE);
         dim3 grid(num_tiles_y, num_tiles_x);
-        gsplatFwdKernel<<<grid, threads>>>(
+        compositeFwdKernel<<<grid, threads>>>(
             input->pos_x, input->pos_y,
             input->cov_xx, input->cov_xy, input->cov_yy,
             input->color_r, input->color_g, input->color_b,
@@ -711,7 +711,7 @@ void TileRasterizeLayer::backward()
 {
     dim3 threads(TILE_SIZE, TILE_SIZE);
     dim3 grid(num_tiles_y, num_tiles_x);
-    gsplatBwdKernel<<<grid, threads>>>(
+    compositeBwdKernel<<<grid, threads>>>(
         input->pos_x, input->pos_y,
         input->cov_xx, input->cov_xy, input->cov_yy,
         input->color_r, input->color_g, input->color_b,
