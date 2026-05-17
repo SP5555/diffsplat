@@ -20,6 +20,9 @@
 class ArcballCamera : public Camera
 {
 public:
+    // nearPlane: the perspective Jacobian scales with 1/nearPlane^2
+    // - a small nearPlane amplifies 2D covariances of near-plane splats, blowing them to screen size
+    // - keep near/far ratio >= 1:1000 as a safe guideline relative to your scene scale
     ArcballCamera(float aspect, float fovDegrees = 40.f,
            float nearPlane = 0.1f, float farPlane = 100.f);
 

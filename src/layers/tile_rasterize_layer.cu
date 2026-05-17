@@ -89,7 +89,7 @@ __global__ void tileAssignKernel(
         float y = pos_y[i];
         z = pos_z[i];
 
-        if (fabsf(x) <= 1.0f && fabsf(y) <= 1.0f && fabsf(z) <= 1.0f)
+        if (fabsf(z) <= 1.0f)
         {
             float cxx = cov_xx[i];
             float cxy = cov_xy[i];
@@ -104,9 +104,12 @@ __global__ void tileAssignKernel(
                 float extent_x = 3.f * sqrtf(cxx);
                 float extent_y = 3.f * sqrtf(cyy);
 
-                // Cull if the largest axis diameter is smaller than one pixel.
+                // Cull near-plane artifacts: perspective distortion blows up the
+                // Jacobian for splats close to the camera, producing ellipses that
+                // cover the whole screen. 1.5 NDC units = 3x the screen half-width.
                 float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
-                if (fmaxf(extent_x, extent_y) * 2.f >= pixel_ndc)
+                if (extent_x <= 1.5f && extent_y <= 1.5f &&
+                    fmaxf(extent_x, extent_y) * 2.f >= pixel_ndc)
                 {
                     float min_x = x - extent_x, max_x = x + extent_x;
                     float min_y = y - extent_y, max_y = y + extent_y;
