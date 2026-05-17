@@ -7,6 +7,7 @@
 #include "../cuda/cuda_check.h"
 #include "../cuda/cuda_defs.h"
 #include "../cuda/warp_ops.cuh"
+#include "../utils/logs.h"
 
 /* ===== ===== Constants ===== ===== */
 
@@ -19,11 +20,18 @@ static constexpr int TILE_SIZE   = 16;
 static constexpr int TILE_PIXELS = TILE_SIZE * TILE_SIZE; // 256 = 8 warps
 
 // Cap alpha so (1 - alpha) >= 0.01, keeping T_before = T_after / (1 - alpha) safe in the backward.
-static constexpr float DS_MAX_ALPHA = 0.99f;
+static constexpr float DS_MAX_ALPHA   = 0.99f;
 // Gaussians below 1/255 alpha are invisible at 8-bit precision; skipping them is free.
 static constexpr float DS_ALPHA_THRES = 1.0f / 255.0f;
 // Pixel is considered fully composited below 0.01% transmittance; no Gaussian contributes meaningfully past this.
-static constexpr float DS_T_THRES = 0.0001f;
+static constexpr float DS_T_THRES     = 0.0001f;
+
+// Intersection buffer starts at DS_ISECTS_INIT and grows by DS_ISECTS_GROW on each overflow retry.
+// Each pair costs 24 bytes (u64 ids + u32 gauss + u64 ids_sorted + u32 flatten),
+// e.g., DS_ISECTS_MAX_CAP = 1<<27 = 128M pairs caps usage at ~3 GB.
+static constexpr int   DS_ISECTS_INIT    = 1024;
+static constexpr float DS_ISECTS_GROW    = 1.5f;
+static constexpr int   DS_ISECTS_MAX_CAP = 1 << 27;
 
 /* ===== ===== Tile Assign ===== ===== */
 
@@ -588,18 +596,13 @@ uint32_t TileRasterizeLayer::getVisibleCount()
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void TileRasterizeLayer::allocate(int width, int height, int count)
+void TileRasterizeLayer::reallocIsects(int new_size)
 {
-    // 2^25 = 33.5M (tile, splat) pairs.
-    // The tile-assign kernel drops excess pairs gracefully if this is exceeded.
-    static constexpr int DEFAULT_MAX_ISECTS = 1 << 25;
-    max_isects = DEFAULT_MAX_ISECTS;
-    d_isect_ids.allocate        (max_isects);
-    d_gauss_ids.allocate        (max_isects);
-    d_isect_ids_sorted.allocate (max_isects);
-    d_flatten_ids.allocate      (max_isects);
-    d_n_isects.allocate         (1);
-    d_visible_count.allocate    (1);
+    max_isects = new_size;
+    d_isect_ids.allocate        (new_size);
+    d_gauss_ids.allocate        (new_size);
+    d_isect_ids_sorted.allocate (new_size);
+    d_flatten_ids.allocate      (new_size);
 
     size_t required = 0;
     uint64_t *dummy_keys = nullptr;
@@ -608,9 +611,19 @@ void TileRasterizeLayer::allocate(int width, int height, int count)
         nullptr, required,
         dummy_keys, dummy_keys,
         dummy_vals, dummy_vals,
-        max_isects));
-    d_sort_temp.allocate(required);
-    sort_temp_bytes = required;
+        new_size));
+    if (required > sort_temp_bytes)
+    {
+        d_sort_temp.allocate(required);
+        sort_temp_bytes = required;
+    }
+}
+
+void TileRasterizeLayer::allocate(int width, int height, int count)
+{
+    reallocIsects(DS_ISECTS_INIT);
+    d_n_isects.allocate      (1);
+    d_visible_count.allocate (1);
 
     // Pixel-size buffers: delegate to resize.
     resize(width, height);
@@ -638,13 +651,16 @@ void TileRasterizeLayer::forward()
 {
     int numTiles = num_tiles_x * num_tiles_y;
 
-    CUDA_CHECK(cudaMemset(output, 0, num_pixels * 3 * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_n_isects,      0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(d_tile_offsets,  0, numTiles * sizeof(int2)));
+    CUDA_CHECK(cudaMemset(output,         0, num_pixels * 3 * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_tile_offsets, 0, numTiles * sizeof(int2)));
 
-    // Tile assign
+    // Tile assign -- retries with 1.5x buffer if overflow is detected.
+    uint32_t n_isects = 0;
+    for (;;)
     {
+        CUDA_CHECK(cudaMemset(d_n_isects,      0, sizeof(uint32_t)));
+        CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
+
         int blocks = (input->count + TILE_PIXELS - 1) / TILE_PIXELS;
         tileAssignKernel<<<blocks, TILE_PIXELS>>>(
             input->pos_x, input->pos_y, input->pos_z,
@@ -655,11 +671,28 @@ void TileRasterizeLayer::forward()
             max_isects, num_tiles_x, num_tiles_y,
             screen_width, screen_height);
         CUDA_SYNC_CHECK();
-    }
 
-    uint32_t n_isects = 0;
-    CUDA_CHECK(cudaMemcpy(&n_isects, d_n_isects, sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    if (n_isects == 0) return;
+        CUDA_CHECK(cudaMemcpy(&n_isects, d_n_isects, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+
+        if (n_isects == 0) return;
+        if (n_isects < (uint32_t)max_isects) break;
+
+        // Buffer too small -- grow by DS_ISECTS_GROW and retry.
+        int next_size = (int)(max_isects * DS_ISECTS_GROW);
+        if (next_size > DS_ISECTS_MAX_CAP)
+        {
+            static bool s_warned = false;
+            if (!s_warned)
+            {
+                log_warning("TileRasterize",
+                    "hit hard cap (" + std::to_string(DS_ISECTS_MAX_CAP) + " pairs); "
+                    "rendering with artifacts -- increase DS_ISECTS_MAX_CAP in tile_rasterize_layer.cu if needed");
+                s_warned = true;
+            }
+            break;
+        }
+        reallocIsects(next_size);
+    }
 
     // Radix sort (tile_id | depth, splat_id)
     {

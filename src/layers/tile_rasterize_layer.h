@@ -50,6 +50,8 @@ private:
     CudaBuffer<uint8_t>  d_sort_temp;
     size_t sort_temp_bytes = 0;
 
+    void reallocIsects(int new_size);
+
     /* ---- config ---- */
     int screen_width  = 0;
     int screen_height = 0;
