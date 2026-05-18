@@ -78,6 +78,14 @@ __device__ __forceinline__ RotMat3 quatToRotMat(float qw, float qx, float qy, fl
     };
 }
 
+/* ===== ===== Activation ===== ===== */
+
+/** @brief Sigmoid activation: 1 / (1 + exp(-x)). */
+__device__ __forceinline__ float sigmoid(float x)
+{
+    return 1.f / (1.f + expf(-x));
+}
+
 /* ===== ===== View Direction ===== ===== */
 
 /**

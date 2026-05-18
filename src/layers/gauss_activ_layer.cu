@@ -166,7 +166,7 @@ __global__ void covForwardKernel(
     o_lin_b[i] = fminf(fmaxf(cb + 0.5f, 0.f), 1.f);
 
     // sigmoid activation on opacity
-    o_a[i] = 1.f / (1.f + expf(-i_logit_a[i]));
+    o_a[i] = sigmoid(i_logit_a[i]);
 }
 
 /**
@@ -402,8 +402,8 @@ __global__ void covBackwardKernel(
     }
 
     // --- sigmoid backward: dL/dlogit = dL/dopacity * s * (1 - s) ---
-    float s = opacity[i];
-    grad_i_logit_a[i] = grad_o_a[i] * s * (1.f - s);
+    float s = opacity[i]; // sigmoid output saved from forward
+    grad_i_logit_a[i] = grad_o_a[i] * s * (1.f - s); // sigmoid backward: s*(1-s)
 }
 
 /* ===== ===== Forward / Backward ===== ===== */
