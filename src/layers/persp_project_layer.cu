@@ -277,7 +277,10 @@ void PerspProjectLayer::setCamera(const glm::mat4 &view, const glm::mat4 &proj)
 
 void PerspProjectLayer::forward()
 {
-    int count   = input->count;
+    int count     = input->count;
+    output.count  = count;
+    if (count == 0) return;
+
     int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     perspProjectForwardKernel<<<blocks, BLOCK_SIZE>>>(

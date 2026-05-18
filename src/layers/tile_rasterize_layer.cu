@@ -657,6 +657,8 @@ void TileRasterizeLayer::forward()
     CUDA_CHECK(cudaMemset(output,         0, num_pixels * 3 * sizeof(float)));
     CUDA_CHECK(cudaMemset(d_tile_offsets, 0, numTiles * sizeof(int2)));
 
+    if (input->count == 0) return;
+
     // Tile assign -- retries with 1.5x buffer if overflow is detected.
     uint32_t n_isects = 0;
     for (;;)
