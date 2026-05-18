@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include "layer.h"
 #include "../types/veg_gaussian3d.h"
 #include "../types/splat3d.h"
@@ -36,6 +37,7 @@ public:
     void initDefaultLUT();
 
 private:
-    CudaBuffer<float> d_lut_rgb;   // VEG_LUT_SIZE * 3
-    CudaBuffer<float> d_lut_alpha; // VEG_LUT_SIZE
+    CudaBuffer<float>    d_lut_rgb;    // VEG_LUT_SIZE * 3
+    CudaBuffer<float>    d_lut_alpha;  // VEG_LUT_SIZE
+    CudaBuffer<uint32_t> d_out_count;  // surviving splat count after opacity cull
 };
