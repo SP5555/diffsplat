@@ -185,6 +185,8 @@ add_executable(veg_viewer
     ${CPP_SHARED_SOURCES}
 )
 diffsplat_target_setup(veg_viewer)
+# tfn headers use M_PI; MSVC only exposes it with _USE_MATH_DEFINES
+target_compile_definitions(veg_viewer PRIVATE _USE_MATH_DEFINES)
 
 # ===== grad_check: numerical gradient checker (no display, no OpenGL) =====
 add_executable(grad_check
