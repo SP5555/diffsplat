@@ -8,6 +8,7 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 
 ## TODO
 - [ ] Density Control to adaptively split, clone and prune splats based on gradients
+- [X] I-VEG volume viewer with real-time transfer function editing
 - [X] View-dependent SH colors (degrees 0-3) for viewer -- splats now have opinions about the lighting
 - [ ] ~~SH colors for fitter so splats can finally have opinions about the lighting~~ yeah, no. Why would 2D image fitter need SH colors?
 - [X] SH degree selector (0 to max) in viewer ImGui window
@@ -34,6 +35,7 @@ Implements the full pipeline end-to-end on the GPU: tile-based forward rasteriza
 - OpenGL 3.3+ (provided by your GPU driver, no install needed)
 - GLAD, stb_image, cxxopts, tinyfiledialogs (included in `third_party/`)
 - GLFW3, GLM, Dear ImGui, ImPlot (included as submodules in `third_party/`)
+- tfn (transfer-function widget, included in `third_party/tfn/`) -- required for `veg_viewer` only
 
 ## Build
 ```sh
@@ -78,6 +80,50 @@ cmake --build . --config Release --parallel
 ---
 
 ## Apps
+
+### veg_viewer (I-VEG Volume Viewer)
+
+Real-time volume renderer for scenes trained with [VEG](https://github.com/ldyken53/VEG) -- a 3DGS variant where each Gaussian encodes a scalar value instead of spherical harmonics. Color and opacity are not baked into the scene; they are computed live at every frame from a **fully interactive transfer function**, letting you explore the entire scalar range of a volume dataset without ever retraining.
+
+Paint your own color map, sculpt the opacity curve, and watch the scene transform **instantly** -- zero reloading, zero retraining, zero lag.
+
+- Each Gaussian carries one scalar value. Color and opacity come entirely from the transfer function -- not the scene.
+- The **Transfer Function** widget (left panel) pushes your color map and opacity curve to the GPU the moment you edit it.
+
+> **Note:** `veg_viewer` only loads PLY files produced by the [VEG](https://github.com/ldyken53/VEG) training pipeline. Standard 3DGS PLY files will not work -- use `viewer` for those.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--scene` | _(none)_ | Path to VEG `.ply` file -- if omitted, use the **Open PLY...** button in the UI |
+| `--scale` | `1.0` | Scene normalization scale |
+| `--camera` | `arcball` | Camera mode: `fly` or `arcball` |
+
+```sh
+# Linux
+./build/veg_viewer [--scene data/veg/vorts.ply] [--scale 1.0] [--camera fly|arcball]
+
+# Windows
+.\build\Release\veg_viewer [--scene data\veg\vorts.ply] [--scale 1.0] [--camera fly|arcball]
+```
+
+A sample scene (`vorts` -- a simulated tornado vorticity field) is included in `data/veg/vorts.ply`.
+
+<p align="center">
+  <table width="100%">
+    <tr>
+      <th width="33%">Periphery</th>
+      <th width="33%">Body</th>
+      <th width="33%">Core</th>
+    </tr>
+    <tr>
+      <td><img src="assets/vorts_periphery.png" width="100%"></td>
+      <td><img src="assets/vorts_body.png" width="100%"></td>
+      <td><img src="assets/vorts_core.png" width="100%"></td>
+    </tr>
+  </table>
+</p>
+
+---
 
 ### fitter (Image Fitter)
 

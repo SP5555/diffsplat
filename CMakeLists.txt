@@ -106,6 +106,7 @@ function(diffsplat_target_setup TARGET)
         ${CMAKE_SOURCE_DIR}/third_party/stb
         ${CMAKE_SOURCE_DIR}/third_party/tinyfiledialogs
         ${CMAKE_SOURCE_DIR}/third_party/cxxopts
+        ${CMAKE_SOURCE_DIR}/third_party/tfn
     )
     target_link_libraries(${TARGET} PRIVATE
         OpenGL::GL
@@ -169,6 +170,21 @@ add_executable(viewer
     ${CUDA_SHARED_SOURCES}
 )
 diffsplat_target_setup(viewer)
+
+# ===== veg_viewer: VEG volume viewer with transfer function =====
+add_executable(veg_viewer
+    src/main_veg.cpp
+    src/app/veg_app.cpp
+    src/io/veg_ply_io.cpp
+    src/pipelines/veg_renderer.cpp
+    src/layers/veg_activ_layer.cu
+    src/camera/arcball_camera.cpp
+    src/camera/fly_camera.cpp
+    src/layers/persp_project_layer.cu
+    src/layers/tile_rasterize_layer.cu
+    ${CPP_SHARED_SOURCES}
+)
+diffsplat_target_setup(veg_viewer)
 
 # ===== grad_check: numerical gradient checker (no display, no OpenGL) =====
 add_executable(grad_check
