@@ -281,7 +281,7 @@ void PerspProjectLayer::forward()
     output.count  = count;
     if (count == 0) return;
 
-    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks  = divRoundUp(count, BLOCK_SIZE);
 
     perspProjectForwardKernel<<<blocks, BLOCK_SIZE>>>(
         input->pos_x,   input->pos_y,   input->pos_z,
@@ -301,7 +301,7 @@ void PerspProjectLayer::forward()
 void PerspProjectLayer::backward()
 {
     int count   = input->count;
-    int blocks  = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks  = divRoundUp(count, BLOCK_SIZE);
 
     perspProjectBackwardKernel<<<blocks, BLOCK_SIZE>>>(
         input->pos_x,  input->pos_y,  input->pos_z,

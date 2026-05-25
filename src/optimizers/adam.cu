@@ -49,7 +49,7 @@ static void stepOne(
     float bc2,
     int n)
 {
-    int blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks = divRoundUp(n, BLOCK_SIZE);
     adamKernel<<<blocks, BLOCK_SIZE>>>(
         param, grad, moment, variance,
         lr, beta1, beta2, epsilon, bc1, bc2, n

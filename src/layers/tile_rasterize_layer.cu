@@ -20,11 +20,18 @@ static constexpr int TILE_SIZE   = 16;
 static constexpr int TILE_PIXELS = TILE_SIZE * TILE_SIZE; // 256 = 8 warps
 
 // Cap alpha so (1 - alpha) >= 0.01, keeping T_before = T_after / (1 - alpha) safe in the backward.
-static constexpr float DS_MAX_ALPHA   = 0.99f;
+static constexpr float DS_MAX_ALPHA      = 0.99f;
 // Gaussians below 1/255 alpha are invisible at 8-bit precision; skipping them is free.
-static constexpr float DS_ALPHA_THRES = 1.0f / 255.0f;
+static constexpr float DS_ALPHA_THRES    = 1.0f / 255.0f;
 // Pixel is considered fully composited below 0.01% transmittance; no Gaussian contributes meaningfully past this.
-static constexpr float DS_T_THRES     = 0.0001f;
+static constexpr float DS_T_THRES        = 0.0001f;
+// Tile footprint extends this many standard deviations from each Gaussian center.
+static constexpr float DS_SIGMA_EXTENT   = 3.f;
+// Splats with a half-extent larger than this in NDC are culled as near-plane artifacts.
+// Perspective distortion near z=0 can blow the Jacobian up to screen-filling ellipses.
+static constexpr float DS_MAX_NDC_EXTENT = 1.5f;
+// All-lanes-active mask for warp vote / reduction intrinsics (__any_sync, etc.).
+static constexpr uint32_t FULL_WARP_MASK = 0xffffffffu;
 
 // Intersection buffer starts at DS_ISECTS_INIT and grows by DS_ISECTS_GROW on each overflow retry.
 // Each pair costs 24 bytes (u64 ids + u32 gauss + u64 ids_sorted + u32 flatten),
@@ -98,18 +105,15 @@ __global__ void tileAssignKernel(
             float det = cxx * cyy - cxy * cxy;
             if (det > 0.f)
             {
-                // Tight axis-aligned half-extents of the 3-sigma ellipse.
-                // The x-extent of the ellipse depends only on cxx (cxy drops out),
+                // Tight axis-aligned half-extents of the DS_SIGMA_EXTENT-sigma ellipse.
+                // The x-extent depends only on cxx (cxy drops out of the axis-aligned projection),
                 // and symmetrically the y-extent depends only on cyy.
-                float extent_x = 3.f * sqrtf(cxx);
-                float extent_y = 3.f * sqrtf(cyy);
+                float extent_x = DS_SIGMA_EXTENT * sqrtf(cxx);
+                float extent_y = DS_SIGMA_EXTENT * sqrtf(cyy);
 
-                // Cull near-plane artifacts: perspective distortion blows up the
-                // Jacobian for splats close to the camera, producing ellipses that
-                // cover the whole screen. 1.5 NDC units = 3x the screen half-width.
                 float pixel_ndc = fmaxf(2.f / screen_width, 2.f / screen_height);
-                if (extent_x <= 1.5f && extent_y <= 1.5f &&
-                    fmaxf(extent_x, extent_y) * 2.f >= pixel_ndc)
+                if (extent_x <= DS_MAX_NDC_EXTENT && extent_y <= DS_MAX_NDC_EXTENT &&
+                    fmaxf(extent_x, extent_y) * 2.f >= pixel_ndc) // diameter >= 1 pixel
                 {
                     float min_x = x - extent_x, max_x = x + extent_x;
                     float min_y = y - extent_y, max_y = y + extent_y;
@@ -229,8 +233,8 @@ __global__ void compositeFwdKernel(
     __shared__ float sh_b   [TILE_PIXELS];
     __shared__ float sh_a   [TILE_PIXELS];
 
-    int tile_row = blockIdx.x;
-    int tile_col = blockIdx.y;
+    int tile_col = blockIdx.x; // x-dimension -> column
+    int tile_row = blockIdx.y; // y-dimension -> row
     int tile_id  = tile_row * num_tiles_x + tile_col;
 
     int i = tile_row * TILE_SIZE + threadIdx.y; // pixel row
@@ -248,7 +252,7 @@ __global__ void compositeFwdKernel(
     int2     range      = tile_offsets[tile_id];
     int      range_start = range.x;
     int      range_end   = range.y;
-    uint32_t num_batches = ((uint32_t)(range_end - range_start) + TILE_PIXELS - 1) / TILE_PIXELS;
+    uint32_t num_batches = (uint32_t)divRoundUp(range_end - range_start, TILE_PIXELS);
 
     uint32_t tr = threadIdx.y * TILE_SIZE + threadIdx.x; // thread rank in block
 
@@ -408,8 +412,8 @@ __global__ void compositeBwdKernel(
     __shared__ float    sh_b   [TILE_PIXELS];
     __shared__ float    sh_a   [TILE_PIXELS];
 
-    int tile_row = blockIdx.x;
-    int tile_col = blockIdx.y;
+    int tile_col = blockIdx.x; // x-dimension -> column
+    int tile_row = blockIdx.y; // y-dimension -> row
     int tile_id  = tile_row * num_tiles_x + tile_col;
 
     int i = tile_row * TILE_SIZE + threadIdx.y;
@@ -427,7 +431,7 @@ __global__ void compositeBwdKernel(
     int  range_end   = range.y;
     if (range_end <= range_start) return;
 
-    uint32_t num_batches = ((uint32_t)(range_end - range_start) + TILE_PIXELS - 1) / TILE_PIXELS;
+    uint32_t num_batches = (uint32_t)divRoundUp(range_end - range_start, TILE_PIXELS);
 
     uint32_t tr        = threadIdx.y * TILE_SIZE + threadIdx.x;
     uint32_t warp_lane = tr % 32;
@@ -473,7 +477,7 @@ __global__ void compositeBwdKernel(
             sh_r   [tr] = color_r[g];
             sh_g   [tr] = color_g[g];
             sh_b   [tr] = color_b[g];
-            sh_a   [tr] = opacity [g];
+            sh_a   [tr] = opacity[g];
         }
         __syncthreads();
 
@@ -507,7 +511,7 @@ __global__ void compositeBwdKernel(
             }
 
             // Skip if no thread in the warp is valid for this Gaussian.
-            if (!__any_sync(0xffffffffu, valid)) continue;
+            if (!__any_sync(FULL_WARP_MASK, valid)) continue;
 
             float v_r_l   = 0.f, v_g_l   = 0.f, v_b_l   = 0.f;
             float v_x_l   = 0.f, v_y_l   = 0.f;
@@ -516,8 +520,10 @@ __global__ void compositeBwdKernel(
 
             if (valid)
             {
-                // Recover T_before from T_after using the compositing identity.
-                float T_before = T / fmaxf(1.f - alpha, 1e-6f);
+                // Recover T_before from T_after: T_before = T_after / (1 - alpha).
+                // Safe: alpha = fminf(DS_MAX_ALPHA, ...) above guarantees
+                // (1 - alpha) >= (1 - DS_MAX_ALPHA) = 0.01, so no division by zero.
+                float T_before = T / fmaxf(1.f - alpha, 1.f - DS_MAX_ALPHA);
                 float fac      = alpha * T_before;
 
                 // dL / d(color)
@@ -545,8 +551,9 @@ __global__ void compositeBwdKernel(
                     v_x_l = v_dist2 * ddist2_dx;
                     v_y_l = v_dist2 * ddist2_dy;
 
-                    // dL/d(cov_xx/xy/yy) via reformulated chain rule
-                    // (avoids storing inv_cov in forward; see header comment)
+                    // dL/d(cov_xx/xy/yy) via reformulated chain rule (avoids storing inv_cov from forward).
+                    // Derivation: ddist2/dcxx = -1/4 * ddist2_dx^2, and symmetrically for cyy;
+                    // ddist2/dcxy = -2*icxy*dist2 - 2*dx*dy*idet.
                     v_cxx_l = v_dist2 * (-0.25f * ddist2_dx * ddist2_dx);
                     v_cyy_l = v_dist2 * (-0.25f * ddist2_dy * ddist2_dy);
                     v_cxy_l = v_dist2 * (-2.f * sh_icxy[t] * dist2 - 2.f * dx * dy * idet_t);
@@ -640,8 +647,8 @@ void TileRasterizeLayer::resize(int new_width, int new_height)
     screen_height = new_height;
     num_pixels    = screen_width * screen_height;
     // Tile counts derived from resolution so tile boundaries align with 16x16 blocks.
-    num_tiles_x   = (screen_width  + TILE_SIZE - 1) / TILE_SIZE;
-    num_tiles_y   = (screen_height + TILE_SIZE - 1) / TILE_SIZE;
+    num_tiles_x   = divRoundUp(screen_width,  TILE_SIZE);
+    num_tiles_y   = divRoundUp(screen_height, TILE_SIZE);
     output.allocate (num_pixels * 3);
     d_render_alphas.allocate (num_pixels);
     d_last_ids.allocate      (num_pixels);
@@ -666,7 +673,7 @@ void TileRasterizeLayer::forward()
         CUDA_CHECK(cudaMemset(d_n_isects,      0, sizeof(uint32_t)));
         CUDA_CHECK(cudaMemset(d_visible_count, 0, sizeof(uint32_t)));
 
-        int blocks = (input->count + TILE_PIXELS - 1) / TILE_PIXELS;
+        int blocks = divRoundUp(input->count, TILE_PIXELS);
         tileAssignKernel<<<blocks, TILE_PIXELS>>>(
             input->pos_x, input->pos_y, input->pos_z,
             input->cov_xx, input->cov_xy, input->cov_yy,
@@ -723,7 +730,7 @@ void TileRasterizeLayer::forward()
 
     // Build per-tile {start, end} ranges in the sorted list
     {
-        int blocks = ((int)n_isects + TILE_PIXELS - 1) / TILE_PIXELS;
+        int blocks = divRoundUp((int)n_isects, TILE_PIXELS);
         buildTileRangesKernel<<<blocks, TILE_PIXELS>>>(
             d_isect_ids_sorted, d_tile_offsets, n_isects, numTiles);
         CUDA_SYNC_CHECK();
@@ -732,7 +739,7 @@ void TileRasterizeLayer::forward()
     // Rasterize: one 16x16 block per tile
     {
         dim3 threads(TILE_SIZE, TILE_SIZE);
-        dim3 grid(num_tiles_y, num_tiles_x);
+        dim3 grid(num_tiles_x, num_tiles_y);
         compositeFwdKernel<<<grid, threads>>>(
             input->pos_x, input->pos_y,
             input->cov_xx, input->cov_xy, input->cov_yy,
@@ -748,7 +755,7 @@ void TileRasterizeLayer::forward()
 void TileRasterizeLayer::backward()
 {
     dim3 threads(TILE_SIZE, TILE_SIZE);
-    dim3 grid(num_tiles_y, num_tiles_x);
+    dim3 grid(num_tiles_x, num_tiles_y);
     compositeBwdKernel<<<grid, threads>>>(
         input->pos_x, input->pos_y,
         input->cov_xx, input->cov_xy, input->cov_yy,

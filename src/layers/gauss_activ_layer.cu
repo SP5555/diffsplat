@@ -413,7 +413,7 @@ void GaussActivLayer::forward()
     int count = input->count;
     output.count = count;
 
-    int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks = divRoundUp(count, BLOCK_SIZE);
     covForwardKernel<<<blocks, BLOCK_SIZE>>>(
         input->pos_x,   input->pos_y,   input->pos_z,
         input->scale_x, input->scale_y, input->scale_z,
@@ -443,7 +443,7 @@ void GaussActivLayer::backward()
 {
     int count = input->count;
 
-    int blocks = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int blocks = divRoundUp(count, BLOCK_SIZE);
     covBackwardKernel<<<blocks, BLOCK_SIZE>>>(
         input->pos_x,   input->pos_y,   input->pos_z,
         input->scale_x, input->scale_y, input->scale_z,
