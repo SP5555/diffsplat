@@ -30,8 +30,6 @@ static constexpr float DS_SIGMA_EXTENT   = 3.f;
 // Splats with a half-extent larger than this in NDC are culled as near-plane artifacts.
 // Perspective distortion near z=0 can blow the Jacobian up to screen-filling ellipses.
 static constexpr float DS_MAX_NDC_EXTENT = 1.5f;
-// All-lanes-active mask for warp vote / reduction intrinsics (__any_sync, etc.).
-static constexpr uint32_t FULL_WARP_MASK = 0xffffffffu;
 
 // Intersection buffer starts at DS_ISECTS_INIT and grows by DS_ISECTS_GROW on each overflow retry.
 // Each pair costs 24 bytes (u64 ids + u32 gauss + u64 ids_sorted + u32 flatten),
