@@ -1,5 +1,8 @@
 #pragma once
+#include <cstdint>
 #include <cuda_runtime.h>
+
+static constexpr uint32_t FULL_WARP_MASK = 0xffffffffu;
 
 /**
  * @brief Warp-level sum reduction via shuffle-down.
@@ -9,7 +12,7 @@
 __device__ __forceinline__ float warpReduceSum(float val)
 {
     for (int offset = 16; offset > 0; offset >>= 1)
-        val += __shfl_down_sync(0xffffffffu, val, offset);
+        val += __shfl_down_sync(FULL_WARP_MASK, val, offset);
     return val;
 }
 
@@ -25,7 +28,7 @@ __device__ __forceinline__ float warpReduceSum(float val)
 __device__ __forceinline__ int warpAllReduceMax(int val)
 {
     for (int mask = 16; mask > 0; mask >>= 1)
-        val = max(val, __shfl_xor_sync(0xffffffffu, val, mask));
+        val = max(val, __shfl_xor_sync(FULL_WARP_MASK, val, mask));
     return val;
 }
 
