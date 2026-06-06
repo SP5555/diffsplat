@@ -36,6 +36,32 @@ __global__ void adamKernel(
     param[idx] -= lr * m_hat / (sqrtf(v_hat) + epsilon);
 }
 
+static __global__ void zeroSlotsKernel(float* m, float* v, const int* indices, int count)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= count) return;
+    int slot = indices[i];
+    m[slot] = 0.f;
+    v[slot] = 0.f;
+}
+
+void Adam::zeroGroupMoments(int group_idx)
+{
+    auto& g = groups[group_idx];
+    g.m.zero();
+    g.v.zero();
+}
+
+void Adam::zeroSlotMoments(const int* d_indices, int count, int n_match)
+{
+    int blocks = divRoundUp(count, BLOCK_SIZE);
+    for (auto& g : groups) {
+        if (g.n != n_match) continue;
+        zeroSlotsKernel<<<blocks, BLOCK_SIZE>>>(g.m, g.v, d_indices, count);
+    }
+    CUDA_SYNC_CHECK();
+}
+
 static void stepOne(
     float* param,
     const float* grad,

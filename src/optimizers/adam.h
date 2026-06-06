@@ -60,6 +60,14 @@ public:
 
     void step();
 
+    // Zero m and v for an entire group (e.g. after an opacity reset).
+    void zeroGroupMoments(int group_idx);
+
+    // Zero m and v at specific slot indices in every group whose element
+    // count equals n_match. Groups with a different count (e.g. SH rest
+    // groups whose count is N*bands) are left untouched.
+    void zeroSlotMoments(const int* d_indices, int count, int n_match);
+
     int               getStepCount() const { return step_count; }
     const AdamParams& getParams()    const { return hp; }
 

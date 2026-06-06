@@ -151,6 +151,7 @@ add_executable(fitter
     src/utils/gaussian3d_io.cpp
     src/io/ply_io.cpp
     src/pipelines/image_fitter.cpp
+    src/density/mcmc_controller.cu
     ${CPP_SHARED_SOURCES}
     ${CUDA_SHARED_SOURCES}
 )

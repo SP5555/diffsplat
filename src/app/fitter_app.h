@@ -2,17 +2,15 @@
 #include <string>
 #include <vector>
 #include "app_base.h"
-#include "../pipelines/image_fitter.h"
+#include "../pipelines/image_fitter.h" // also brings in MCMCConfig
 
-/**
- * @brief App for differentiable Gaussian image fitting.
- *
- * Owns an ImageFitter pipeline and drives the fit loop.
- */
+// App for differentiable Gaussian image fitting.
+// Owns an ImageFitter pipeline and drives the fit loop.
 class FitterApp : public AppBase
 {
 public:
-    FitterApp(int width, int height, const std::string &image_path, int splat_count = 60000);
+    FitterApp(int width, int height, const std::string &image_path,
+              int splat_count = 60000, const MCMCConfig& mcmc_cfg = {});
 
 protected:
     void onStart()  override;
@@ -24,6 +22,7 @@ private:
 
     std::string  image_path;
     int          splat_count;
+    MCMCConfig   mcmc_cfg;
     ImageFitter  fitter;
 
     // ImGui

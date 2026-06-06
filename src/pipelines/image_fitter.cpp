@@ -7,6 +7,8 @@
 #include <iostream>
 
 #include "../cuda/cuda_check.h"
+#include "../density/density_controller.h"
+#include "../density/mcmc_controller.h"
 #include "../io/image_io.h"
 #include "../io/ply_io.h"
 #include "../utils/gaussian3d_io.h"
@@ -15,10 +17,14 @@
 
 /* ===== ===== Lifecycle ===== ===== */
 
-void ImageFitter::init(int w, int h)
+ImageFitter::ImageFitter()  = default;
+ImageFitter::~ImageFitter() = default;
+
+void ImageFitter::init(int w, int h, const MCMCConfig& cfg)
 {
-    width  = w;
-    height = h;
+    width    = w;
+    height   = h;
+    mcmc_cfg = cfg;
 
     float half_w = width  * 0.5f;
     float half_h = height * 0.5f;
@@ -89,7 +95,12 @@ void ImageFitter::initLayers()
 
     // optimizer state
     optimizer.init();
-    registerGaussian3DGroups(optimizer, gaussian_params, atv_layer.getGradInput());
+    group_indices = registerGaussian3DGroups(optimizer, gaussian_params, atv_layer.getGradInput());
+
+    // density control -- construct the concrete type, then store via base pointer
+    auto mcmc = std::make_unique<MCMCController>();
+    mcmc->init(mcmc_cfg, gaussian_params.count, group_indices);
+    density_ctrl = std::move(mcmc);
 
     // register in pipeline
     pipeline.add(&atv_layer);
@@ -108,7 +119,9 @@ void ImageFitter::step()
     if (!is_running) return;
 
     pipeline.backward();
+    density_ctrl->preOptimizerStep(gaussian_params, atv_layer.getGradInput(), optimizer.getStepCount());
     optimizer.step();
+    density_ctrl->postOptimizerStep(optimizer.getStepCount(), gaussian_params, optimizer);
 }
 
 void ImageFitter::savePLY(const std::string &path)

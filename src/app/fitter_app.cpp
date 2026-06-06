@@ -14,10 +14,12 @@ const int IMAGE_PADDING_PX          = 5;  // keeps the target image from touchin
 const int GRAPH_HISTORY_SIZE        = 100;
 const int UPDATE_FPS_EVERY_N_FRAMES = 5;
 
-FitterApp::FitterApp(int width, int height, const std::string &image_path, int splat_count)
+FitterApp::FitterApp(int width, int height, const std::string &image_path,
+                     int splat_count, const MCMCConfig& mcmc_cfg)
     : AppBase(width, height, "Image Fitter", false)
     , image_path(image_path)
     , splat_count(splat_count)
+    , mcmc_cfg(mcmc_cfg)
 {
     log_info("FitterApp",
         "Width=" + std::to_string(width) +
@@ -31,7 +33,7 @@ FitterApp::FitterApp(int width, int height, const std::string &image_path, int s
 
 void FitterApp::onStart()
 {
-    fitter.init(width, height);
+    fitter.init(width, height, mcmc_cfg);
     fitter.loadTargetImage(image_path, width, height, IMAGE_PADDING_PX);
     fitter.randomInitGaussians(splat_count);
     // layers can only be wired after gaussians are initialized
