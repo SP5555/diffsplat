@@ -24,7 +24,8 @@ class VegApp : public AppBase
 {
 public:
     VegApp(const std::string &ply_path, float scene_scale = 1.f,
-           VegCameraMode camera_mode = VegCameraMode::Fly);
+           VegCameraMode camera_mode = VegCameraMode::Fly,
+           const std::string &tf_path = "");
 
 protected:
     void onStart()  override;
@@ -39,6 +40,8 @@ private:
     std::string    ply_path;
     float          scene_scale;
     VegCameraMode  camera_mode;
+    std::string    tf_path;
+    std::string    tf_error;
     VegRenderer    renderer;
 
     std::unique_ptr<Camera> camera;

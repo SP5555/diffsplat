@@ -20,11 +20,13 @@ static constexpr int START_HEIGHT = 720;
 static constexpr int GRAPH_HISTORY_SIZE       = 100;
 static constexpr int UPDATE_FPS_EVERY_N_FRAMES = 2;
 
-VegApp::VegApp(const std::string &ply_path, float scene_scale, VegCameraMode camera_mode)
+VegApp::VegApp(const std::string &ply_path, float scene_scale, VegCameraMode camera_mode,
+               const std::string &tf_path)
     : AppBase(START_WIDTH, START_HEIGHT, "VEG Viewer", true)
     , ply_path(ply_path)
     , scene_scale(scene_scale)
     , camera_mode(camera_mode)
+    , tf_path(tf_path)
 {
     float aspect = (float)START_WIDTH / START_HEIGHT;
     if (camera_mode == VegCameraMode::Arcball)
@@ -88,6 +90,9 @@ void VegApp::onStart()
         }
     );
 
+    if (!tf_path.empty() && !tf_widget->load(tf_path))
+        tf_error = "Failed to load transfer function: " + tf_path;
+
     if (!ply_path.empty())
         loadScene(ply_path);
 }
@@ -104,6 +109,42 @@ void VegApp::onFrame()
     ImGui::SetNextWindowSize(ImVec2(400, 340), ImGuiCond_Once);
     ImGui::Begin("Transfer Function");
     tf_widget->build_gui();
+
+    if (ImGui::Button("Save..."))
+    {
+        const char *filters[] = {"*.json"};
+        const char *result = tinyfd_saveFileDialog("Save Transfer Function", "transfer_function.json",
+                                                     1, filters, "Transfer Function (JSON)");
+        if (result)
+        {
+            if (!tf_widget->save(result))
+                tf_error = std::string("Failed to save transfer function: ") + result;
+            else
+                tf_error.clear();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load..."))
+    {
+        const char *filters[] = {"*.json"};
+        const char *result = tinyfd_openFileDialog("Load Transfer Function", "", 1, filters,
+                                                     "Transfer Function (JSON)", 0);
+        if (result)
+        {
+            if (!tf_widget->load(result))
+                tf_error = std::string("Failed to load transfer function: ") + result;
+            else
+                tf_error.clear();
+        }
+    }
+
+    if (!tf_error.empty())
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
+        ImGui::TextWrapped("%s", tf_error.c_str());
+        ImGui::PopStyleColor();
+    }
+
     ImGui::Dummy(ImVec2(0, 0));
     ImGui::End();
     tf_widget->render(); // fires callback -> cudaMemcpy if TF changed

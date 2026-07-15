@@ -9,9 +9,10 @@ int main(int argc, char *argv[])
     cxxopts::Options options("veg_viewer", "VEG Volume Viewer");
 
     options.add_options()
-        ("S,scene",  "Path to VEG PLY file",       cxxopts::value<std::string>()->default_value(""))
-        ("s,scale",  "Scene scale",                cxxopts::value<float>()->default_value("1.0"))
-        ("c,camera", "Camera mode (arcball, fly)", cxxopts::value<std::string>()->default_value("arcball"))
+        ("S,scene",  "Path to VEG PLY file",             cxxopts::value<std::string>()->default_value(""))
+        ("s,scale",  "Scene scale",                      cxxopts::value<float>()->default_value("1.0"))
+        ("c,camera", "Camera mode (arcball, fly)",       cxxopts::value<std::string>()->default_value("arcball"))
+        ("tf",       "Path to a saved transfer function (JSON)", cxxopts::value<std::string>()->default_value(""))
         ("help",     "Print usage");
 
     auto result = options.parse(argc, argv);
@@ -25,6 +26,7 @@ int main(int argc, char *argv[])
     std::string ply_path   = result["scene"].as<std::string>();
     float       scale      = result["scale"].as<float>();
     std::string camera_str = result["camera"].as<std::string>();
+    std::string tf_path    = result["tf"].as<std::string>();
 
     if (scale <= 0.f)
     {
@@ -44,7 +46,7 @@ int main(int argc, char *argv[])
 
     try
     {
-        VegApp app(ply_path, scale, camera_mode);
+        VegApp app(ply_path, scale, camera_mode, tf_path);
         app.start();
     }
     catch (const std::exception &e)

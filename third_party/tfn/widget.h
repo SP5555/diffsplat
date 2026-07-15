@@ -2,6 +2,18 @@
 // Copyright Qi Wu, since 2019                                              //
 // Copyright SCI Institute, University of Utah, 2018                        //
 // ======================================================================== //
+// Modified by Set Paing, 2026:                                             //
+//   - freehand "draw" mode for the alpha curve (paint a dense per-column   //
+//     curve directly; Douglas-Peucker simplification back to control       //
+//     points when leaving draw mode)                                      //
+//   - JSON save/load wired up to real file dialogs, with a raw-curve       //
+//     encoding path so a drawn curve round-trips exactly, not just its     //
+//     control-point approximation                                         //
+//   - color "blueprint" picker: click-to-apply swatches for built-in       //
+//     colormaps that only overwrite color control points, leaving the     //
+//     alpha curve untouched (replaces the old text dropdown)              //
+//   - fixed-height alpha graph so window resizes no longer distort it      //
+// ======================================================================== //
 #pragma once
 
 #ifndef _USE_MATH_DEFINES
@@ -48,6 +60,12 @@ class TFN_MODULE_INTERFACE TransferFunctionWidget
   // all available transfer functions
   std::vector<std::string> tfns_names;
   std::vector<tfn::TransferFunctionCore> tfns;
+  int num_builtin_tfns{0}; // tfns[0, num_builtin_tfns) are the built-in color blueprints
+  // Frozen snapshot of each built-in's color stops, captured once at startup.
+  // tfns[i] itself gets mutated in place whenever it's the active editing target
+  // (current_colorpoints aliases straight into it -- see select_tfn), so the
+  // blueprint picker must read from here, never from tfns[i] directly.
+  std::vector<std::vector<tfn::TransferFunctionCore::ColorControl>> blueprint_colors;
 
   using ColorPoint = tfn::TransferFunctionCore::ColorControl;
   using AlphaPoint = tfn::TransferFunctionCore::AlphaControl;
@@ -61,6 +79,15 @@ class TFN_MODULE_INTERFACE TransferFunctionWidget
 
   std::vector<AlphaPoint> uneditable_alphapoints;
 
+  // freehand "draw" mode for the alpha curve: paints directly into a dense
+  // 256-sample buffer instead of dragging sparse control points.
+  bool  alpha_draw_mode{false};
+  std::vector<AlphaPoint> draw_alphapoints;      // 256-sample freehand curve buffer
+  std::vector<AlphaPoint>* real_alphapoints{};   // always points at the tfn's true control-point vector
+  bool  draw_dragging{false};
+  float draw_last_col{0.f};
+  float draw_last_alpha{0.f};
+
   // flag indicating transfer function has changed in UI
   bool tfn_changed{true};
   bool tfn_applied{true};
@@ -72,9 +99,6 @@ class TFN_MODULE_INTERFACE TransferFunctionWidget
   vec2f value_range{-1.f, 1.f};
   vec2f value_range_default{-1.f, 1.f};
   vec2f value_range_percentage{0.f, 100.f};
-
-  // The filename input text buffer
-  std::vector<char> tfn_text_buffer; 
 
  public:
   ~TransferFunctionWidget();
@@ -92,11 +116,11 @@ class TFN_MODULE_INTERFACE TransferFunctionWidget
   /* Render the transfer function to a 1D texture that can be applied to volume data */
   void render(int tfn_w = 256, int tfn_h = 1);
 
-  /* Load the transfer function in the file passed and set it active */
-  void load(const std::string &fileName);
+  /* Load the transfer function in the file passed and set it active. Returns false on failure. */
+  bool load(const std::string &fileName);
 
-  /* Save the current transfer function out to the file */
-  void save(const std::string &fileName) const;
+  /* Save the current transfer function out to the file. Returns false on failure. */
+  bool save(const std::string &fileName);
 
   /* Create a new TFN profile */
   // void add_tfn(const tfn::TransferFunctionCore& core, const std::string &name);
@@ -112,7 +136,20 @@ class TFN_MODULE_INTERFACE TransferFunctionWidget
   tfn::vec4f draw_tfn_editor__preview_texture(void *_draw_list, const tfn::vec3f &, const tfn::vec2f &, const tfn::vec4f &);
   tfn::vec4f draw_tfn_editor__color_control_points(void *_draw_list, const tfn::vec3f &, const tfn::vec2f &, const tfn::vec4f &, const float &);
   tfn::vec4f draw_tfn_editor__alpha_control_points(void *_draw_list, const tfn::vec3f &, const tfn::vec2f &, const tfn::vec4f &, const float &);
+  tfn::vec4f draw_tfn_editor__alpha_freehand(void *_draw_list, const tfn::vec3f &, const tfn::vec2f &, const tfn::vec4f &);
   tfn::vec4f draw_tfn_editor__interaction_blocks(void *_draw_list, const tfn::vec3f &, const tfn::vec2f &, const tfn::vec4f &, const float &, const float &);
+
+  /* Sample the current control-point curve into the 256-entry draw_alphapoints buffer. */
+  void rasterize_alpha_to_draw_curve();
+  /* Approximate draw_alphapoints with at most max_points control points (Douglas-Peucker). */
+  void simplify_draw_curve_to_controlpoints(int max_points);
+
+  /* Sample a color control-point curve into `samples` evenly-spaced RGB values. */
+  std::vector<vec3f> sample_color_gradient(std::vector<ColorPoint> *pts, int samples) const;
+  /* Copy blueprint tfns[idx]'s colors onto the currently-edited color control points. Alpha untouched. */
+  void apply_color_blueprint(int idx);
+  /* Draw the grid of built-in color blueprint swatches. */
+  void draw_color_blueprint_picker();
 };
 
 inline void TransferFunctionWidget::select_tfn(int selection)
@@ -127,7 +164,7 @@ inline void TransferFunctionWidget::select_tfn(int selection)
     current_tfn_editable.x = (tfn.colorControlCount() > 128) ? 0 : 1;
 
     // in this case we have to use the raw RGBA table
-    if (tfn.alphaControlCount() == 0 || tfn.gaussianObjectCount() > 0) 
+    if (tfn.alphaControlCount() == 0 || tfn.gaussianObjectCount() > 0)
     {
       uneditable_alphapoints.resize(tfn.resolution());
       const auto *table = (vec4f *)tfn.data();
@@ -142,6 +179,11 @@ inline void TransferFunctionWidget::select_tfn(int selection)
       current_tfn_editable.y = (tfn.alphaControlCount() > 128) ? 0 : 1;
     }
 
+    // switching transfer functions always drops back to control-point mode
+    real_alphapoints = current_alphapoints;
+    alpha_draw_mode  = false;
+    draw_dragging    = false;
+
     tfn_changed  = true;
   }
 }
@@ -152,9 +194,13 @@ inline TransferFunctionWidget::~TransferFunctionWidget()
 }
 
 inline TransferFunctionWidget::TransferFunctionWidget(const setter &fcn)
-    : tfn_changed(true), tfn_palette(0), tfn_text_buffer(512, '\0'), _setter_cb(fcn), valueRange{0.f, 0.f}, defaultRange{0.f, 0.f}
+    : tfn_changed(true), tfn_palette(0), _setter_cb(fcn), valueRange{0.f, 0.f}, defaultRange{0.f, 0.f}
 {
   set_default_tfns();
+  num_builtin_tfns = (int)tfns.size();
+  blueprint_colors.resize(num_builtin_tfns);
+  for (int i = 0; i < num_builtin_tfns; ++i)
+    blueprint_colors[i] = *tfns[i].colorControlVector();
   select_tfn(0);
 }
 
@@ -367,6 +413,166 @@ inline tfn::vec4f TransferFunctionWidget::draw_tfn_editor__alpha_control_points(
   return vec4f();
 }
 
+inline tfn::vec4f TransferFunctionWidget::draw_tfn_editor__alpha_freehand(
+    void *_draw_list,
+    const tfn::vec3f &margin, /* left, right, spacing*/
+    const tfn::vec2f &size,
+    const tfn::vec4f &cursor)
+{
+  auto draw_list = (ImDrawList *)_draw_list;
+  const float scroll_x = ImGui::GetScrollX();
+  const float scroll_y = ImGui::GetScrollY();
+
+  // outline the freehand curve on top of the preview fill
+  {
+    std::vector<ImVec2> line;
+    line.reserve(draw_alphapoints.size());
+    for (auto &pt : draw_alphapoints) {
+      line.emplace_back(cursor.x + margin.x + pt.pos.x * size.x, cursor.y - pt.pos.y * size.y - margin.z);
+    }
+    if (line.size() > 1)
+      draw_list->AddPolyline(line.data(), (int)line.size(), 0xFF6FD8FF, 0, 2.f);
+  }
+
+  // single interaction region covering the whole alpha canvas
+  ImGui::SetCursorScreenPos(ImVec2(cursor.x + margin.x, cursor.y - size.y - margin.z));
+  ImGui::InvisibleButton("##tfn_alpha_freehand", ImVec2(size.x, size.y));
+
+  if (ImGui::IsItemActive() && ImGui::IsMouseDown(0) && size.x > 0) {
+    const float mouse_x = ImGui::GetMousePos().x;
+    const float mouse_y = ImGui::GetMousePos().y;
+    const float x = clamp((mouse_x - cursor.x - margin.x - scroll_x) / (float)size.x, 0.f, 1.f);
+    const float y = clamp(-(mouse_y - cursor.y + margin.x - scroll_y) / (float)size.y, 0.f, 1.f);
+    const int N = (int)draw_alphapoints.size();
+    const float col_f = x * (float)(N - 1);
+
+    if (!draw_dragging) {
+      draw_dragging   = true;
+      draw_last_col   = col_f;
+      draw_last_alpha = y;
+    }
+
+    // paint every column between the last frame's position and this frame's,
+    // so a fast stroke doesn't leave unpainted gaps
+    int c0 = (int)std::round(std::min(draw_last_col, col_f));
+    int c1 = (int)std::round(std::max(draw_last_col, col_f));
+    c0 = (int)clamp(c0, 0, N - 1);
+    c1 = (int)clamp(c1, 0, N - 1);
+    for (int c = c0; c <= c1; ++c) {
+      const float t = (c1 > c0) ? (float)(c - c0) / (float)(c1 - c0) : 0.f;
+      const float a = (col_f >= draw_last_col) ? draw_last_alpha + t * (y - draw_last_alpha)
+                                                : y + t * (draw_last_alpha - y);
+      draw_alphapoints[c].pos.y = a;
+    }
+    draw_last_col   = col_f;
+    draw_last_alpha = y;
+    tfn_changed = true;
+  }
+  else {
+    draw_dragging = false;
+  }
+
+  return vec4f();
+}
+
+inline void TransferFunctionWidget::rasterize_alpha_to_draw_curve()
+{
+  const int N = 256;
+  draw_alphapoints.resize(N);
+  for (int i = 0; i < N; ++i) {
+    const float p = (float)i / (float)(N - 1);
+    int il, ir;
+    std::tie(il, ir) = find_interval(real_alphapoints, p);
+    const float pl = real_alphapoints->at(il).pos.x;
+    const float pr = real_alphapoints->at(ir).pos.x;
+    const float a  = lerp(real_alphapoints->at(il).pos.y, real_alphapoints->at(ir).pos.y, pl, pr, p);
+    draw_alphapoints[i].pos.x = p;
+    draw_alphapoints[i].pos.y = a;
+  }
+}
+
+namespace detail {
+inline float point_segment_distance(const tfn::vec2f &p, const tfn::vec2f &a, const tfn::vec2f &b)
+{
+  const float abx = b.x - a.x, aby = b.y - a.y;
+  const float len2 = abx * abx + aby * aby;
+  if (len2 < 1e-12f) {
+    const float dx = p.x - a.x, dy = p.y - a.y;
+    return std::sqrt(dx * dx + dy * dy);
+  }
+  const float t = ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2;
+  const float px = a.x + t * abx, py = a.y + t * aby;
+  const float dx = p.x - px, dy = p.y - py;
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+// Douglas-Peucker: marks points in [lo, hi] to keep, given a max perpendicular-distance epsilon.
+inline void douglas_peucker(const std::vector<tfn::vec2f> &pts, int lo, int hi, float epsilon, std::vector<bool> &keep)
+{
+  if (hi <= lo + 1) return;
+  float max_dist = -1.f;
+  int max_idx = -1;
+  for (int i = lo + 1; i < hi; ++i) {
+    const float d = point_segment_distance(pts[i], pts[lo], pts[hi]);
+    if (d > max_dist) { max_dist = d; max_idx = i; }
+  }
+  if (max_dist > epsilon) {
+    keep[max_idx] = true;
+    douglas_peucker(pts, lo, max_idx, epsilon, keep);
+    douglas_peucker(pts, max_idx, hi, epsilon, keep);
+  }
+}
+
+// Linearly resample a uniformly-spaced value array to exactly n entries.
+// Used when loading a raw alpha curve whose saved resolution differs from ours.
+inline std::vector<float> resample_uniform(const std::vector<float> &v, int n)
+{
+  std::vector<float> out(n);
+  if (v.empty()) { std::fill(out.begin(), out.end(), 0.f); return out; }
+  if ((int)v.size() == 1) { std::fill(out.begin(), out.end(), v[0]); return out; }
+  for (int i = 0; i < n; ++i) {
+    const float p  = (n > 1) ? (float)i / (float)(n - 1) * (float)(v.size() - 1) : 0.f;
+    const int   lo = (int)p;
+    const int   hi = std::min(lo + 1, (int)v.size() - 1);
+    const float t  = p - (float)lo;
+    out[i] = v[lo] * (1.f - t) + v[hi] * t;
+  }
+  return out;
+}
+} // namespace detail
+
+inline void TransferFunctionWidget::simplify_draw_curve_to_controlpoints(int max_points)
+{
+  const int N = (int)draw_alphapoints.size();
+  if (N < 2 || !real_alphapoints || max_points < 2) return;
+
+  std::vector<tfn::vec2f> pts(N);
+  for (int i = 0; i < N; ++i) pts[i] = draw_alphapoints[i].pos;
+
+  // binary search the largest epsilon whose simplification still fits max_points
+  std::vector<bool> keep(N, false);
+  float lo_eps = 0.f, hi_eps = 1.f;
+  for (int iter = 0; iter < 24; ++iter) {
+    const float mid = 0.5f * (lo_eps + hi_eps);
+    std::fill(keep.begin(), keep.end(), false);
+    keep.front() = true;
+    keep.back()  = true;
+    detail::douglas_peucker(pts, 0, N - 1, mid, keep);
+    const int count = (int)std::count(keep.begin(), keep.end(), true);
+    if (count > max_points) lo_eps = mid;
+    else hi_eps = mid;
+  }
+  std::fill(keep.begin(), keep.end(), false);
+  keep.front() = true;
+  keep.back()  = true;
+  detail::douglas_peucker(pts, 0, N - 1, hi_eps, keep);
+
+  real_alphapoints->clear();
+  for (int i = 0; i < N; ++i) {
+    if (keep[i]) real_alphapoints->push_back(AlphaPoint(vec2f(pts[i].x, pts[i].y)));
+  }
+}
+
 inline tfn::vec4f TransferFunctionWidget::draw_tfn_editor__interaction_blocks(/**/
     void *_draw_list,
     const tfn::vec3f &margin, /* left, right, spacing */
@@ -397,19 +603,22 @@ inline tfn::vec4f TransferFunctionWidget::draw_tfn_editor__interaction_blocks(/*
     current_colorpoints->insert(current_colorpoints->begin() + ir, pt);
     tfn_changed = true;
   }
-  // draw background interaction
-  ImGui::SetCursorScreenPos(ImVec2(cursor.x + margin.x, cursor.y - size.y - margin.z));
-  if (size.x > 0 && size.y > 0) ImGui::InvisibleButton("##tfn_palette_alpha", ImVec2(size.x, size.y));
-  // add alpha point
-  if (current_tfn_editable.y && ImGui::IsMouseDoubleClicked(0) && ImGui::IsItemHovered()) {
-    const float x = clamp((mouse_x - cursor.x - margin.x - scroll_x) / (float)size.x, 0.f, 1.f);
-    const float y = clamp(-(mouse_y - cursor.y + margin.x - scroll_y) / (float)size.y, 0.f, 1.f);
-    int il, ir;
-    std::tie(il, ir) = find_interval(current_alphapoints, x);
-    AlphaPoint pt;
-    pt.pos.x = x, pt.pos.y = y;
-    current_alphapoints->insert(current_alphapoints->begin() + ir, pt);
-    tfn_changed = true;
+  // draw background interaction (skipped in freehand draw mode -- that mode
+  // owns its own interaction region so its InvisibleButton isn't shadowed by this one)
+  if (!alpha_draw_mode) {
+    ImGui::SetCursorScreenPos(ImVec2(cursor.x + margin.x, cursor.y - size.y - margin.z));
+    if (size.x > 0 && size.y > 0) ImGui::InvisibleButton("##tfn_palette_alpha", ImVec2(size.x, size.y));
+    // add alpha point
+    if (current_tfn_editable.y && ImGui::IsMouseDoubleClicked(0) && ImGui::IsItemHovered()) {
+      const float x = clamp((mouse_x - cursor.x - margin.x - scroll_x) / (float)size.x, 0.f, 1.f);
+      const float y = clamp(-(mouse_y - cursor.y + margin.x - scroll_y) / (float)size.y, 0.f, 1.f);
+      int il, ir;
+      std::tie(il, ir) = find_interval(current_alphapoints, x);
+      AlphaPoint pt;
+      pt.pos.x = x, pt.pos.y = y;
+      current_alphapoints->insert(current_alphapoints->begin() + ir, pt);
+      tfn_changed = true;
+    }
   }
   return vec4f();
 }
@@ -435,9 +644,11 @@ inline void TransferFunctionWidget::draw_tfn_editor(const float margin, const fl
   if (current_tfn_editable.x) {
     draw_tfn_editor__color_control_points(draw_list, m, s, c, color_len);
   }
-  // draw alpha control points
+  // draw alpha control points (or the freehand curve, in draw mode)
   ImGui::SetCursorScreenPos(ImVec2(canvas_x, canvas_y));
-  if (current_tfn_editable.y) {
+  if (alpha_draw_mode) {
+    draw_tfn_editor__alpha_freehand(draw_list, m, s, c);
+  } else if (current_tfn_editable.y) {
     draw_tfn_editor__alpha_control_points(draw_list, m, s, c, alpha_len);
   }
   // draw background interaction
@@ -494,39 +705,28 @@ inline void TransferFunctionWidget::build_gui()
     // }
     // ImGui::Spacing();
 
-    /* load a transfer function from file */
-    ImGui::InputText("", tfn_text_buffer.data(), tfn_text_buffer.size() - 1);
-    ImGui::SameLine();
-    if (ImGui::Button("load tfn")) {
-      try {
-        std::string s = tfn_text_buffer.data();
-        s.erase(s.find_last_not_of(" \n\r\t") + 1);
-        s.erase(0, s.find_first_not_of(" \n\r\t"));
-        load(s.c_str());
-      } catch (const std::runtime_error &error) {
-        std::cerr << "\033[1;33m" << "Error: " << error.what() << "\033[0m" << std::endl;
+    /* Built-in color blueprints -- click a swatch to apply its colors to the
+       curve being edited now. Alpha is never touched by this. */
+    draw_color_blueprint_picker();
+
+    /* freehand draw mode for the alpha curve */
+    if (current_tfn_editable.y) {
+      bool prev_mode = alpha_draw_mode;
+      ImGui::Checkbox("draw alpha curve", &alpha_draw_mode);
+      if (alpha_draw_mode && !prev_mode) {
+        rasterize_alpha_to_draw_curve();
+        current_alphapoints = &draw_alphapoints;
+        tfn_changed = true;
+      } else if (!alpha_draw_mode && prev_mode) {
+        simplify_draw_curve_to_controlpoints(8);
+        current_alphapoints = real_alphapoints;
+        draw_dragging = false;
+        tfn_changed = true;
       }
-
-      tfn_text_buffer = std::vector<char>(512, '\0');
-    }
-
-    // save function is not implemented
-    ImGui::SameLine();
-    if (ImGui::Button("save")) { 
-      save(tfn_text_buffer.data()); 
-      tfn_text_buffer = std::vector<char>(512, '\0');
-    }
-
-    /* Built-in color lists */
-    {
-      static int curr_tfn = tfn_selection;
-      static std::string curr_names = "";
-      curr_names = "";
-      for (auto &n : tfns_names) {
-        curr_names += n + '\0';
-      }
-      if (ImGui::Combo(" color tables", &curr_tfn, curr_names.c_str())) {
-        select_tfn(curr_tfn);
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(
+            "When checked, drag inside the alpha graph to freehand-paint the curve.\n"
+            "Unchecking approximates the drawn curve with up to 8 control points.");
       }
     }
 
@@ -548,7 +748,10 @@ inline void TransferFunctionWidget::build_gui()
   //------------ Transfer Function Editor -------------
 
   ImGui::Spacing();
-  draw_tfn_editor(11.f, ImGui::GetContentRegionAvail().y - 60.f);
+  // Fixed height so the graph doesn't resize with the window (width still
+  // fills available space -- see the `width` calc inside draw_tfn_editor).
+  static constexpr float kAlphaGraphHeight = 150.f;
+  draw_tfn_editor(11.f, kAlphaGraphHeight);
 
   //------------ End Transfer Function Editor ---------
 }
@@ -640,37 +843,88 @@ inline void TransferFunctionWidget::render(int tfn_w, int tfn_h)
   }
 }
 
-inline void TransferFunctionWidget::load(const std::string &filename)
+inline bool TransferFunctionWidget::load(const std::string &filename)
 {
   TransferFunctionCore tfn;
+  bool has_raw_alpha = false;
+  std::vector<float> raw_alpha;
   try {
     std::ifstream file(filename);
+    if (!file.is_open()) throw std::runtime_error("could not open file");
     std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     json root = json::parse(text, nullptr, true, true);
-    if (root.contains("view"))
-      loadTransferFunction(root["view"]["volume"]["transferFunction"], tfn);
-    else
-      loadTransferFunction(root["transferFunction"], tfn);
-  } 
+    const json &jstfn = root.contains("view") ? root["view"]["volume"]["transferFunction"]
+                                               : root["transferFunction"];
+    loadTransferFunction(jstfn, tfn);
+
+    // "raw" alpha mode: the alpha curve was freehand-drawn, so it is stored
+    // as a dense per-column array instead of (an approximation via) control
+    // points. Recover it exactly rather than relying on opacityControl.
+    if (jstfn.contains("alphaMode") && jstfn["alphaMode"].get<std::string>() == "raw"
+        && jstfn.contains("alphaRaw")) {
+      raw_alpha = jstfn["alphaRaw"].get<std::vector<float>>();
+      has_raw_alpha = !raw_alpha.empty();
+    }
+  }
   catch (...) {
     std::cout << "failed to load file: " << filename << std::endl;
-    return;
+    return false;
   }
 
   tfns.push_back(std::move(tfn));
   tfns_names.push_back(filename);
   select_tfn((int)tfns.size() - 1);
+
+  if (has_raw_alpha) {
+    const int N = (int)draw_alphapoints.size() > 0 ? (int)draw_alphapoints.size() : 256;
+    if ((int)raw_alpha.size() != N)
+      raw_alpha = detail::resample_uniform(raw_alpha, N);
+    draw_alphapoints.resize(N);
+    for (int i = 0; i < N; ++i) {
+      draw_alphapoints[i].pos.x = (float)i / (float)(N - 1);
+      draw_alphapoints[i].pos.y = clamp(raw_alpha[i], 0.f, 1.f);
+    }
+    alpha_draw_mode     = true;
+    current_alphapoints = &draw_alphapoints;
+    tfn_changed = true;
+  }
+
+  return true;
 }
 
-inline void tfn::TransferFunctionWidget::save(const std::string &filename) const
+inline bool tfn::TransferFunctionWidget::save(const std::string &filename)
 {
-  const auto& tfn = tfns[tfn_selection];
+  auto& tfn = tfns[tfn_selection];
 
   json root = {{"transferFunction", {}}};
   saveTransferFunction(tfn, root["transferFunction"]);
+
+  // saveTransferFunction() writes a base64 "alphaArray" dump, but core.h's
+  // updateFromAlphaControls() bakes control points into m_rgbaTable.w, never
+  // into m_alphaArray -- so this field is always all-zero dead weight for a
+  // control-point-edited curve. load() never reads it back (it reconstructs
+  // from opacityControl/colorControls/alphaRaw instead), so drop it.
+  root["transferFunction"].erase("alphaArray");
+
+  // In freehand draw mode, opacityControl only reflects the pre-draw control
+  // points (drawing edits draw_alphapoints directly, not the control vector).
+  // Save the exact per-column curve too, flagged, so load() can recover it
+  // precisely instead of falling back to that stale approximation.
+  if (alpha_draw_mode) {
+    std::vector<float> raw_alpha(draw_alphapoints.size());
+    for (size_t i = 0; i < draw_alphapoints.size(); ++i)
+      raw_alpha[i] = draw_alphapoints[i].pos.y;
+    root["transferFunction"]["alphaMode"] = "raw";
+    root["transferFunction"]["alphaRaw"]  = raw_alpha;
+  } else {
+    root["transferFunction"]["alphaMode"] = "controlPoints";
+  }
+
   std::ofstream ofs(filename, std::ofstream::out);
+  if (!ofs.is_open()) return false;
   ofs << root.dump();
   ofs.close();
+  return ofs.good();
 }
 
 inline void TransferFunctionWidget::set_default_tfns()
@@ -695,5 +949,69 @@ inline void TransferFunctionWidget::set_default_tfns()
     tfns_names.push_back(ct.first);
   }
 };
+
+inline std::vector<vec3f> TransferFunctionWidget::sample_color_gradient(std::vector<ColorPoint> *pts, int samples) const
+{
+  std::vector<vec3f> out(samples);
+  for (int i = 0; i < samples; ++i) {
+    const float p = (samples > 1) ? (float)i / (float)(samples - 1) : 0.f;
+    int il, ir;
+    std::tie(il, ir) = find_interval(pts, p);
+    const float pl = pts->at(il).position;
+    const float pr = pts->at(ir).position;
+    out[i].x = lerp(pts->at(il).color.x, pts->at(ir).color.x, pl, pr, p);
+    out[i].y = lerp(pts->at(il).color.y, pts->at(ir).color.y, pl, pr, p);
+    out[i].z = lerp(pts->at(il).color.z, pts->at(ir).color.z, pl, pr, p);
+  }
+  return out;
+}
+
+inline void TransferFunctionWidget::apply_color_blueprint(int idx)
+{
+  if (idx < 0 || idx >= (int)blueprint_colors.size() || !current_colorpoints) return;
+  *current_colorpoints = blueprint_colors[idx]; // frozen snapshot -- never the live (possibly edited) tfns[idx]
+  current_tfn_editable.x = ((int)current_colorpoints->size() > 128) ? 0 : 1;
+  tfn_changed = true;
+}
+
+inline void TransferFunctionWidget::draw_color_blueprint_picker()
+{
+  if (num_builtin_tfns <= 0) return;
+
+  ImGui::TextUnformatted("Color blueprints (click to apply):");
+
+  ImDrawList *draw_list = ImGui::GetWindowDrawList();
+  const float swatch_w = 84.f, swatch_h = 20.f, pad = 6.f;
+  const int   grad_samples = 24;
+  const float avail_w = ImGui::GetContentRegionAvail().x;
+  const int   per_row = std::max(1, (int)((avail_w + pad) / (swatch_w + pad)));
+
+  for (int i = 0; i < num_builtin_tfns; ++i) {
+    if (i % per_row != 0) ImGui::SameLine(0.f, pad);
+
+    ImGui::PushID(i);
+    const ImVec2 p0 = ImGui::GetCursorScreenPos();
+    const ImVec2 p1 = ImVec2(p0.x + swatch_w, p0.y + swatch_h);
+
+    auto grad = sample_color_gradient(&blueprint_colors[i], grad_samples);
+    const float seg_w = swatch_w / (float)grad.size();
+    for (size_t s = 0; s < grad.size(); ++s) {
+      const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(grad[s].x, grad[s].y, grad[s].z, 1.f));
+      draw_list->AddRectFilled(ImVec2(p0.x + s * seg_w, p0.y), ImVec2(p0.x + (s + 1) * seg_w, p1.y), col);
+    }
+
+    ImGui::InvisibleButton("##blueprint", ImVec2(swatch_w, swatch_h));
+    const bool hovered = ImGui::IsItemHovered();
+    draw_list->AddRect(p0, p1, hovered ? 0xFFFFFFFF : 0xFF808080, 0.f, 0, hovered ? 2.f : 1.f);
+
+    if (hovered) {
+      ImGui::SetTooltip("%s\nClick to apply these colors (alpha curve is untouched)", tfns_names[i].c_str());
+    }
+    if (ImGui::IsItemClicked()) {
+      apply_color_blueprint(i);
+    }
+    ImGui::PopID();
+  }
+}
 
 } // namespace tfn
